@@ -1,12 +1,15 @@
 import { useState } from "react";
-import { Copy, Flame } from "lucide-react";
+import { Check, Copy, ExternalLink, Flame, Loader2, Trophy, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { hallConfig, txUrl } from "@/chain/arc-config";
 import { RARITY_INFO } from "@/game/catalog";
-import { rf, usd } from "@/lib/format";
+import { usd } from "@/lib/format";
+import { useHall } from "@/state/hall";
 import { useUi } from "@/state/ui";
-import { useGame } from "@/state/store";
+import { useGame, type RunReport } from "@/state/store";
+import { useWallet } from "@/state/wallet";
 import { nftVisual } from "./hero-info";
 import { HeroAvatar } from "./art";
 
@@ -18,10 +21,10 @@ export function ReportDialog() {
 
   const extracted = report.outcome === "extracted";
   const share = [
-    `Emberdeep · Rare Friends`,
+    `Emberdeep`,
     extracted ? `Extracted from depth ${report.depth}` : `Lost in the dark at depth ${report.depth}`,
     extracted ? `${report.gold} gold banked for the round` : `${report.gold} gold lost in the dark`,
-    `Burned ${rf(report.burned)} simulated RF to light the way`,
+    `Spent ${usd(report.spent)} of simulated USDC on oil`,
     report.bossSlain ? `Slew Cerberus` : null,
     report.minted.length ? `Found ${report.minted.length} Soul Sigil${report.minted.length > 1 ? "s" : ""}` : null,
   ].filter(Boolean).join("\n");
@@ -50,10 +53,10 @@ export function ReportDialog() {
         </DialogHeader>
 
         <div className="grid grid-cols-2 gap-2 text-sm">
-          <Row label="Oil spent" value={`${rf(report.spent)} RF`} sub={`${usd(report.spent)} · 1 entry key used`} />
-          <Row label="Burned forever" value={`${rf(report.burned)} RF`} accent="text-lime" icon />
+          <Row label="Oil spent" value={usd(report.spent)} sub="Simulated USDC · 1 entry key used" />
+          <Row label="Back to players" value={usd(report.spent - report.revenue)} sub="Into the round and lock pools" accent="text-lime" icon />
           <Row label="Gold" value={`${report.gold}`} sub={extracted ? "Banked for this round" : "Left in the deep"} accent="text-gold" />
-          <Row label="Round pool share" value={extracted ? "Counted" : "None"} sub={extracted ? "RF arrive when you close the round in the Vault" : "Lost gold counts for nobody"} accent={extracted ? "text-lime" : "text-foreground"} />
+          <Row label="Round pool share" value={extracted ? "Counted" : "None"} sub={extracted ? "Your share arrives when you close the round in the Vault" : "Lost gold counts for nobody"} accent={extracted ? "text-lime" : "text-foreground"} />
           <Row label="Crystals" value={extracted ? `+${report.crystals}` : "0"} accent="text-crystal" />
           <Row label="Soul Sigils" value={`${extracted ? report.sigils : 0}`} accent="text-sigil" />
           <Row label="Raffle tickets" value={extracted ? `+${report.tickets}` : "0"} sub={extracted ? `${report.ticketsFound} found` : `${report.ticketsFound} found, lost in the dark`} accent="text-sigil" />
@@ -79,6 +82,8 @@ export function ReportDialog() {
           </div>
         )}
 
+        {extracted && <ArcRecord report={report} />}
+
         <pre className="rounded-lg border border-white/10 bg-black p-3 text-xs whitespace-pre-wrap text-muted-foreground select-all">{share}</pre>
 
         <DialogFooter>
@@ -90,6 +95,63 @@ export function ReportDialog() {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+const RECORD_LABEL = {
+  attesting: "The server is replaying it…",
+  switching: "Switching the wallet to Arc…",
+  signing: "Confirm in your wallet…",
+  confirming: "Writing it to Arc…",
+} as const;
+
+/** Puts a descent that came home on the Hall of Descents on Arc: one signature, about a cent of USDC for gas. */
+function ArcRecord({ report }: { report: RunReport }) {
+  const config = hallConfig();
+  const wallet = useWallet();
+  const { forReport, status, txHash, error, record, setOpen } = useHall();
+  if (!config) return null;
+
+  const step = forReport === report ? status : "idle";
+  const busy = step === "attesting" || step === "switching" || step === "signing" || step === "confirming";
+  const canSign = wallet.account !== null;
+
+  return (
+    <div className="space-y-2 rounded-lg border border-white/10 bg-black/40 p-2.5">
+      <div className="flex items-center gap-1.5 text-[10px] tracking-wider text-muted-foreground uppercase">
+        <Trophy className="size-3" aria-hidden /> Hall of Descents · Arc
+      </div>
+      {step === "done" && txHash ? (
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="flex items-center gap-1 text-lime"><Check className="size-4" aria-hidden /> Recorded on Arc</span>
+          <a className="inline-flex items-center gap-1 text-xs underline underline-offset-2" href={txUrl(txHash)} target="_blank" rel="noreferrer">
+            Transaction <ExternalLink className="size-3" aria-hidden />
+          </a>
+          <Button size="sm" variant="secondary" className="ml-auto" onClick={() => setOpen(true)}>Open the Hall</Button>
+        </div>
+      ) : (
+        <>
+          <p className="text-xs text-muted-foreground">
+            Write this descent to Arc. The game's server replays every move first and signs only the true result;
+            then one signature from you, well under a cent of USDC for gas. No tokens move.
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            {canSign ? (
+              <Button size="sm" onClick={() => void record(report)} disabled={busy}>
+                {busy ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <Trophy data-icon="inline-start" />}
+                {busy ? RECORD_LABEL[step as keyof typeof RECORD_LABEL] : "Record on Arc"}
+              </Button>
+            ) : (
+              <Button size="sm" variant="outline" onClick={() => void wallet.connect()} disabled={wallet.status === "connecting"}>
+                <Wallet data-icon="inline-start" /> Connect a wallet to record
+              </Button>
+            )}
+            <Button size="sm" variant="ghost" onClick={() => setOpen(true)}>See the Hall</Button>
+          </div>
+          {step === "error" && error && <p className="text-xs text-destructive" role="alert">{error}</p>}
+        </>
+      )}
+    </div>
   );
 }
 

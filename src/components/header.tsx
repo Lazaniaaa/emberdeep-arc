@@ -1,14 +1,16 @@
-import { Flame, Volume2, VolumeX, Wallet, Sparkles, Loader2 } from "lucide-react";
+import { Flame, Volume2, VolumeX, Wallet, Sparkles, Loader2, Trophy } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { rf, shortAddress, usd } from "@/lib/format";
-import { useGame, worldBurned } from "@/state/store";
+import { hallConfig } from "@/chain/arc-config";
+import { shortAddress, usd } from "@/lib/format";
+import { useHall } from "@/state/hall";
+import { useGame } from "@/state/store";
 import { useWallet } from "@/state/wallet";
 
 /** The top bar. In the lobby it floats over the picture as a HUD; in a descent it is a normal sticky header. */
 export function Header({ overlay = false }: { overlay?: boolean }) {
-  const { rf: balance, burned, muted, reducedMotion, setMuted, setReducedMotion } = useGame();
+  const { balance, pool, round, muted, reducedMotion, setMuted, setReducedMotion } = useGame();
   const wallet = useWallet();
 
   return (
@@ -24,16 +26,25 @@ export function Header({ overlay = false }: { overlay?: boolean }) {
           <Tooltip>
             <TooltipTrigger render={<Badge variant="outline" className="border-gold/50 text-gold">Simulated</Badge>} />
             <TooltipContent className="max-w-64">
-              All RF balances, burns, payouts and mints are simulated for the Rare Friends Vibeathon MVP. No real tokens move.
+              Balances, payouts and mints are simulated USDC kept in this browser. The only thing written on chain is a descent you choose to record in the Hall of Descents on Arc.
             </TooltipContent>
           </Tooltip>
         </div>
 
         <div className={overlay ? "ml-auto flex items-center gap-2 text-sm" : "ml-auto flex flex-wrap items-center gap-2 text-sm"}>
-          <Stat label="Balance" value={`${rf(balance)} RF`} hint={overlay ? undefined : usd(balance)} />
-          <Stat label="You burned" value={`${rf(burned)} RF`} accent className={overlay ? "hidden sm:flex" : undefined} />
-          <Stat label="World burn" value={`${rf(worldBurned(burned), 0)} RF`} className={overlay ? "hidden lg:flex" : "hidden sm:flex"} />
+          <Stat label="Balance" value={usd(balance)} hint={overlay ? undefined : "USDC"} />
+          <Stat label={`Round ${round} pool`} value={usd(pool)} accent className={overlay ? "hidden sm:flex" : "hidden sm:flex"} />
 
+          {hallConfig() && (
+            <Tooltip>
+              <TooltipTrigger render={
+                <Button variant="ghost" size="icon" aria-label="Open the Hall of Descents on Arc" onClick={() => useHall.getState().setOpen(true)}>
+                  <Trophy />
+                </Button>
+              } />
+              <TooltipContent>Hall of Descents on Arc</TooltipContent>
+            </Tooltip>
+          )}
           <Button variant="ghost" size="icon" aria-label={muted ? "Unmute sound" : "Mute sound"} onClick={() => setMuted(!muted)}>
             {muted ? <VolumeX /> : <Volume2 />}
           </Button>

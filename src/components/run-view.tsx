@@ -19,7 +19,6 @@ import { COLORS, TILE, cameraFor, drawRun, type View } from "@/render/renderer";
 import { settle, useRun } from "@/state/run-store";
 import { holdRunLock } from "@/state/run-lock";
 import { useGame } from "@/state/store";
-import { useWallet } from "@/state/wallet";
 import { resolveHero, type HeroVisual } from "./hero-info";
 
 type Screen = { w: number; h: number };
@@ -36,8 +35,7 @@ export function RunView() {
   const act = useRun(s => s.act);
   const clear = useRun(s => s.clear);
   const game = useGame();
-  const wallet = useWallet();
-  const hero = resolveHero(game.hero, game.heroes, wallet.selected, wallet.sprite, game.prizes);
+  const hero = resolveHero(game.hero, game.heroes);
   const [shake, setShake] = useState(0);
   const [hurt, setHurt] = useState(0);
   const lastKey = useRef(0);

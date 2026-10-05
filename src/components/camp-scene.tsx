@@ -12,16 +12,19 @@ import {
 } from "@/game/camp";
 import { advanceCrowd, createCrowd, npcPosition, type Crowd } from "@/game/camp-crowd";
 import { roundShare } from "@/game/economy";
-import { FRIEND_ASK_RF, LOT_MIN } from "@/game/config";
-import { lotSize } from "@/game/raffle";
-import { FRIEND_PICTURES } from "@/lib/friend-pictures";
+import { DRAW_MINTS } from "@/game/config";
 import { MOVE_KEYS, MOVE_MS } from "@/lib/controls";
-import { percent, rf } from "@/lib/format";
+import { percent, usd } from "@/lib/format";
 import { CAMP_TILE, campCamera, drawCamp, type View } from "@/render/camp-renderer";
 import { useGame } from "@/state/store";
 import { useUi } from "@/state/ui";
-import { useWallet } from "@/state/wallet";
+import { HeroAvatar, type Portrait } from "./art";
 import { resolveHero, type HeroVisual } from "./hero-info";
+
+/** Three faces for the weekly draw on the camp HUD: a win mints a Delver of a rolled class and rarity. */
+const DRAW_PORTRAITS: Portrait[] = [
+  { kind: "prospector", rarity: "common" }, { kind: "seer", rarity: "rare" }, { kind: "duelist", rarity: "epic" },
+];
 
 const AltarTab = lazy(() => import("@/components/altar-tab").then(m => ({ default: m.AltarTab })));
 const ArmoryTab = lazy(() => import("@/components/armory-tab").then(m => ({ default: m.ArmoryTab })));
@@ -54,8 +57,7 @@ function zoomFor(screen: Screen) {
 /** The lobby: the whole screen is the camp. Buildings open the screens that used to be tabs. */
 export function CampScene() {
   const game = useGame();
-  const wallet = useWallet();
-  const hero = resolveHero(game.hero, game.heroes, wallet.selected, wallet.sprite, game.prizes);
+  const hero = resolveHero(game.hero, game.heroes);
   const [panel, setPanel] = useState<StationId | null>(null);
   const [walker, setWalker] = useState<Walker>({ ...CAMP_SPAWN, facing: "up" });
   const walkerRef = useRef(walker);
@@ -203,29 +205,26 @@ export function CampScene() {
         })}
       </nav>
 
-      {/* The round and the weekly raffle */}
+      {/* The round and the weekly draw */}
       <div className="absolute top-14 right-3 z-20 flex w-44 flex-col items-stretch gap-2 sm:top-[4.25rem] sm:w-64">
         <button type="button" aria-label="Open Vault" onClick={() => openStation("ledger")}
           className="rounded-xl border border-white/20 bg-[#150c2b]/85 px-3 py-2 text-left backdrop-blur-sm outline-none hover:border-gold focus-visible:ring-2 focus-visible:ring-lime">
           <span className="block font-pixel text-[9px] text-gold sm:text-[10px]">ROUND {game.round}</span>
           <span className="block text-[10px] leading-tight sm:text-xs">
-            Pool {rf(game.pool, 0)} RF · {game.roundGold > 0 ? `you hold ${percent(share)}` : "bank gold to join"}
+            Pool {usd(game.pool)} · {game.roundGold > 0 ? `you hold ${percent(share)}` : "bank gold to join"}
           </span>
         </button>
-        <button type="button" aria-label="Open Friend Board" onClick={() => openStation("board")}
+        <button type="button" aria-label="Open Draw Board" onClick={() => openStation("board")}
           className="rounded-xl border-2 border-sigil/70 bg-[#150c2b]/90 px-3 py-2 text-left shadow-[0_0_18px_rgba(255,95,220,0.25)] backdrop-blur-sm outline-none hover:border-sigil focus-visible:ring-2 focus-visible:ring-lime">
-          <span className="block font-pixel text-[10px] leading-tight text-sigil sm:text-xs">WEEKLY NFT RAFFLE</span>
-          {FRIEND_PICTURES.length > 0 && (
-            <span className="my-1.5 flex gap-1" aria-hidden>
-              {FRIEND_PICTURES.slice(0, 6).map((src, i) => (
-                <img key={src} src={src} alt="" draggable={false}
-                  className={`pixelated aspect-square min-w-0 flex-1 rounded-sm border border-white/30 object-cover ${i >= 3 ? "hidden sm:block" : ""}`} />
-              ))}
-            </span>
-          )}
+          <span className="block font-pixel text-[10px] leading-tight text-sigil sm:text-xs">WEEKLY DELVER DRAW</span>
+          <span className="my-1.5 flex gap-1" aria-hidden>
+            {DRAW_PORTRAITS.map(p => (
+              <HeroAvatar key={p.kind} portrait={p} px={2} showEdition={false} className="min-w-0 flex-1" />
+            ))}
+          </span>
           <span className="block text-[10px] leading-tight sm:text-xs">
-            <span className="font-pixel text-gold">POOL {rf(game.raffle, 0)} RF</span>
-            <span className="text-muted-foreground"> · {lotSize(game.raffle) >= LOT_MIN ? `${lotSize(game.raffle)} Friends` : `needs ${rf(LOT_MIN * FRIEND_ASK_RF, 0)} RF`}</span>
+            <span className="font-pixel text-gold">{DRAW_MINTS} FREE MINTS</span>
+            <span className="text-muted-foreground"> · {game.tickets > 0 ? `you hold ${game.tickets} ticket${game.tickets === 1 ? "" : "s"}` : "find tickets in the deep"}</span>
           </span>
         </button>
       </div>
@@ -244,7 +243,7 @@ export function CampScene() {
         <div className="absolute bottom-24 left-1/2 z-20 w-[min(22rem,92%)] -translate-x-1/2 rounded-xl border border-lime/50 bg-[#150c2b]/95 p-3 text-xs shadow-lg backdrop-blur-sm sm:bottom-28">
           <div className="mb-1 font-pixel text-[11px] text-lime">FIRST DESCENT</div>
           <p className="text-white/85">
-            You already hold <b>{game.keys} keys</b> and {rf(game.rf, 0)} RF. Press <b>PLAY</b>, pick your oil, collect gold in the cave, then walk back to the
+            You already hold <b>{game.keys} keys</b> and {usd(game.balance)} of simulated USDC. Press <b>PLAY</b>, pick your oil, collect gold in the cave, then walk back to the
             green rift to bring it home. Potions are keys 1-7.
           </p>
           <button type="button" onClick={() => setHint(false)} className="mt-2 rounded-md border border-white/25 px-2 py-1 font-pixel text-[10px] text-white hover:border-lime">GOT IT</button>
@@ -252,7 +251,7 @@ export function CampScene() {
       )}
 
       <div className="pointer-events-none absolute bottom-2 left-1/2 z-10 hidden -translate-x-1/2 rounded-full bg-[#150c2b]/70 px-3 py-1 font-pixel text-[9px] text-white/70 sm:block">
-        DEMO · NO REAL TOKENS MOVE · OTHER DELVERS ARE SIMULATED
+        DEMO · SIMULATED USDC · OTHER DELVERS ARE SIMULATED
       </div>
 
       <Dialog open={current !== null} onOpenChange={open => { if (!open) setPanel(null); }}>

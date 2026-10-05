@@ -1,20 +1,21 @@
 # Notice and credits
 
-Emberdeep was built for the Rare Friends Vibeathon with AI assistance (Claude, via Claude Code).
+Emberdeep is built with AI assistance (Claude, via Claude Code). It began as an entry to the Rare Friends Vibeathon;
+this version has nothing of Rare Friends in it (no artwork, no contracts, no token).
 
 ## Third-party code
 
-- **FriendSDK v0.1.2** ([spokesz/friendsdk](https://github.com/spokesz/friendsdk), Apache-2.0): the read-only Generations ownership and sprite-reading helpers in `src/chain/` are adapted from it. Nothing there signs, spends or requests a transaction.
-- **Libraries:** React, Vite, Tailwind CSS, shadcn/ui on Base UI, lucide-react, sonner, zustand, viem, next-themes, Vitest, oxlint and Playwright, each under its own open-source licence (see `package.json` and `package-lock.json`).
+- **Solady 0.1.26** ([Vectorized/solady](https://github.com/Vectorized/solady), MIT): `EIP712` and `ECDSA`, compiled into the Hall of Descents contract.
+- **Libraries:** React, Vite, Tailwind CSS, shadcn/ui on Base UI, lucide-react, sonner, zustand, viem, next-themes, Vitest, oxlint, Playwright, solc-js and the ethereumjs EVM (tests only), each under its own open-source licence (see `package.json` and `package-lock.json`).
 - **Fonts:** Geist Variable and Silkscreen, via Fontsource (SIL Open Font License 1.1).
 
 ## Artwork
 
-- **Rare Friends artwork belongs to Rare Friends.** Friend sprites are read live from the Generations sprite registry on Robinhood Chain. The six Friend pictures in `src/assets/friends/` are shown only to showcase the collection in the weekly raffle banner and lot.
 - **Dungeon floor illustrations** (`public/maps/`, originals in `art-src/maps/`): supplied by the builder for this project (add the artist or tool here if it should be credited).
 - **Creature illustrations** (`art-src/enemies/`): painted pictures of the nine dungeon creatures supplied by the builder from an earlier build of this project (add the artist or tool here if it should be credited). They are kept as reference only; the game draws the creatures as pixel art (see below).
 - **Everything else** (the camp scene, the nine creatures, Cerberus, items, armor, potions, Delver portraits and the interface sprites) is pixel art drawn in code for this project. Sound cues are generated with the Web Audio API.
 
 ## Economy
 
-All balances, purchases, burns, payouts, raffles and mints are simulated in the browser. No real tokens move and no transaction is signed.
+All balances, purchases, payouts, draws and mints are simulated USDC in the browser. The only on-chain action is a
+descent a player chooses to record in the Hall of Descents on Arc, signed and paid for (gas) by their own wallet.

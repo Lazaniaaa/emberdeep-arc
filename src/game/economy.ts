@@ -1,18 +1,19 @@
 import {
-  BURN_SHARE, EXPEDITION_BURN, EXPEDITION_LOT, LOCK_SHARE, POOL_SHARE, RAFFLE_SHARE, RARITY_SUPPLY, SIGIL_RARITY_WEIGHTS, WORLD_MINT_SEED,
+  EXPEDITION_REVENUE, LOCK_SHARE, POOL_SHARE, RARITY_SUPPLY, REVENUE_SHARE, SIGIL_RARITY_WEIGHTS, WORLD_MINT_SEED,
 } from "./config";
 import { CLASS_IDS, type HeroNft, type Rarity } from "./catalog";
 import { createRng, pick, randomSeed, weighted } from "./rng";
 
+/** Money is in cents of simulated USDC. */
 export type Ledger = {
-  rf: number;
+  /** Your balance. */
+  balance: number;
   /** The gold-share round pool that descents compete for. */
   pool: number;
   /** The lock pool, shared by passive gold when the round closes. */
   locked: number;
-  /** RF waiting to buy the weekly Friend lot. */
-  raffle: number;
-  burned: number;
+  /** What your spending has paid the studio. */
+  revenue: number;
   spent: number;
   returned: number;
 };
@@ -22,48 +23,43 @@ export type LedgerEntry = {
   kind: "spend" | "payout" | "faucet";
   label: string;
   amount: number;
-  burned: number;
+  revenue: number;
   pooled: number;
-  raffle: number;
-  /** Saves from before locks have no lock pool. */
   locked?: number;
 };
 
 /**
- * Every RF spent is split the same way: burned, the weekly Friend lot, the lock pool and the round pool.
+ * Every cent spent is split the same way: the studio's revenue, the lock pool and the round pool.
  * The last two together are POOL_SHARE, the part that goes back to players.
  */
 export function splitSpend(amount: number) {
-  const burned = round(amount * BURN_SHARE);
-  const raffle = round(amount * RAFFLE_SHARE);
+  const revenue = round(amount * REVENUE_SHARE);
   const locked = round(amount * LOCK_SHARE);
-  return { burned, raffle, locked, pooled: round(amount - burned - raffle - locked) };
+  return { revenue, locked, pooled: round(amount - revenue - locked) };
 }
 
-/** Expeditions split their price their own way: mostly burned, the rest to the round pool and the Friend lot. */
+/** Expeditions split their price their own way: more to the studio, the rest to the round pool. */
 export function splitExpeditionSpend(amount: number) {
-  const burned = round(amount * EXPEDITION_BURN);
-  const raffle = round(amount * EXPEDITION_LOT);
-  return { burned, raffle, locked: 0, pooled: round(amount - burned - raffle) };
+  const revenue = round(amount * EXPEDITION_REVENUE);
+  return { revenue, locked: 0, pooled: round(amount - revenue) };
 }
 
 export function applySpend(ledger: Ledger, amount: number, split = splitSpend(amount)): Ledger {
-  if (amount > ledger.rf + 1e-9) throw new Error("Not enough RF");
-  const { burned, pooled, raffle, locked } = split;
+  if (amount > ledger.balance + 1e-9) throw new Error("Not enough USDC");
+  const { revenue, pooled, locked } = split;
   return {
-    rf: round(ledger.rf - amount),
+    balance: round(ledger.balance - amount),
     pool: round(ledger.pool + pooled),
     locked: round(ledger.locked + locked),
-    raffle: round(ledger.raffle + raffle),
-    burned: round(ledger.burned + burned),
+    revenue: round(ledger.revenue + revenue),
     spent: round(ledger.spent + amount),
     returned: ledger.returned,
   };
 }
 
-/** Books RF that leaves the game for good, such as the fee for breaking a lock early. Nothing is split; the caller moves the balance. */
-export function applyBurn(ledger: Ledger, amount: number): Ledger {
-  return { ...ledger, burned: round(ledger.burned + amount), spent: round(ledger.spent + amount) };
+/** Books a fee that goes wholly to the studio, such as breaking a lock early. Nothing is split; the caller moves the balance. */
+export function applyFee(ledger: Ledger, amount: number): Ledger {
+  return { ...ledger, revenue: round(ledger.revenue + amount), spent: round(ledger.spent + amount) };
 }
 
 /** Your fraction of this round's banked gold. It is the fraction of the pool you receive. */
@@ -85,7 +81,7 @@ export type RoundSettlement = {
 };
 
 /**
- * Splits the pool exactly by gold. Every share is rounded down to the cent, so the players together
+ * Splits the pool exactly by gold. Every share is rounded down to a hundredth of a cent, so the players together
  * never receive more than the pool holds, and a 1% share of the gold takes 1% of the pool.
  * `cap` is the most your share may pay out (see MAX_ROUND_RETURN); the rest stays in the pool.
  */
@@ -96,14 +92,14 @@ export function settleRound(pool: number, yourGold: number, fieldGold: number, c
   const owed = down(pool * yourGold / total);
   const payout = Math.min(owed, down(Math.max(0, cap)));
   const fieldPayout = down(pool * (total - yourGold) / total);
-  // Both shares round down to the cent, so a stray cent of dust can remain. It stays in the pool for the next round.
+  // Both shares round down, so a little dust can remain. It stays in the pool for the next round.
   return { share: yourGold / total, payout, fieldPayout, withheld: round(owed - payout), carry: round(pool - payout - fieldPayout) };
 }
 
 export function applyClaim(ledger: Ledger, settlement: RoundSettlement): Ledger {
   return {
     ...ledger,
-    rf: round(ledger.rf + settlement.payout),
+    balance: round(ledger.balance + settlement.payout),
     pool: round(settlement.carry),
     returned: round(ledger.returned + settlement.payout),
   };
@@ -122,7 +118,7 @@ export function mintHero(rarity: Rarity, serial: number, source: HeroNft["source
   };
 }
 
-/** Rolls a Soul Sigil's rarity. Sold-out rarities are skipped, so a sigil never mints past the cap. */
+/** Rolls the rarity of a free mint (a Soul Sigil or a draw win). Sold-out rarities are skipped, so it never mints past the cap. */
 export function rollSigilRarity(seed = randomSeed(), available: readonly Rarity[] = Object.keys(SIGIL_RARITY_WEIGHTS) as Rarity[]): Rarity {
   const weights = Object.fromEntries(available.map(r => [r, SIGIL_RARITY_WEIGHTS[r]])) as Record<Rarity, number>;
   if (available.length === 0) throw new Error("Every Delver has been minted");
@@ -134,7 +130,7 @@ export function mintsLeft(rarity: Rarity, mintedByYou: number) {
   return Math.max(0, RARITY_SUPPLY[rarity] - WORLD_MINT_SEED[rarity] - mintedByYou);
 }
 
-export { POOL_SHARE, BURN_SHARE };
+export { POOL_SHARE, REVENUE_SHARE };
 
 function round(n: number) {
   return Math.round(n * 100) / 100;

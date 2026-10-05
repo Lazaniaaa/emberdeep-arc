@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  EXPEDITION_BASE_LOOT, EXPEDITION_BURN, EXPEDITION_COST, EXPEDITION_LOT, EXPEDITION_PACKS, EXPEDITION_POOL, EXPEDITION_TIERS,
+  EXPEDITION_BASE_LOOT, EXPEDITION_COST, EXPEDITION_PACKS, EXPEDITION_POOL, EXPEDITION_REVENUE, EXPEDITION_TIERS,
   KEY_PRICE, ROUND_SEED_GOLD, ROUND_SEED_POOL, type PackId,
 } from "./config";
 import { splitExpeditionSpend } from "./economy";
@@ -8,20 +8,19 @@ import { chanceAtLeast, expectedLoot, hasReturned, meanMultiplier, rollExpeditio
 
 const PACKS = Object.keys(EXPEDITION_PACKS) as PackId[];
 const SAMPLES = 20_000;
-/** Rough worth of a ticket in RF for these checks; an assumption, like everything about a raffle ticket's price. */
+/** Rough worth of a ticket in cents for these checks; an assumption, like everything about a raffle ticket's price. */
 const TICKET_RF = 20;
 const GOLD_RF = ROUND_SEED_POOL / ROUND_SEED_GOLD;
 
 describe("expedition setup", () => {
-  it("splits the price 40% burned, 5% to the Friend lot and 55% to the round pool", () => {
-    expect(EXPEDITION_BURN + EXPEDITION_LOT + EXPEDITION_POOL).toBeCloseTo(1, 10);
+  it("splits the price 45% to the studio and 55% to the round pool", () => {
+    expect(EXPEDITION_REVENUE + EXPEDITION_POOL).toBeCloseTo(1, 10);
     for (const amount of [100, 130, 180, 300]) {
       const s = splitExpeditionSpend(amount);
-      expect(s.burned).toBeCloseTo(amount * 0.4, 6);
-      expect(s.raffle).toBeCloseTo(amount * 0.05, 6);
+      expect(s.revenue).toBeCloseTo(amount * 0.45, 6);
       expect(s.pooled).toBeCloseTo(amount * 0.55, 6);
       expect(s.locked).toBe(0);
-      expect(s.burned + s.raffle + s.pooled).toBeCloseTo(amount, 6);
+      expect(s.revenue + s.pooled).toBeCloseTo(amount, 6);
     }
   });
 
@@ -121,7 +120,7 @@ describe("what an expedition is worth", () => {
     for (const pack of PACKS) {
       const w = worth(pack);
       expect(w).toBeGreaterThan(last);
-      // Even the best pack returns less, on average, than the RF it took to send the Delver.
+      // Even the best pack returns less, on average, than it cost to send the Delver.
       expect(w).toBeLessThan(EXPEDITION_COST + EXPEDITION_PACKS[pack].price);
       last = w;
     }

@@ -253,7 +253,7 @@ export function simulateDiveRun(seed: number, flasks = 1, perks: Perks = NO_PERK
 
 export type DiveResult = { depth: number; died: boolean; level: number; steps: number; kills: number; smashed: number; bossSlain: boolean; arrival: Record<number, number> };
 
-export type SimSummary = { goldPerRf: number; deathRate: number; avgDepth: number };
+export type SimSummary = { goldPerCent: number; deathRate: number; avgDepth: number };
 
 function summarize(runs: number, play: (seed: number) => SimResult): SimSummary {
   let spent = 0, banked = 0, deaths = 0, depth = 0;
@@ -261,7 +261,7 @@ function summarize(runs: number, play: (seed: number) => SimResult): SimSummary 
     const r = play(1_000 + i * 7_919);
     spent += r.spent; banked += r.banked; depth += r.depth; if (r.died) deaths++;
   }
-  return { goldPerRf: banked / spent, deathRate: deaths / runs, avgDepth: depth / runs };
+  return { goldPerCent: banked / spent, deathRate: deaths / runs, avgDepth: depth / runs };
 }
 
 export function simulateMany(runs: number, flasks = 1, perks: Perks = NO_PERKS, greed = 1.6) {
@@ -271,7 +271,7 @@ export function simulateMany(runs: number, flasks = 1, perks: Perks = NO_PERKS, 
 export type Cohort = { name: string; perks: Perks; flasks: number; share: number };
 
 export type RoundSim = {
-  /** Pool paid out divided by RF spent, per cohort. Nothing here is a promised rate. */
+  /** Pool paid out divided by what was spent, per cohort. Nothing here is a promised rate. */
   rtp: Record<string, number>;
   /** Everything paid out divided by everything spent, after the return cap. */
   overall: number;

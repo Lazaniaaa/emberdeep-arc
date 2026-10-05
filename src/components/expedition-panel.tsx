@@ -6,11 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { playSfx } from "@/audio/sfx";
 import {
-  EXPEDITION_BASE_LOOT, EXPEDITION_BURN, EXPEDITION_COST, EXPEDITION_DURATION_MS, EXPEDITION_LOT, EXPEDITION_PACKS, EXPEDITION_POOL,
+  EXPEDITION_BASE_LOOT, EXPEDITION_COST, EXPEDITION_DURATION_MS, EXPEDITION_PACKS, EXPEDITION_POOL, EXPEDITION_REVENUE,
   EXPEDITION_TIERS, type PackId,
 } from "@/game/config";
 import { chanceAtLeast, hasReturned, secondsLeft, type Outcome } from "@/game/expedition";
-import { rf } from "@/lib/format";
+import { usd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { ExpeditionError, InsufficientFunds, useGame } from "@/state/store";
 import { HeroAvatar } from "./art";
@@ -69,7 +69,7 @@ export function ExpeditionPanel() {
         <CardHeader>
           <CardTitle className="font-pixel text-crystal">Expeditions</CardTitle>
           <CardDescription>
-            Send a Delver into unmapped land. It costs {EXPEDITION_COST} RF (about $1) plus an optional pack. It may come back with a haul of keys, tickets and gold, or empty-handed; it is never lost.
+            Send a Delver into unmapped land. It costs {usd(EXPEDITION_COST)} plus an optional pack. It may come back with a haul of keys, tickets and gold, or empty-handed; it is never lost.
             {" "}While it is away it cannot descend.
           </CardDescription>
         </CardHeader>
@@ -79,7 +79,7 @@ export function ExpeditionPanel() {
             trip is decided when it leaves, so reloading cannot re-roll it.
           </p>
           <p>
-            Every trip is split {Math.round(EXPEDITION_BURN * 100)}% burned, {Math.round(EXPEDITION_LOT * 100)}% to the weekly Friend lot and {Math.round(EXPEDITION_POOL * 100)}% into the round's reward pool.
+            Every trip is split {Math.round(EXPEDITION_POOL * 100)}% into the round's reward pool and {Math.round(EXPEDITION_REVENUE * 100)}% to the studio.
             A haul is between ×{EXPEDITION_TIERS[0].min} and ×{EXPEDITION_TIERS[EXPEDITION_TIERS.length - 1].max} of a basic haul ({EXPEDITION_BASE_LOOT.keys} key, {EXPEDITION_BASE_LOOT.tickets} ticket, {EXPEDITION_BASE_LOOT.gold} gold),
             and most are small: about {Math.round(EXPEDITION_TIERS[0].weight / 100)}% are Common. Gold joins this round's pool share, so the return cap applies to it.
           </p>
@@ -135,7 +135,7 @@ export function ExpeditionPanel() {
                       <span className="mt-1 text-xs">
                         <b className="text-lime">{pct(p.chance)}</b> to return with a haul
                       </span>
-                      <span className="text-xs text-muted-foreground">{p.price === 0 ? "Free" : `+${p.price} RF`} · ×5 or more: {pct(chanceAtLeast(id, 5), 1)}</span>
+                      <span className="text-xs text-muted-foreground">{p.price === 0 ? "Free" : `+${usd(p.price)}`} · ×5 or more: {pct(chanceAtLeast(id, 5), 1)}</span>
                     </button>
                   );
                 })}
@@ -143,16 +143,16 @@ export function ExpeditionPanel() {
 
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white/10 bg-black/40 p-3">
                 <p className="text-xs text-muted-foreground">
-                  Total <b className="text-foreground">{rf(cost)} RF</b>: {rf(cost * EXPEDITION_BURN)} burned, {rf(cost * EXPEDITION_LOT)} to the Friend lot, {rf(cost * EXPEDITION_POOL)} to the round pool.
+                  Total <b className="text-foreground">{usd(cost)}</b>: {usd(cost * EXPEDITION_POOL)} to the round pool, {usd(cost * EXPEDITION_REVENUE)} to the studio.
                 </p>
                 <Button
-                  disabled={!chosen || game.rf < cost}
+                  disabled={!chosen || game.balance < cost}
                   onClick={() => chosen && act(() => game.sendExpedition(chosen.id, pack), () => `${nameOf(chosen.id)?.name ?? "Delver"} set out. Back in ${previewSeconds} seconds.`)}
                 >
-                  <Compass data-icon="inline-start" /> Send on expedition · {rf(cost)} RF
+                  <Compass data-icon="inline-start" /> Send on expedition · {usd(cost)}
                 </Button>
               </div>
-              {game.rf < cost && <p className="text-xs text-destructive">Not enough RF. Grab a simulated top-up in the Vault.</p>}
+              {game.balance < cost && <p className="text-xs text-destructive">Not enough USDC. Grab a simulated top-up in the Vault.</p>}
             </>
           )}
         </CardContent>

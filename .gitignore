@@ -26,3 +26,6 @@ dist-ssr
 artifacts
 .claude
 *.tsbuildinfo
+
+# The attestation server bundle (npm run server:build)
+server-dist

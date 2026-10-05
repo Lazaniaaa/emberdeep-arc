@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { computeRunPerks, mergeSavedState, migrateSavedState, useGame } from "./store";
 import { NO_PERKS } from "@/game/catalog";
-import { KEY_PRICE, MAX_KEYS, MAX_ROUND_RETURN, RARITY_SUPPLY, ROUND_SEED_GOLD, ROUND_SEED_POOL, START_KEYS, WORLD_MINT_SEED } from "@/game/config";
+import { DRAW_MINTS, KEY_PRICE, MAX_KEYS, MAX_ROUND_RETURN, RARITY_SUPPLY, ROUND_SEED_GOLD, ROUND_SEED_POOL, START_KEYS, WORLD_MINT_SEED } from "@/game/config";
 import { ARMORS } from "@/game/catalog";
 import { mintsLeft, rollSigilRarity } from "@/game/economy";
 import { withTuning } from "@/game/tuning";
@@ -11,19 +11,18 @@ describe("saved game recovery", () => {
   it("recovers from missing and malformed nested data without losing store actions", () => {
     const current = useGame.getState();
     const restored = mergeSavedState({
-      rf: 125, potions: null, stats: null, weapons: null, heroes: [null],
-      hero: null, log: [null], prizes: [null], lastReport: { outcome: "dead" },
+      balance: 125, potions: null, stats: null, weapons: null, heroes: [null],
+      hero: null, log: [null], lastReport: { outcome: "dead" },
       lastDraw: { prizes: null }, tickets: -4, pool: "broken",
     }, current);
 
-    expect(restored.rf).toBe(125);
+    expect(restored.balance).toBe(125);
     expect(restored.pool).toBe(current.pool);
     expect(restored.potions.nightVision).toBe(1);
     expect(restored.potions.ward).toBe(0);
     expect(restored.stats.runs).toBe(0);
     expect(restored.weapons).toEqual(["fists"]);
     expect(restored.heroes).toEqual([]);
-    expect(restored.prizes).toEqual([]);
     expect(restored.lastReport).toBeNull();
     expect(restored.lastDraw).toBeNull();
     expect(restored.tickets).toBe(0);
@@ -33,12 +32,12 @@ describe("saved game recovery", () => {
   it("preserves valid progress and fills missing potion fields", () => {
     const current = useGame.getState();
     const restored = mergeSavedState({
-      rf: 345, pool: 1_234, potions: { oil: 3 },
+      balance: 345, pool: 1_234, potions: { oil: 3 },
       weapons: ["dagger"], weapon: "dagger", stats: { runs: 9, extracts: 4 },
       hero: { kind: "wanderer" },
     }, current);
 
-    expect(restored.rf).toBe(345);
+    expect(restored.balance).toBe(345);
     expect(restored.pool).toBe(1_234);
     expect(restored.potions).toEqual({ nightVision: 1, oil: 3, flare: 0, ward: 0, rage: 0, regen: 0, heal: 0 });
     expect(restored.weapons).toEqual(["fists", "dagger"]);
@@ -51,7 +50,7 @@ describe("run settlement", () => {
   it("applies the equipped Emberblade's light gain on a kill", () => {
     useGame.getState().reset();
     useGame.setState({ weapons: ["fists", "emberblade"], weapon: "emberblade" });
-    const perks = computeRunPerks(useGame.getState(), { hasFriend: false, family: null });
+    const perks = computeRunPerks(useGame.getState());
     const started = startRun({ seed: 7, flasks: 2, perks, weaponDamage: 5, bag: emptyBag() });
     started.floor.dimlings = [{ id: 1, x: started.player.x + 1, y: started.player.y, hp: 1, maxHp: 1, awake: true }];
     // A defeated creature may also drop oil; switch that off to count only what the blade gives.
@@ -64,9 +63,9 @@ describe("run settlement", () => {
   it("does not charge twice when starting a run twice", () => {
     useGame.getState().reset();
     expect(useGame.getState().payForRun()).toBe(true);
-    const balance = useGame.getState().rf;
+    const balance = useGame.getState().balance;
     expect(useGame.getState().payForRun()).toBe(false);
-    expect(useGame.getState().rf).toBe(balance);
+    expect(useGame.getState().balance).toBe(balance);
     useGame.getState().reset();
   });
 
@@ -82,7 +81,7 @@ describe("run settlement", () => {
     const second = afterFirst.finishRun(extracted);
     const afterSecond = useGame.getState();
     expect(second).toEqual(first);
-    expect(afterSecond.rf).toBe(afterFirst.rf);
+    expect(afterSecond.balance).toBe(afterFirst.balance);
     expect(afterSecond.pool).toBe(afterFirst.pool);
     expect(afterSecond.tickets).toBe(2);
     expect(afterSecond.stats.runs).toBe(1);
@@ -109,9 +108,9 @@ describe("run settlement", () => {
     expect(start.payForRun()).toBe(true);
     expect(useGame.getState().keys).toBe(START_KEYS - 1);
     useGame.setState({ keys: 0, runSpent: 0 });
-    const rf = useGame.getState().rf;
+    const balance0 = useGame.getState().balance;
     expect(useGame.getState().payForRun()).toBe(false);
-    expect(useGame.getState().rf).toBe(rf);
+    expect(useGame.getState().balance).toBe(balance0);
     useGame.getState().reset();
   });
 
@@ -120,26 +119,25 @@ describe("run settlement", () => {
     expect(useGame.getState().abandonRun()).toBe(false);
     expect(useGame.getState().payForRun()).toBe(true);
     expect(useGame.getState().payForRun()).toBe(false);
-    const rf = useGame.getState().rf;
+    const balance0 = useGame.getState().balance;
     expect(useGame.getState().abandonRun()).toBe(true);
     const after = useGame.getState();
     expect(after.runSpent).toBe(0);
     expect(after.stats.deaths).toBe(1);
     expect(after.stats.runs).toBe(1);
-    expect(after.rf).toBe(rf);
+    expect(after.balance).toBe(balance0);
     expect(after.payForRun()).toBe(true);
     useGame.getState().reset();
   });
 
-  it("sells keys through the same 25/8/7/60 split", () => {
+  it("sells keys through the same 60/7/33 split", () => {
     useGame.getState().reset();
     const before = useGame.getState();
     useGame.getState().buyKey(2);
     const after = useGame.getState();
     expect(after.keys).toBe(before.keys + 2);
-    expect(after.rf).toBe(before.rf - 2 * KEY_PRICE);
-    expect(after.burned - before.burned).toBeCloseTo(2 * KEY_PRICE * 0.25);
-    expect(after.raffle - before.raffle).toBeCloseTo(2 * KEY_PRICE * 0.08);
+    expect(after.balance).toBe(before.balance - 2 * KEY_PRICE);
+    expect(after.revenue - before.revenue).toBeCloseTo(2 * KEY_PRICE * 0.33);
     expect(after.pool - before.pool).toBeCloseTo(2 * KEY_PRICE * 0.6);
     expect(after.locked - before.locked).toBeCloseTo(2 * KEY_PRICE * 0.07);
     expect(() => useGame.getState().buyKey(MAX_KEYS)).toThrow();
@@ -155,7 +153,7 @@ describe("run settlement", () => {
       const report = useGame.getState().finishRun(run);
       const after = useGame.getState();
       expect(report.payout).toBe(0);
-      expect(after.rf).toBe(before.rf);
+      expect(after.balance).toBe(before.balance);
       expect(after.pool).toBe(before.pool);
       expect(after.roundGold).toBe(before.roundGold + (status === "extracted" ? 120 : 0));
     }
@@ -166,12 +164,12 @@ describe("run settlement", () => {
     useGame.getState().reset();
     expect(useGame.getState().claimRound()).toBeNull();
     useGame.setState({ pool: 10_000, roundGold: 100, roundSpent: 1_000, fieldGold: 9_900 });
-    const rf = useGame.getState().rf;
+    const balance0 = useGame.getState().balance;
     const result = useGame.getState().claimRound()!;
     const after = useGame.getState();
     expect(result.share).toBeCloseTo(0.01);
     expect(result.payout).toBe(100);
-    expect(after.rf).toBe(rf + 100);
+    expect(after.balance).toBe(balance0 + 100);
     expect(after.returned).toBe(100);
     expect(after.round).toBe(2);
     expect(after.roundGold).toBe(0);
@@ -201,18 +199,18 @@ describe("run settlement", () => {
   it("pays at most the return cap when a round closes, and keeps the rest in the pool for the next round", () => {
     useGame.getState().reset();
     useGame.setState({ pool: 10_000, roundGold: 900, roundSpent: 100, fieldGold: 100 });
-    const rf = useGame.getState().rf;
+    const balance0 = useGame.getState().balance;
     const result = useGame.getState().claimRound()!;
     const after = useGame.getState();
     expect(result.payout).toBe(MAX_ROUND_RETURN * 100);
     expect(result.withheld).toBe(9_000 - result.payout);
-    expect(after.rf).toBe(rf + result.payout);
+    expect(after.balance).toBe(balance0 + result.payout);
     expect(after.pool).toBeCloseTo(result.withheld + ROUND_SEED_POOL, 1);
     expect(after.roundSpent).toBe(0);
     useGame.getState().reset();
   });
 
-  it("adds a simulated crowd to the pool, the gold and the Friend lot together", () => {
+  it("adds a simulated crowd to the pool, the gold and the draw together", () => {
     useGame.getState().reset();
     const before = useGame.getState();
     before.addFieldWeek();
@@ -221,34 +219,66 @@ describe("run settlement", () => {
     expect(after.fieldGold).toBeGreaterThan(before.fieldGold);
     expect(after.locked).toBeGreaterThan(before.locked);
     expect(after.fieldLockGold).toBeGreaterThan(before.fieldLockGold);
-    expect(after.raffle).toBeGreaterThan(before.raffle);
+    expect(after.fieldTickets).toBeGreaterThan(before.fieldTickets);
     useGame.getState().reset();
   });
 
   it("gives an in-progress round of an older save a cap that does not zero its payout", () => {
-    const mid = migrateSavedState({ rf: 500, roundGold: 240 }, 5) as Record<string, unknown>;
+    const mid = migrateSavedState({ balance: 500, roundGold: 240 }, 5) as Record<string, unknown>;
     expect(mid.roundSpent).toBe(240);
-    const fresh = migrateSavedState({ rf: 500, roundGold: 0 }, 5) as Record<string, unknown>;
+    const fresh = migrateSavedState({ balance: 500, roundGold: 0 }, 5) as Record<string, unknown>;
     expect(fresh.roundSpent).toBe(0);
   });
 
   it("resets the meaningless old pool when a pre-round save is migrated", () => {
-    const old = migrateSavedState({ rf: 500, pool: 251_234 }, 3) as Record<string, unknown>;
+    const old = migrateSavedState({ balance: 500, pool: 251_234 }, 3) as Record<string, unknown>;
     expect(old.pool).toBe(ROUND_SEED_POOL);
     expect(old.keys).toBe(START_KEYS);
     expect(old.round).toBe(1);
-    expect(old.rf).toBe(500);
+    expect(old.balance).toBe(500);
+  });
+});
+
+describe("weekly draw", () => {
+  it("mints a free Delver for each ticket that wins, counts it against the supply and clears the drum", () => {
+    useGame.getState().reset();
+    useGame.setState({ tickets: 5, fieldTickets: 0 });
+    const before = useGame.getState();
+    const draw = useGame.getState().drawRaffle()!;
+    const after = useGame.getState();
+    const won = draw.prizes.filter(p => p.fate === "you");
+    expect(won).toHaveLength(DRAW_MINTS);
+    expect(won.every(p => p.rarity !== undefined)).toBe(true);
+    expect(after.heroes.filter(h => h.source === "draw")).toHaveLength(DRAW_MINTS);
+    const minted = Object.values(after.minted).reduce((a, b) => a + b, 0) - Object.values(before.minted).reduce((a, b) => a + b, 0);
+    expect(minted).toBe(DRAW_MINTS);
+    expect(after.stats.mints).toBe(before.stats.mints + DRAW_MINTS);
+    expect(after.balance).toBe(before.balance);
+    expect(after.tickets).toBe(0);
+    expect(after.fieldTickets).toBe(0);
+    expect(after.week).toBe(before.week + 1);
+    useGame.getState().reset();
+  });
+
+  it("draws nothing without tickets, and skips a win when every Delver is minted", () => {
+    useGame.getState().reset();
+    expect(useGame.getState().drawRaffle()).toBeNull();
+    useGame.setState({ tickets: 3, fieldTickets: 0, minted: { common: 10_000, rare: 10_000, epic: 10_000, legendary: 10_000 } });
+    const draw = useGame.getState().drawRaffle()!;
+    expect(draw.prizes.every(p => p.rarity === undefined)).toBe(true);
+    expect(useGame.getState().heroes).toHaveLength(0);
+    useGame.getState().reset();
   });
 });
 
 describe("supply, armor and drop-only potions", () => {
-  it("never sells the Healing Draught, by rf or by crystals", () => {
+  it("never sells the Healing Draught, for USDC or for crystals", () => {
     useGame.getState().reset();
-    useGame.setState({ rf: 5_000, crystals: 500 });
-    expect(() => useGame.getState().buyPotion("heal", "rf")).toThrow();
+    useGame.setState({ balance: 5_000, crystals: 500 });
+    expect(() => useGame.getState().buyPotion("heal", "usdc")).toThrow();
     expect(() => useGame.getState().buyPotion("heal", "crystals")).toThrow();
     expect(useGame.getState().potions.heal).toBe(0);
-    useGame.getState().buyPotion("rage", "rf");
+    useGame.getState().buyPotion("rage", "usdc");
     useGame.getState().buyPotion("regen", "crystals");
     expect(useGame.getState().potions.rage).toBe(1);
     expect(useGame.getState().potions.regen).toBe(1);
@@ -270,18 +300,15 @@ describe("supply, armor and drop-only potions", () => {
 
   it("buys, wears and stacks armor into the run perks", () => {
     useGame.getState().reset();
-    useGame.setState({ rf: 2_000, crystals: 100 });
+    useGame.setState({ balance: 2_000, crystals: 100 });
     useGame.getState().buyArmor("chain");
     const s = useGame.getState();
     expect(s.armor).toBe("chain");
-    expect(s.rf).toBe(2_000 - ARMORS.chain.price);
+    expect(s.balance).toBe(2_000 - ARMORS.chain.price);
     expect(s.crystals).toBe(100 - ARMORS.chain.crystals);
-    expect(computeRunPerks(s, { hasFriend: false, family: null }).drainReduce).toBeCloseTo(0.3);
+    expect(computeRunPerks(s).drainReduce).toBeCloseTo(0.3);
     useGame.getState().equipArmor("none");
-    expect(computeRunPerks(useGame.getState(), { hasFriend: false, family: null }).drainReduce).toBe(0);
-    // Armor and the Skeleton family perk share the same 80% ceiling.
-    useGame.getState().equipArmor("chain");
-    expect(computeRunPerks(useGame.getState(), { hasFriend: true, family: 0 }).drainReduce).toBeLessThanOrEqual(0.8);
+    expect(computeRunPerks(useGame.getState()).drainReduce).toBe(0);
     useGame.getState().reset();
   });
 
@@ -293,7 +320,7 @@ describe("supply, armor and drop-only potions", () => {
       expect(mintsLeft(r, 10_000)).toBe(0);
     }
     useGame.getState().reset();
-    useGame.setState({ rf: 100_000 });
+    useGame.setState({ balance: 100_000 });
     const left = mintsLeft("legendary", 0);
     const first = useGame.getState().mint("legendary");
     expect(first.edition).toBe(WORLD_MINT_SEED.legendary + 1);

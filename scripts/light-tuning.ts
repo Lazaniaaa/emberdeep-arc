@@ -63,7 +63,7 @@ it("writes docs/light-tuning.md", { timeout: 1_800_000 }, () => {
     "## How it was measured",
     "",
     `- **Diver:** a bot that only wants to go down. It fights what is in its way, picks up loot within four steps of its path, takes every stairs at once and never goes home, so it stops only when the light is gone. Where it stops is how far that oil carries a player who does not collect. The *newcomer* finds the stairs by exploring; the *expert* already knows where they are. Both dodge marked tiles; the *sloppy* one does not.`,
-    `- **Collector:** the bot behind the economy report. It gathers loot and leaves when the walk home would use up its reserve. Its gold per RF shows how much the extra oil inflates the economy (the simulated crowd is recalibrated to it).`,
+    `- **Collector:** the bot behind the economy report. It gathers loot and leaves when the walk home would use up its reserve. Its gold per cent spent shows how much the extra oil inflates the economy (the simulated crowd is recalibrated to it).`,
     `- ${RUNS} descents per cell, the same seeds for every scenario.`,
     "",
     "## Results",
@@ -98,7 +98,7 @@ it("writes docs/light-tuning.md", { timeout: 1_800_000 }, () => {
     "",
     "### Where the light came from and went, per descent (newcomer diver, 3 flasks)",
     "",
-    "| Scenario | Start | Oil jars | Props | Creatures | Levels | Steps | Blows taken | Collector gold per RF (2 flasks) |",
+    "| Scenario | Start | Oil jars | Props | Creatures | Levels | Steps | Blows taken | Collector gold per cent (2 flasks) |",
     "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
   );
   for (const r of results) {
@@ -121,7 +121,7 @@ it("writes docs/light-tuning.md", { timeout: 1_800_000 }, () => {
     "",
     `With the chosen values a 2-flask descent reaches floor ${chosen.n2.depth.toFixed(1)} on average (${pct(chosen.n2.p3)} reach floor 3; it was ${before.n2.depth.toFixed(1)} and ${pct(before.n2.p3)}), 3 flasks reach floor ${chosen.n3.depth.toFixed(1)}, and the most a player can carry, 5 flasks, reach floor ${chosen.n5.depth.toFixed(1)}, with ${pct(chosen.n5.p7)} of newcomers and ${pct(chosen.e5.p7)} of experts getting as far as Cerberus (before: ${pct(before.n5.p7)} and ${pct(before.e5.p7)}). The boss is reachable but not handed over, and every extra flask still carries a descent further, though less than it used to (one flask takes a newcomer to floor ${chosen.n1.depth.toFixed(1)}, five to floor ${chosen.n5.depth.toFixed(1)}; before: ${before.n1.depth.toFixed(1)} and ${before.n5.depth.toFixed(1)}), because oil now comes back to whoever is running dry.`,
     "",
-    `The price is gold: a collector banks ${chosen.gold.toFixed(2)} gold per RF instead of ${before.gold.toFixed(2)}, because it stays deeper where loot is worth more. The simulated crowd is set from the bots, so this moves the crowd's rate and not anyone's share.`,
+    `The price is gold: a collector banks ${chosen.gold.toFixed(2)} gold per cent spent instead of ${before.gold.toFixed(2)}, because it stays deeper where loot is worth more. The simulated crowd is set from the bots, so this moves the crowd's rate and not anyone's share.`,
     "",
     "## What this does not show",
     "",

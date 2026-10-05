@@ -1,84 +1,84 @@
 import { useState } from "react";
-import { Flame, Ticket, Users } from "lucide-react";
+import { Sparkles, Ticket, Users } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { playSfx } from "@/audio/sfx";
-import { FAMILY_PERKS } from "@/game/catalog";
-import {
-  FIELD_WEEK_SPEND, FRIEND_ASK_RF, LOT_MAX, LOT_MIN, PASSES, RAFFLE_SHARE, TICKET_DROP_CHANCE, type PassId,
-} from "@/game/config";
-import { lotSize, passCost, ticketChance, type DrawResult } from "@/game/raffle";
-import { rf, usd } from "@/lib/format";
+import { RARITIES, RARITY_INFO, type HeroNft } from "@/game/catalog";
+import { DRAW_MINTS, FIELD_WEEK_SPEND, PASSES, REVENUE_SHARE, SIGIL_RARITY_WEIGHTS, TICKET_DROP_CHANCE, type PassId } from "@/game/config";
+import { mintsLeft } from "@/game/economy";
+import { passCost, ticketChance, type DrawResult } from "@/game/raffle";
+import { usd } from "@/lib/format";
 import { activePass, useGame, InsufficientFunds } from "@/state/store";
-import { prizeVisual } from "./hero-info";
-import { FriendArt } from "./art";
+import { nftVisual } from "./hero-info";
+import { HeroAvatar } from "./art";
 
 export function RaffleTab() {
   const g = useGame();
-  const [draw, setDraw] = useState<DrawResult | null>(null);
-  const size = lotSize(g.raffle);
+  const [draw, setDraw] = useState<{ result: DrawResult; won: HeroNft[] } | null>(null);
   const total = g.tickets + g.fieldTickets;
   const odds = total > 0 ? g.tickets / total : 0;
-  const held = Math.max(0, LOT_MIN * FRIEND_ASK_RF - g.raffle);
+  const soldOut = RARITIES.every(r => mintsLeft(r, g.minted[r]) <= 0);
+  const won = g.heroes.filter(h => h.source === "draw");
 
   const reveal = () => {
     const result = g.drawRaffle();
     if (!result) {
-      toast.error(size < LOT_MIN ? `The lot holds until it can buy ${LOT_MIN} Friends.` : "Nobody holds a ticket this week.");
+      toast.error("Nobody holds a ticket this week.");
       return;
     }
-    playSfx(result.prizes.some(p => p.fate === "you") ? "mint" : "burn", g.muted);
-    setDraw(result);
+    const mine = result.prizes.filter(p => p.rarity !== undefined).length;
+    playSfx(mine > 0 ? "mint" : "burn", g.muted);
+    setDraw({ result, won: useGame.getState().heroes.slice(0, mine) });
   };
 
   return (
     <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
       <Card className="ring-sigil/30">
         <CardHeader>
-          <CardTitle className="font-pixel text-sigil">Weekly Friend lot</CardTitle>
+          <CardTitle className="font-pixel text-sigil">Weekly Delver draw</CardTitle>
           <CardDescription>
-            {Math.round(RAFFLE_SHARE * 100)}% of every RF spent waits here. Once a week it buys floor Rare Friends.
-            One is burned. The rest are drawn. Tickets are not for sale. Gold, crystals, chests, vaults and kills drop one {Math.round(ticketChance(activePass(g)) * 1000) / 10}% of the time, and only a ticket you carry home goes into the drum.
+            Every week {DRAW_MINTS} Delvers are minted free for the winning tickets: nothing is bought for the draw, a win is a mint from the fixed supply.
+            Tickets are not for sale. Gold, crystals, chests, vaults and kills drop one {Math.round(ticketChance(activePass(g)) * 1000) / 10}% of the time, and only a ticket you carry home goes into the drum.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-3 gap-2 text-center">
-            <Stat label="Treasury" value={`${rf(g.raffle)} RF`} sub={usd(g.raffle)} />
+            <Stat label="Free mints" value={`${DRAW_MINTS}`} sub={`Week ${g.week}`} />
             <Stat label="Your tickets" value={`${g.tickets}`} sub={total ? `${Math.round(odds * 100)}% of the drum` : "Extract to earn"} accent="text-sigil" />
-            <Stat label="Field tickets" value={`${g.fieldTickets}`} sub={`Week ${g.week}`} />
+            <Stat label="Field tickets" value={`${g.fieldTickets}`} sub="Simulated delvers" />
           </div>
 
           <div>
             <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
-              <span>Lot this week</span>
-              <span>{size === 0 ? `Holding. ${rf(held)} RF short of ${LOT_MIN} Friends` : `${size} Friends · 1 burned, ${size - 1} drawn`}</span>
+              <span>This week's mints</span>
+              <span>Each ticket is one chance at each mint</span>
             </div>
             <div className="flex gap-2">
-              {Array.from({ length: LOT_MAX }, (_, i) => {
-                const filled = i < size;
-                return (
-                  <div key={i} className={`grid h-16 flex-1 place-items-center rounded-lg border ${filled ? "border-sigil/60 bg-sigil/10" : "border-white/10 bg-black/40"}`}>
-                    {filled ? <FriendArt serial={i + g.nextSerial} family={(i + g.nextSerial) % 9} size={52} /> : <span className="text-[10px] text-muted-foreground">{rf(FRIEND_ASK_RF)}</span>}
-                  </div>
-                );
-              })}
+              {Array.from({ length: DRAW_MINTS }, (_, i) => (
+                <div key={i} className="grid h-20 flex-1 place-items-center rounded-lg border border-sigil/60 bg-sigil/10">
+                  <HeroAvatar portrait={{ kind: "wanderer", rarity: "epic" }} px={3} showEdition={false} className="opacity-70" />
+                </div>
+              ))}
             </div>
-            <p className="mt-2 text-xs text-muted-foreground">Simulated floor ask: {rf(FRIEND_ASK_RF)} RF ({usd(FRIEND_ASK_RF)}) each. A live lot would buy real listings. Cap is {LOT_MAX}; leftover RF rolls forward.</p>
+            <p className="mt-2 text-xs text-muted-foreground">
+              A win rolls its rarity like a Soul Sigil: {RARITIES.map(r => `${RARITY_INFO[r].label} ${SIGIL_RARITY_WEIGHTS[r] / 100}%`).join(", ")}. Sold-out rarities are skipped.
+            </p>
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => { g.addFieldWeek(); toast(`Other delvers spent ${rf(FIELD_WEEK_SPEND)} RF. Their cut is in the treasury and the reward pool, and their gold in the round.`); }}>
+            <Button variant="outline" onClick={() => { g.addFieldWeek(); toast(`Other delvers spent ${usd(FIELD_WEEK_SPEND)}. Their cut is in the pools, their gold in the round and their tickets in the drum.`); }}>
               <Users data-icon="inline-start" /> Add a simulated week of play
             </Button>
-            <Button onClick={reveal} disabled={size < LOT_MIN || total <= 0}>
+            <Button onClick={reveal} disabled={total <= 0}>
               <Ticket data-icon="inline-start" /> Draw the week
             </Button>
           </div>
+          {soldOut && <p className="text-xs text-destructive">Every Delver has been minted, so a win has nothing left to give.</p>}
           <p className="text-xs text-muted-foreground">
-            Friends burned by the lot so far: <span className="text-lime">{g.friendsBurned}</span>. In production this draw is weekly and automatic. The button is here so a judge can see one resolve.
+            In production the draw is weekly and automatic. The button is here so a judge can see one resolve.
           </p>
         </CardContent>
       </Card>
@@ -87,7 +87,7 @@ export function RaffleTab() {
         <CardHeader>
           <CardTitle className="font-pixel">Weekly pass</CardTitle>
           <CardDescription>
-            A pass lasts until this week's draw. It raises the drop rate. It never hands you a ticket, and the same 25/8/7/60 split applies to the price. Free rate is {Math.round(TICKET_DROP_CHANCE * 1000) / 10}%.
+            A pass lasts until this week's draw. It raises the drop rate. It never hands you a ticket, and its price is split like every other spend ({Math.round((1 - REVENUE_SHARE) * 100)}% back to players). Free rate is {Math.round(TICKET_DROP_CHANCE * 1000) / 10}%.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-2 sm:grid-cols-2">
@@ -97,22 +97,24 @@ export function RaffleTab() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="font-pixel">Friends you won</CardTitle>
-          <CardDescription>A won Friend is playable. Pick it on Descend and you get its family perk. It is not a wallet NFT, so it does not grant the holder blessing.</CardDescription>
+          <CardTitle className="font-pixel">Delvers you won</CardTitle>
+          <CardDescription>A Delver from the draw is yours like a minted one: pick it to descend, lock it or send it on an expedition.</CardDescription>
         </CardHeader>
         <CardContent>
-          {g.prizes.length === 0 ? (
+          {won.length === 0 ? (
             <p className="text-sm text-muted-foreground">None yet. Extract a run for tickets, fill the week, then draw.</p>
           ) : (
             <div className="grid grid-cols-2 gap-2">
-              {g.prizes.map(p => {
-                const v = prizeVisual(p);
-                const on = g.hero.kind === "prize" && g.hero.serial === p.serial;
+              {won.map(h => {
+                const v = nftVisual(h);
+                const on = g.hero.kind === "nft" && g.hero.id === h.id;
                 return (
-                  <button key={p.serial} onClick={() => g.selectHero({ kind: "prize", serial: p.serial })} className={`rounded-lg border p-2 text-left ${on ? "border-sigil bg-sigil/10" : "border-white/10"}`}>
-                    <FriendArt serial={p.serial} family={p.family} size={56} />
-                    <div className="mt-1 font-pixel text-[10px] text-sigil">{v.name}</div>
-                    <div className="text-[10px] text-muted-foreground">{v.perk}</div>
+                  <button key={h.id} onClick={() => g.selectHero({ kind: "nft", id: h.id })} className={`flex items-center gap-2 rounded-lg border p-2 text-left ${on ? "border-sigil bg-sigil/10" : "border-white/10"}`}>
+                    {v.portrait && <HeroAvatar portrait={v.portrait} px={2} />}
+                    <span className="min-w-0">
+                      <span className="block font-pixel text-[10px]" style={{ color: v.color }}>{v.name}</span>
+                      <span className="block text-[10px] text-muted-foreground">{v.perk}</span>
+                    </span>
                   </button>
                 );
               })}
@@ -137,19 +139,19 @@ function PassCard({ id }: { id: PassId }) {
       playSfx("buy", useGame.getState().muted);
       toast.success(`${pass.name} is on until this week's draw.`);
     } catch (e) {
-      toast.error(e instanceof InsufficientFunds ? `Not enough RF for ${pass.name}.` : "Could not start the pass.");
+      toast.error(e instanceof InsufficientFunds ? `Not enough USDC for ${pass.name}.` : "Could not start the pass.");
     }
   };
   return (
     <div className={`rounded-lg border p-3 ${current === id ? "border-sigil bg-sigil/10" : "border-white/10 bg-black/40"}`}>
       <div className="flex items-baseline justify-between gap-2">
         <span className="font-pixel text-sm">{pass.name}</span>
-        <span className="text-xs text-muted-foreground">${pass.usd} / week</span>
+        <span className="text-xs text-muted-foreground">{usd(pass.price)} / week</span>
       </div>
       <div className="mt-1 font-pixel text-2xl text-sigil">{Math.round(pass.chance * 1000) / 10}%</div>
       <p className="text-xs text-muted-foreground">drop chance, from {Math.round(TICKET_DROP_CHANCE * 1000) / 10}% free</p>
-      <Button className="mt-3 w-full" size="sm" disabled={cost === null || cost === 0 || (cost ?? 0) > g.rf} onClick={buy}>
-        {cost === 0 ? "Active this week" : cost === null ? "Included in Deep Pass" : `${rf(cost)} RF · ${usd(cost)}`}
+      <Button className="mt-3 w-full" size="sm" disabled={cost === null || cost === 0 || (cost ?? 0) > g.balance} onClick={buy}>
+        {cost === 0 ? "Active this week" : cost === null ? "Included in Deep Pass" : usd(cost)}
       </Button>
     </div>
   );
@@ -165,35 +167,37 @@ function Stat({ label, value, sub, accent }: { label: string; value: string; sub
   );
 }
 
-function DrawDialog({ draw, onClose }: { draw: DrawResult | null; onClose: () => void }) {
-  const won = draw?.prizes.filter(p => p.fate === "you").length ?? 0;
+function DrawDialog({ draw, onClose }: { draw: { result: DrawResult; won: HeroNft[] } | null; onClose: () => void }) {
+  const yours = draw?.result.prizes.filter(p => p.fate === "you").length ?? 0;
   return (
     <Dialog open={!!draw} onOpenChange={open => !open && onClose()}>
       <DialogContent className="sm:max-w-md">
         {draw && (
           <>
             <DialogHeader>
-              <DialogTitle className="font-pixel">{won > 0 ? `You won ${won}` : "The field won this week"}</DialogTitle>
+              <DialogTitle className="font-pixel">{draw.won.length > 0 ? `You won ${draw.won.length} Delver${draw.won.length === 1 ? "" : "s"}` : "The field won this week"}</DialogTitle>
               <DialogDescription>
-                Bought {draw.bought} at {rf(FRIEND_ASK_RF)} RF. Your {draw.yourTickets} tickets against {draw.fieldTickets} in the field.
+                {draw.result.mints} free mints. Your {draw.result.yourTickets} tickets against {draw.result.fieldTickets} in the field.
+                {yours > draw.won.length && " Some of your wins found the supply sold out."}
               </DialogDescription>
             </DialogHeader>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-              {draw.prizes.map(p => {
-                const family = FAMILY_PERKS[p.friend.family];
-                const burned = p.fate === "burned";
+              {draw.won.map(h => {
+                const v = nftVisual(h);
                 return (
-                  <div key={p.friend.serial} className={`rounded-lg border p-2 text-center ${burned ? "border-lime/50" : p.fate === "you" ? "border-sigil" : "border-white/10"}`}>
-                    <div className={burned ? "opacity-40" : ""}>
-                      <FriendArt serial={p.friend.serial} family={p.friend.family} size={72} />
-                    </div>
-                    <div className="mt-1 font-pixel text-[10px]">{family?.name} #{p.friend.serial}</div>
-                    <Badge variant={burned ? "default" : "outline"} className={burned ? "bg-lime text-black" : ""}>
-                      {burned ? <><Flame className="size-3" /> Burned</> : p.fate === "you" ? "Yours" : "Field"}
-                    </Badge>
+                  <div key={h.id} className="rounded-lg border border-sigil p-2 text-center">
+                    {v.portrait && <HeroAvatar portrait={v.portrait} px={3} />}
+                    <div className="mt-1 font-pixel text-[10px]" style={{ color: v.color }}>{v.name}</div>
+                    <Badge variant="outline"><Sparkles className="size-3" /> Yours</Badge>
                   </div>
                 );
               })}
+              {draw.result.prizes.filter(p => p.fate === "field").map((_, i) => (
+                <div key={`field-${i}`} className="grid place-items-center rounded-lg border border-white/10 p-2 text-center">
+                  <HeroAvatar portrait={{ kind: "wanderer", rarity: "common" }} px={3} showEdition={false} className="opacity-40" />
+                  <Badge variant="outline" className="mt-1">Field</Badge>
+                </div>
+              ))}
             </div>
             <DialogFooter>
               <Button onClick={onClose} className="w-full">Close</Button>

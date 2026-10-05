@@ -1,6 +1,6 @@
 /**
- * Public RPCs cap how many blocks one log query may span (Robinhood Chain's answers "narrow the block range" above
- * 10,000,000, and the chain is already past 76,000,000 blocks). Reading a wallet's history therefore happens in pieces.
+ * Public RPCs cap how many blocks one log query may span, and Arc makes a block in under a second, so a long history
+ * (the Hall of Descents' records) is read in pieces.
  */
 export const LOG_SPAN = 5_000_000n;
 

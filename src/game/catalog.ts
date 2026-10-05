@@ -149,7 +149,8 @@ export type HeroNft = {
   serial: number;
   classId: ClassId;
   rarity: Rarity;
-  source: "altar" | "sigil";
+  /** Minted at the Ember Altar, from a Soul Sigil found in the deep, or won in the weekly draw. */
+  source: "altar" | "sigil" | "draw";
   mintedAt: number;
   /** Edition within its rarity, out of RARITY_SUPPLY. Delvers minted before supply caps omit it. */
   edition?: number;
@@ -213,7 +214,7 @@ export type ArmorId = "none" | "leather" | "chain" | "emberplate";
 
 export type ArmorDef = { id: ArmorId; name: string; drainReduce: number; price: number; crystals: number; blurb: string };
 
-/** Armor thins the light dimlings drink from you. It stacks with class and Friend perks up to the shared cap. */
+/** Armor thins the light dimlings drink from you. It stacks with class perks up to the shared cap. */
 export const ARMORS: Record<ArmorId, ArmorDef> = {
   none: { id: "none", name: "No armor", drainReduce: 0, price: 0, crystals: 0, blurb: "Every dimling drinks its fill." },
   leather: { id: "leather", name: "Leather Vest", drainReduce: 0.15, price: 80, crystals: 10, blurb: "Dimlings drain 15% less." },
@@ -223,29 +224,3 @@ export const ARMORS: Record<ArmorId, ArmorDef> = {
 
 export const ARMOR_IDS = Object.keys(ARMORS) as ArmorId[];
 
-/** On-chain Generations families, in registry order. Each one gets a signature perk. */
-export const FAMILY_PERKS: readonly { name: string; perk: Partial<Perks>; flavor: string }[] = [
-  { name: "Skeleton", perk: { drainReduce: 0.5 }, flavor: "They think you're one of them." },
-  { name: "Mask", perk: { stealth: true }, flavor: "Faceless in the dark." },
-  { name: "Family", perk: { goldPct: 25 }, flavor: "Shared with the whole family, of course." },
-  { name: "Cellular", perk: { regenEvery: 8 }, flavor: "Grows back, slowly." },
-  { name: "Asymmetry", perk: { freeStepChance: 0.2 }, flavor: "Nothing lands where you expect." },
-  { name: "Hoverer", perk: { stepDiscount: 0.25 }, flavor: "Floats over the floor." },
-  { name: "Colossus", perk: { damage: 2 * HP_SCALE }, flavor: "Dimlings are very small." },
-  { name: "Sparkling", perk: { radius: 2 }, flavor: "Glitters in the deep." },
-  { name: "Hollow", perk: { crystalPct: 40 }, flavor: "Something inside resonates." },
-];
-
-/** A Friend family's perk at strength `k`, with its flavour line. The default is a Friend you only hold. */
-export function familyPerkText(family: number, k = HOLD_FACTOR) {
-  const f = FAMILY_PERKS[family];
-  return f ? `${describePerks(scalePerks(f.perk, k))}. ${f.flavor}` : "Family perk";
-}
-
-/** Passive bonus for any wallet that holds a hardwired Rare Friend (generation ≥ 1), at full strength. */
-export const FRIEND_BLESSING: Partial<Perks> = { goldPct: 20, radius: 1 };
-
-/** The blessing at strength `k`. The default is a Friend you only hold. */
-export function blessingText(k = HOLD_FACTOR) {
-  return describePerks(scalePerks(FRIEND_BLESSING, k));
-}

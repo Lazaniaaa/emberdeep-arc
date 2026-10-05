@@ -40,3 +40,18 @@ The first HTTPS load can take up to a minute while Caddy gets a certificate. `ht
 - Your own domain instead of sslip.io: point an A record at the IP, then replace the first line of
   `/etc/caddy/Caddyfile` with your domain and run `systemctl reload caddy`.
 - Update the game later: just run `deploy.ps1` again.
+
+## The Hall of Descents on Arc (optional)
+
+The on-chain leaderboard needs one small service on the same server: it replays a finished descent and signs the
+result for the Hall contract. It runs as its own locked-down user, listens only on localhost, and Caddy sends
+`/api/*` to it. Its signing key is made on the server and never leaves it. Full order of steps, with the contract
+deployment in between: [docs/arc/README.md](../docs/arc/README.md#deploying-in-order).
+
+    .\deploy\attest.ps1 -Server <IP>                    # first time: installs it, prints the signer address
+    .\deploy\attest.ps1 -Server <IP> -Hall 0x<address>  # once the Hall is deployed: starts it for that Hall
+    .\deploy\attest.ps1 -Server <IP>                    # later updates keep the Hall address
+
+On the server: `systemctl status emberdeep-attest`, `journalctl -u emberdeep-attest -n 50`,
+`curl -s localhost:8787/api/health`. The Caddyfile from before the `/api` route is kept as
+`/etc/caddy/Caddyfile.before-attest`.

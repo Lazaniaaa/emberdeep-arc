@@ -414,7 +414,7 @@ function checkDarkness(state: RunState) {
   }
   state.status = "dead";
   state.events.push("dark");
-  say(state, "Darkness swallows you. Your Friend wakes up at camp, empty-handed.");
+  say(state, "Darkness swallows you. You wake up at camp, empty-handed.");
 }
 
 function slayBoss(state: RunState, boss: Dimling) {

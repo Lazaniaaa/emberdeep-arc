@@ -6,11 +6,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { playSfx } from "@/audio/sfx";
-import { ACTIVE_SHARE, BURN_SHARE, HOLD_FACTOR, LOCK_MAX, LOCK_SHARE, RAFFLE_SHARE, RARITY_SUPPLY, SIGIL_DROP_CHANCE, SIGIL_RARITY_WEIGHTS } from "@/game/config";
+import { ACTIVE_SHARE, DRAW_MINTS, HOLD_FACTOR, LOCK_MAX, LOCK_SHARE, RARITY_SUPPLY, REVENUE_SHARE, SIGIL_DROP_CHANCE, SIGIL_RARITY_WEIGHTS } from "@/game/config";
 import { mintsLeft } from "@/game/economy";
 import { CLASSES, CLASS_IDS, RARITIES, RARITY_INFO, classPerkText, type HeroNft, type Rarity } from "@/game/catalog";
 import { heroLockKey, strength } from "@/game/locks";
-import { rf, usd } from "@/lib/format";
+import { usd } from "@/lib/format";
 import { InsufficientFunds, SoldOut, useGame } from "@/state/store";
 import { nftVisual } from "./hero-info";
 import { HeroAvatar } from "./art";
@@ -27,7 +27,7 @@ export function AltarTab() {
       playSfx("mint", game.muted);
       setRevealed(hero);
     } catch (e) {
-      toast.error(e instanceof InsufficientFunds ? `Not enough RF to mint ${RARITY_INFO[rarity].label}.` : e instanceof SoldOut ? e.message : "Mint failed.");
+      toast.error(e instanceof InsufficientFunds ? `Not enough USDC to mint ${RARITY_INFO[rarity].label}.` : e instanceof SoldOut ? e.message : "Mint failed.");
     }
   };
 
@@ -43,7 +43,7 @@ export function AltarTab() {
           <CardHeader>
             <CardTitle className="font-pixel">The Ember Altar</CardTitle>
             <CardDescription>
-              Burn RF to mint a Delver: a character NFT with a class perk. Higher rarity, stronger perk. Of every mint, {Math.round(BURN_SHARE * 100)}% is burned, {Math.round(RAFFLE_SHARE * 100)}% buys the weekly Friend lot, {Math.round(LOCK_SHARE * 100)}% feeds the lock pool and {Math.round(ACTIVE_SHARE * 100)}% refills the reward pool.
+              Mint a Delver: a character with a class perk. Higher rarity, stronger perk. Of every mint, {Math.round(ACTIVE_SHARE * 100)}% refills the reward pool, {Math.round(LOCK_SHARE * 100)}% feeds the lock pool and {Math.round(REVENUE_SHARE * 100)}% is the studio's revenue. Delvers also come free: from a Soul Sigil in a Sealed Vault, or {DRAW_MINTS} a week from the ticket draw.
               Perks are shown at the {Math.round(HOLD_FACTOR * 100)}% strength of a Delver you only hold. Lock it on the Lock tab and it grows up to {Math.round(LOCK_MAX * 100)}%.
             </CardDescription>
           </CardHeader>
@@ -52,7 +52,7 @@ export function AltarTab() {
               {RARITIES.map(r => {
                 const info = RARITY_INFO[r];
                 const left = mintsLeft(r, game.minted[r]);
-                const affordable = game.rf >= info.price && left > 0;
+                const affordable = game.balance >= info.price && left > 0;
                 return (
                   <div key={r} className="flex flex-col gap-3 rounded-xl border bg-black/40 p-4" style={{ borderColor: `${info.color}55` }}>
                     <div className="flex items-center justify-between">
@@ -63,8 +63,8 @@ export function AltarTab() {
                       <div className="text-xs" style={{ color: info.color }}>
                         {left > 0 ? `${left} of ${RARITY_SUPPLY[r]} left` : `Sold out · all ${RARITY_SUPPLY[r]} minted`}
                       </div>
-                      <div className="font-pixel text-xl">{rf(info.price)} RF</div>
-                      <div className="text-xs text-muted-foreground">≈ {usd(info.price)} · burns {rf(info.price * BURN_SHARE)} RF</div>
+                      <div className="font-pixel text-xl">{usd(info.price)}</div>
+                      <div className="text-xs text-muted-foreground">simulated USDC · {usd(info.price * (1 - REVENUE_SHARE))} back to players</div>
                     </div>
                     <ul className="space-y-0.5 text-xs text-foreground/80">
                       {CLASS_IDS.slice(0, 3).map(c => <li key={c}>{CLASSES[c].name}: {classPerkText(c, info.tier)}</li>)}
@@ -72,7 +72,7 @@ export function AltarTab() {
                       {r === "legendary" && <li style={{ color: info.color }}>Bonus: +1 light radius once its lock reaches full strength</li>}
                     </ul>
                     <Button className="mt-auto" onClick={() => mint(r)} disabled={!affordable} style={affordable ? { background: info.color, color: "#000" } : undefined}>
-                      <Flame data-icon="inline-start" /> {left > 0 ? "Burn & mint" : "Sold out"}
+                      <Flame data-icon="inline-start" /> {left > 0 ? "Mint" : "Sold out"}
                     </Button>
                   </div>
                 );
@@ -87,7 +87,7 @@ export function AltarTab() {
         <Card>
           <CardHeader>
             <CardTitle className="font-pixel">Your Delvers ({game.heroes.length})</CardTitle>
-            <CardDescription>Simulated NFTs saved in this browser. In production these would be ERC-721s minted on Robinhood Chain.</CardDescription>
+            <CardDescription>Simulated NFTs saved in this browser. In production these would be ERC-721s minted on Arc.</CardDescription>
           </CardHeader>
           <CardContent>
             {game.heroes.length === 0 ? (

@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
-  EXIT_BURN, EXIT_FORFEIT, HOLD_FACTOR, LOCK_MAX, LOCK_START, LOCK_STEP, LOCK_TICKET_LOCKS, MATURITY_ROUNDS, STAKE_GOLD_CAP,
+  EXIT_FEE, EXIT_FORFEIT, HOLD_FACTOR, LOCK_MAX, LOCK_START, LOCK_STEP, LOCK_TICKET_LOCKS, MATURITY_ROUNDS, STAKE_GOLD_CAP,
   STAKE_MAX, STAKE_STEP,
 } from "./config";
-import { CLASS_IDS, FAMILY_PERKS, FRIEND_BLESSING, RARITIES, heroPerks, scalePerks, type HeroNft } from "./catalog";
+import { CLASS_IDS, RARITIES, heroPerks, scalePerks, type HeroNft } from "./catalog";
 import {
   STAKE_LOCK_KEY, addToStake, exitTerms, isMature, lockFactor, passiveGold, settleLocks, stakeGoldPct, strength, tenure,
   type Lock,
@@ -53,7 +53,7 @@ describe("scaling perks", () => {
   });
 
   it("never makes a held perk stronger than a full one, or a full one stronger than a maxed lock", () => {
-    const sources: Partial<ReturnType<typeof heroPerks>>[] = [FRIEND_BLESSING, ...FAMILY_PERKS.map(f => f.perk)];
+    const sources: Partial<ReturnType<typeof heroPerks>>[] = [];
     for (const classId of CLASS_IDS) {
       for (const rarity of RARITIES) {
         const hero: HeroNft = { id: "x", serial: 1, classId, rarity, source: "altar", mintedAt: 0 };
@@ -75,7 +75,7 @@ describe("scaling perks", () => {
   });
 });
 
-describe("staking RF", () => {
+describe("staking", () => {
   it("adds gold in steps up to a cap, and more as the stake ages", () => {
     const stake = (value: number, since = 1) => lock({ key: STAKE_LOCK_KEY, kind: "stake", value, since });
     expect(stakeGoldPct(undefined, 1)).toBe(0);
@@ -92,7 +92,7 @@ describe("staking RF", () => {
     expect(() => addToStake(undefined, STAKE_MAX + STAKE_STEP, 1)).toThrow();
     const first = addToStake(undefined, STAKE_STEP, 1);
     expect(first).toMatchObject({ key: STAKE_LOCK_KEY, kind: "stake", value: STAKE_STEP, since: 1 });
-    // 500 RF aged 10 rounds joined by 500 fresh RF is, on average, 5 rounds old.
+    // $5 aged 10 rounds joined by $5 fresh is, on average, 5 rounds old.
     const topped = addToStake(first, STAKE_STEP, 11);
     expect(topped.value).toBe(2 * STAKE_STEP);
     expect(tenure(topped, 11)).toBe(5);
@@ -105,7 +105,7 @@ describe("sharing the lock pool", () => {
 
   it("pays out no more than the pool holds, whoever locks", () => {
     for (const fieldGold of [0, 10, 8_000, 1_000_000]) {
-      for (const locks of [[], [lock()], [lock(), lock({ key: "hero:b", value: 1_500, since: 3 }), lock({ key: "friend", kind: "friend", value: 500 })]]) {
+      for (const locks of [[], [lock()], [lock(), lock({ key: "hero:b", value: 1_500, since: 3 }), lock({ key: STAKE_LOCK_KEY, kind: "stake", value: 500 })]]) {
         const r = settleLocks(locks, 6, pot, fieldGold);
         const paid = Object.values(r.payouts).reduce((a, b) => a + b, 0);
         expect(paid + r.fieldPayout + r.carry).toBeCloseTo(pot, 6);
@@ -132,8 +132,8 @@ describe("sharing the lock pool", () => {
     const none = settleLocks([], 1, pot, 8_000);
     expect(none.yourGold).toBe(0);
     expect(none.fieldPayout).toBeCloseTo(pot, 1);
-    const friend = lock({ key: "friend", kind: "friend", value: 500 });
-    const paused = settleLocks([friend], 1, pot, 8_000, l => l.kind !== "friend");
+    const resting = lock({ key: "hero:resting", value: 500 });
+    const paused = settleLocks([resting], 1, pot, 8_000, () => false);
     expect(paused.payouts).toEqual({});
     expect(paused.locks[0].farmed).toBe(0);
     expect(paused.locks[0].dust).toBe(0);
@@ -179,11 +179,11 @@ describe("leaving a lock", () => {
     expect(t).toMatchObject({ early: false, fee: 0, forfeit: 0, payout: 40, stakeBack: 0 });
   });
 
-  it("forfeits half of what it farmed and burns a share of its value when broken early", () => {
+  it("forfeits half of what it farmed and charges a fee on its value when broken early", () => {
     const l = lock({ since: 1, farmed: 41, value: 600 });
     const t = exitTerms(l, 1 + MATURITY_ROUNDS - 1);
     expect(t.early).toBe(true);
-    expect(t.fee).toBeCloseTo(600 * EXIT_BURN, 6);
+    expect(t.fee).toBeCloseTo(600 * EXIT_FEE, 6);
     expect(t.forfeit).toBeCloseTo(Math.floor(41 * EXIT_FORFEIT * 100) / 100, 6);
     expect(t.forfeit + t.payout).toBeCloseTo(41, 6);
   });
@@ -191,7 +191,7 @@ describe("leaving a lock", () => {
   it("makes a stake pay the fee out of what it hands back", () => {
     const stake = lock({ key: STAKE_LOCK_KEY, kind: "stake", value: 2_000, farmed: 10, since: 1 });
     const early = exitTerms(stake, 2);
-    expect(early.stakeBack).toBeCloseTo(2_000 - 2_000 * EXIT_BURN, 6);
+    expect(early.stakeBack).toBeCloseTo(2_000 - 2_000 * EXIT_FEE, 6);
     expect(exitTerms(stake, 1 + MATURITY_ROUNDS).stakeBack).toBe(2_000);
     // An NFT lock has nothing to hand back: its fee comes from the balance.
     expect(exitTerms(lock(), 2).stakeBack).toBe(0);

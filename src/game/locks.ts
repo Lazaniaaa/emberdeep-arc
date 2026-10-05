@@ -1,34 +1,33 @@
 import {
-  EXIT_BURN, EXIT_FORFEIT, FRIEND_ASK_RF, HOLD_FACTOR, LOCK_GOLD_PER_RF, LOCK_MAX, LOCK_START, LOCK_STEP, LOCK_TICKET_DUST,
+  EXIT_FEE, EXIT_FORFEIT, HOLD_FACTOR, LOCK_GOLD_PER_CENT, LOCK_MAX, LOCK_START, LOCK_STEP, LOCK_TICKET_DUST,
   LOCK_TICKET_LOCKS, MATURITY_ROUNDS, STAKE_GOLD_CAP, STAKE_GOLD_PER_STEP, STAKE_MAX, STAKE_STEP,
+  toUsd,
 } from "./config";
 import { RARITY_INFO, type HeroNft } from "./catalog";
 
 /**
- * Locks. Simulated: nothing is escrowed. A lock commits a Delver, your wallet's Rare Friend or some RF, and it
+ * Locks. Simulated: nothing is escrowed. A lock commits a Delver or a stake of USDC, and it
  * ages by closed rounds. A lock does two things: it makes perks stronger (see `strength`), and it farms a share
- * of the lock pool (7% of every RF spent), split by passive gold. That pool is separate from the gold-share pool
+ * of the lock pool (7% of every cent spent), split by passive gold. That pool is separate from the gold-share pool
  * the descents compete for, so no lock can take anything from a delver who plays.
  */
-export type LockKind = "hero" | "friend" | "stake";
+export type LockKind = "hero" | "stake";
 
 export type Lock = {
   key: string;
   kind: LockKind;
   /** Round the lock was opened in (for a stake, the weighted average of its deposits). */
   since: number;
-  /** RF the lock is worth: a stake's RF, a Delver's mint price, a Friend's floor ask. Sets its weight and exit fee. */
+  /** What the lock is worth, in cents: a stake's amount or a Delver's mint price. Sets its weight and exit fee. */
   value: number;
-  /** RF farmed from the lock pool and not yet paid out. Paid on release, or harvested once mature. */
+  /** Farmed from the lock pool and not yet paid out. Paid on release, or harvested once mature. */
   farmed: number;
-  /** Part of a raffle ticket farmed so far. NFT locks only. */
+  /** Part of a raffle ticket farmed so far. Delver locks only. */
   dust: number;
 };
 
-export const FRIEND_LOCK_KEY = "friend";
 export const STAKE_LOCK_KEY = "stake";
 export const heroLockKey = (id: string) => `hero:${id}`;
-export const FRIEND_LOCK_VALUE = FRIEND_ASK_RF;
 export const heroLockValue = (hero: HeroNft) => RARITY_INFO[hero.rarity].price;
 
 const cents = (n: number) => Math.round(n * 100) / 100;
@@ -53,7 +52,7 @@ export function strength(lock: Lock | undefined, round: number) {
   return lock ? lockFactor(tenure(lock, round)) : HOLD_FACTOR;
 }
 
-/** Gold bonus from staked RF. Only a stake has one. */
+/** Gold bonus from a stake. Only a stake has one. */
 export function stakeGoldPct(lock: Lock | undefined, round: number) {
   if (!lock || lock.kind !== "stake") return 0;
   const base = Math.min(STAKE_GOLD_CAP, (lock.value / STAKE_STEP) * STAKE_GOLD_PER_STEP);
@@ -62,13 +61,13 @@ export function stakeGoldPct(lock: Lock | undefined, round: number) {
 
 /** Passive gold a lock farms in the round that is closing. It decides the lock's share of the lock pool. */
 export function passiveGold(lock: Lock, round: number) {
-  return lock.value * LOCK_GOLD_PER_RF * lockFactor(tenure(lock, round));
+  return lock.value * LOCK_GOLD_PER_CENT * lockFactor(tenure(lock, round));
 }
 
 export type LockSettlement = {
-  /** The locks after the round: farmed RF and ticket dust added. */
+  /** The locks after the round: what they farmed and ticket dust added. */
   locks: Lock[];
-  /** RF each participating lock farmed this round, by key. */
+  /** What each participating lock farmed this round, by key. */
   payouts: Record<string, number>;
   /** Passive gold of your locks this round, and how much of the pool they take. */
   yourGold: number;
@@ -77,14 +76,13 @@ export type LockSettlement = {
   fieldPayout: number;
   /** Dust left in the pool for the next round. */
   carry: number;
-  /** Whole raffle tickets your NFT locks farmed. */
+  /** Whole raffle tickets your Delver locks farmed. */
   tickets: number;
 };
 
 /**
  * Shares the lock pool among passive gold, exactly like the round pool is shared among descent gold: every cut
- * rounds down to the cent, so together they never exceed the pool. `active` says which locks farm this round
- * (a Friend lock pauses while the wallet does not hold a Friend).
+ * rounds down, so together they never exceed the pool. `active` says which locks farm this round (all, today).
  */
 export function settleLocks(
   locks: readonly Lock[], round: number, pot: number, fieldGold: number, active: (lock: Lock) => boolean = () => true,
@@ -105,7 +103,7 @@ export function settleLocks(
   }
   const carry = cents(Math.max(0, pot - paid - fieldPayout));
 
-  // Only the first few NFT locks earn ticket dust, so a big collection cannot bury the players who descend.
+  // Only the first few Delver locks earn ticket dust, so a big collection cannot bury the players who descend.
   const counted = new Set(
     farming.filter(l => l.kind !== "stake").sort((a, b) => a.since - b.since || a.key.localeCompare(b.key))
       .slice(0, LOCK_TICKET_LOCKS).map(l => l.key),
@@ -126,19 +124,19 @@ export function settleLocks(
 export type ExitTerms = {
   /** Before maturity: the lock is broken and pays for it. */
   early: boolean;
-  /** RF burned for leaving early. */
+  /** The fee for leaving early, which goes to the studio. */
   fee: number;
-  /** Farmed RF given up, which returns to the lock pool. */
+  /** What was farmed and is given up; it returns to the lock pool. */
   forfeit: number;
-  /** Farmed RF paid out. */
+  /** What was farmed and is paid out. */
   payout: number;
-  /** A stake's RF handed back, after the fee. An NFT lock has nothing to hand back. */
+  /** A stake handed back, after the fee. A Delver lock has nothing to hand back. */
   stakeBack: number;
 };
 
 export function exitTerms(lock: Lock, round: number): ExitTerms {
   const early = !isMature(lock, round);
-  const fee = early ? cents(lock.value * EXIT_BURN) : 0;
+  const fee = early ? cents(lock.value * EXIT_FEE) : 0;
   const forfeit = early ? down(lock.farmed * EXIT_FORFEIT) : 0;
   return {
     early, fee, forfeit, payout: cents(lock.farmed - forfeit),
@@ -146,11 +144,11 @@ export function exitTerms(lock: Lock, round: number): ExitTerms {
   };
 }
 
-/** Adds RF to a stake. A top-up keeps the stake's age, averaged by the RF on each side. */
+/** Adds to a stake. A top-up keeps the stake's age, averaged by the amount on each side. */
 export function addToStake(existing: Lock | undefined, amount: number, round: number): Lock {
-  if (amount <= 0 || amount % STAKE_STEP !== 0) throw new Error(`Stake in steps of ${STAKE_STEP} RF`);
+  if (amount <= 0 || amount % STAKE_STEP !== 0) throw new Error(`Stake in steps of $${toUsd(STAKE_STEP)}`);
   const total = (existing?.value ?? 0) + amount;
-  if (total > STAKE_MAX) throw new Error(`You can stake at most ${STAKE_MAX} RF`);
+  if (total > STAKE_MAX) throw new Error(`You can stake at most $${toUsd(STAKE_MAX)}`);
   if (!existing) return { key: STAKE_LOCK_KEY, kind: "stake", since: round, value: total, farmed: 0, dust: 0 };
   const age = Math.floor(tenure(existing, round) * existing.value / total);
   return { ...existing, value: total, since: round - age };

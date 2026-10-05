@@ -1,30 +1,31 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import {
-  EXPEDITION_COST, EXPEDITION_DURATION_MS, EXPEDITION_PACKS, FAUCET_AMOUNT, FIELD_LOCK_GOLD, FLASK_PRICE, HOLD_FACTOR, KEY_PRICE,
+  EXPEDITION_COST, EXPEDITION_DURATION_MS, EXPEDITION_PACKS, FAUCET_AMOUNT, FIELD_LOCK_GOLD, FLASK_PRICE, KEY_PRICE,
   EXPEDITION_TIERS, MAX_FLASKS, MAX_KEYS, PASSES, ROUND_SEED_GOLD, MAX_ROUND_RETURN, ROUND_SEED_LOCKED, ROUND_SEED_POOL, START_BALANCE, START_KEYS,
-  STAKE_MAX, WORLD_BURN_SEED, WORLD_MINT_SEED, type PackId, type PassId,
+  STAKE_MAX, WORLD_MINT_SEED, toUsd, type PackId, type PassId,
 } from "@/game/config";
 import {
-  ARMORS, CLASSES, FAMILY_PERKS, FRIEND_BLESSING, POTIONS, POTION_IDS, RARITIES, RARITY_INFO, WEAPONS, heroPerks,
+  ARMORS, CLASSES, POTIONS, POTION_IDS, RARITIES, RARITY_INFO, WEAPONS, heroPerks,
   mergePerks, scalePerks, type ArmorId, type HeroNft, type Perks, type PotionId, type Rarity, type WeaponId,
 } from "@/game/catalog";
 import {
-  applyBurn, applyClaim, applySpend, mintHero, mintsLeft, rollSigilRarity, settleRound, splitExpeditionSpend, splitSpend, type Ledger,
+  applyClaim, applyFee, applySpend, mintHero, mintsLeft, rollSigilRarity, settleRound, splitExpeditionSpend, splitSpend, type Ledger,
   type LedgerEntry, type RoundSettlement,
 } from "@/game/economy";
 import { hasReturned, rollExpedition, secondsLeft, type Outcome } from "@/game/expedition";
 import {
-  FRIEND_LOCK_KEY, FRIEND_LOCK_VALUE, STAKE_LOCK_KEY, addToStake, exitTerms, heroLockKey, heroLockValue, isMature, settleLocks,
+  STAKE_LOCK_KEY, addToStake, exitTerms, heroLockKey, heroLockValue, isMature, settleLocks,
   stakeGoldPct, strength, type Lock,
 } from "@/game/locks";
-import { drawWeek, fieldWeek, passCost, ticketsKept, type DrawResult, type LotFriend } from "@/game/raffle";
+import { drawWeek, fieldWeek, passCost, ticketsKept, type DrawResult } from "@/game/raffle";
 import { randomSeed } from "@/game/rng";
 import { emptyBag, type PotionBag, type RunState } from "@/game/run";
 
-export type HeroChoice = { kind: "wanderer" } | { kind: "nft"; id: string } | { kind: "friend" } | { kind: "prize"; serial: number };
+export type HeroChoice = { kind: "wanderer" } | { kind: "nft"; id: string };
 
-export type PrizeFriend = LotFriend & { wonAt: number };
+/** Money as dollars for messages: 50 cents is "$0.50". */
+const dollars = (cents: number) => `$${toUsd(cents).toFixed(2)}`;
 
 /** A Delver away on an expedition. The trip was decided when it left; `outcome` stays sealed until it is collected. */
 export type Expedition = { id: string; heroId: string; pack: PackId; sentAt: number; returnsAt: number; outcome: Outcome };
@@ -40,7 +41,8 @@ export type RunReport = {
   sigils: number;
   payout: number;
   spent: number;
-  burned: number;
+  /** The studio's share of what this descent cost. */
+  revenue: number;
   minted: HeroNft[];
   tickets: number;
   ticketsFound: number;
@@ -62,7 +64,7 @@ type State = Ledger & {
   round: number;
   /** Your gold from runs you extracted alive this round. */
   roundGold: number;
-  /** RF you put into descents settled this round (entry keys and oil, deaths included). It sets the round's return cap. */
+  /** What you put into descents settled this round (entry keys and oil, deaths included). It sets the round's return cap. */
   roundSpent: number;
   /** Gold the simulated crowd has banked this round. */
   fieldGold: number;
@@ -88,15 +90,12 @@ type State = Ledger & {
   carried: PotionBag;
   tickets: number;
   fieldTickets: number;
-  friendsBurned: number;
   week: number;
-  nextSerial: number;
-  prizes: PrizeFriend[];
   lastDraw: DrawResult | null;
   pass: PassId | null;
   /** Week number the pass was bought for. It ends when that week is drawn. */
   passWeek: number;
-  /** Delvers, your wallet's Friend and staked RF that are locked. They age with every closed round. */
+  /** Delvers and the stake that are locked. They age with every closed round. */
   locks: Lock[];
   /** Passive gold the simulated crowd's lockers farm this round. */
   fieldLockGold: number;
@@ -109,7 +108,7 @@ type State = Ledger & {
 type Actions = {
   setFlasks: (n: number) => void;
   selectHero: (choice: HeroChoice) => void;
-  buyPotion: (id: PotionId, pay: "rf" | "crystals") => void;
+  buyPotion: (id: PotionId, pay: "usdc" | "crystals") => void;
   buyWeapon: (id: WeaponId) => void;
   equipWeapon: (id: WeaponId) => void;
   buyArmor: (id: ArmorId) => void;
@@ -118,18 +117,14 @@ type Actions = {
   buyKey: (count: number) => void;
   payForRun: () => boolean;
   finishRun: (run: RunState) => RunReport;
-  /**
-   * Closes the round: the gold-share pool and the lock pool are both shared out, and every lock ages by one round.
-   * `friendHeld` says whether the wallet still holds the Friend that a Friend lock commits; if not, that lock pauses.
-   */
-  claimRound: (friendHeld?: boolean) => (RoundSettlement & { round: number; farmed: number; lockTickets: number }) | null;
+  /** Closes the round: the gold-share pool and the lock pool are both shared out, and every lock ages by one round. */
+  claimRound: () => (RoundSettlement & { round: number; farmed: number; lockTickets: number }) | null;
   lockHero: (id: string) => void;
-  lockFriend: () => void;
-  /** Stakes RF in steps of STAKE_STEP. The RF leaves your balance and comes back when you release the stake. */
-  stakeRf: (amount: number) => void;
-  /** Releases a lock. Before maturity that forfeits half of what it farmed and burns part of its value. */
+  /** Stakes USDC in steps of STAKE_STEP. It leaves your balance and comes back when you release the stake. */
+  stake: (amount: number) => void;
+  /** Releases a lock. Before maturity that forfeits half of what it farmed and costs a fee on its value. */
   unlock: (key: string) => UnlockResult;
-  /** Moves a mature lock's farmed RF into your balance and keeps the lock. */
+  /** Moves what a mature lock farmed into your balance and keeps the lock. */
   harvest: (key: string) => number;
   /** Sends a Delver away. It costs EXPEDITION_COST plus the pack, and the trip is decided now. `now` is for tests. */
   sendExpedition: (heroId: string, pack: PackId, now?: number) => Expedition;
@@ -139,6 +134,7 @@ type Actions = {
   abandonRun: () => boolean;
   faucet: () => void;
   addFieldWeek: () => void;
+  /** The weekly draw: free Delver mints for the winning tickets. */
   drawRaffle: () => DrawResult | null;
   buyPass: (id: PassId) => void;
   setMuted: (m: boolean) => void;
@@ -150,11 +146,10 @@ type Actions = {
 export type UnlockResult = { early: boolean; fee: number; forfeit: number; payout: number; stakeBack: number };
 
 const initial = (): State => ({
-  rf: START_BALANCE,
+  balance: START_BALANCE,
   pool: ROUND_SEED_POOL,
   locked: ROUND_SEED_LOCKED,
-  raffle: 0,
-  burned: 0,
+  revenue: 0,
   spent: 0,
   returned: 0,
   crystals: 0,
@@ -182,10 +177,7 @@ const initial = (): State => ({
   carried: emptyBag(),
   tickets: 0,
   fieldTickets: 0,
-  friendsBurned: 0,
   week: 1,
-  nextSerial: 1,
-  prizes: [],
   lastDraw: null,
   pass: null,
   passWeek: 0,
@@ -252,16 +244,12 @@ export function mergeSavedState(persisted: unknown, current: State & Actions): S
     })
     : defaults.expeditions;
   const hero = record(saved.hero);
-  const safeHero: HeroChoice = hero.kind === "nft" && typeof hero.id === "string"
-    ? { kind: "nft", id: hero.id }
-    : hero.kind === "prize" && Number.isSafeInteger(hero.serial)
-      ? { kind: "prize", serial: hero.serial as number }
-      : hero.kind === "friend" ? { kind: "friend" } : defaults.hero;
+  const safeHero: HeroChoice = hero.kind === "nft" && typeof hero.id === "string" ? { kind: "nft", id: hero.id } : defaults.hero;
 
   return {
     ...current,
-    rf: amount(saved.rf, defaults.rf), pool: amount(saved.pool, defaults.pool), locked: amount(saved.locked, defaults.locked),
-    raffle: amount(saved.raffle, defaults.raffle), burned: amount(saved.burned, defaults.burned),
+    balance: amount(saved.balance, defaults.balance), pool: amount(saved.pool, defaults.pool), locked: amount(saved.locked, defaults.locked),
+    revenue: amount(saved.revenue, defaults.revenue),
     spent: amount(saved.spent, defaults.spent), returned: amount(saved.returned, defaults.returned),
     crystals: amount(saved.crystals, defaults.crystals, true), potions: safePotions,
     keys: Math.min(MAX_KEYS, amount(saved.keys, defaults.keys, true)),
@@ -286,10 +274,7 @@ export function mergeSavedState(persisted: unknown, current: State & Actions): S
     carried,
     tickets: amount(saved.tickets, defaults.tickets, true),
     fieldTickets: amount(saved.fieldTickets, defaults.fieldTickets, true),
-    friendsBurned: amount(saved.friendsBurned, defaults.friendsBurned, true),
     week: Math.max(1, amount(saved.week, defaults.week, true)),
-    nextSerial: Math.max(1, amount(saved.nextSerial, defaults.nextSerial, true)),
-    prizes: Array.isArray(saved.prizes) ? saved.prizes.filter(isPrize) : defaults.prizes,
     lastDraw: isDrawResult(saved.lastDraw) ? saved.lastDraw : null,
     pass: saved.pass === "plus" || saved.pass === "pro" ? saved.pass : null,
     passWeek: amount(saved.passWeek, defaults.passWeek, true),
@@ -330,9 +315,8 @@ function isExpeditionReturn(value: unknown): value is ExpeditionReturn {
 
 function isLock(value: unknown): value is Lock {
   const l = record(value);
-  const keyMatchesKind = l.kind === "friend" ? l.key === FRIEND_LOCK_KEY
-    : l.kind === "stake" ? l.key === STAKE_LOCK_KEY
-      : l.kind === "hero" && typeof l.key === "string" && l.key.startsWith("hero:") && l.key.length < 80;
+  const keyMatchesKind = l.kind === "stake" ? l.key === STAKE_LOCK_KEY
+    : l.kind === "hero" && typeof l.key === "string" && l.key.startsWith("hero:") && l.key.length < 80;
   return keyMatchesKind
     && Number.isSafeInteger(l.since) && (l.since as number) >= 1
     && [l.value, l.farmed, l.dust].every(n => typeof n === "number" && Number.isFinite(n) && n >= 0)
@@ -344,29 +328,22 @@ function isHero(value: unknown): value is HeroNft {
   return typeof h.id === "string" && Number.isSafeInteger(h.serial) && (h.serial as number) >= 0
     && typeof h.classId === "string" && Object.hasOwn(CLASSES, h.classId)
     && typeof h.rarity === "string" && Object.hasOwn(RARITY_INFO, h.rarity)
-    && (h.source === "altar" || h.source === "sigil")
+    && (h.source === "altar" || h.source === "sigil" || h.source === "draw")
     && typeof h.mintedAt === "number" && Number.isFinite(h.mintedAt);
-}
-
-function isPrize(value: unknown): value is PrizeFriend {
-  const p = record(value);
-  return Number.isSafeInteger(p.serial) && (p.serial as number) >= 0 && Number.isSafeInteger(p.family)
-    && (p.family as number) >= 0 && (p.family as number) < FAMILY_PERKS.length
-    && typeof p.wonAt === "number" && Number.isFinite(p.wonAt);
 }
 
 function isLedgerEntry(value: unknown): value is LedgerEntry {
   const e = record(value);
   return typeof e.label === "string" && typeof e.at === "number" && Number.isFinite(e.at)
     && (e.kind === "spend" || e.kind === "payout" || e.kind === "faucet")
-    && [e.amount, e.burned, e.pooled, e.raffle].every(n => typeof n === "number" && Number.isFinite(n));
+    && [e.amount, e.revenue, e.pooled].every(n => typeof n === "number" && Number.isFinite(n));
 }
 
 function isRunReport(value: unknown): value is RunReport {
   const r = record(value);
   return (r.outcome === "dead" || r.outcome === "extracted")
     && Array.isArray(r.minted) && r.minted.every(isHero)
-    && [r.depth, r.gold, r.crystals, r.sigils, r.payout, r.spent, r.burned,
+    && [r.depth, r.gold, r.crystals, r.sigils, r.payout, r.spent, r.revenue,
       r.tickets, r.ticketsFound, r.steps, r.kills].every(n => typeof n === "number" && Number.isFinite(n));
 }
 
@@ -374,13 +351,9 @@ function isDrawResult(value: unknown): value is DrawResult {
   const d = record(value);
   return Array.isArray(d.prizes) && d.prizes.every(p => {
     const prize = record(p);
-    const friend = record(prize.friend);
-    return (prize.fate === "burned" || prize.fate === "you" || prize.fate === "field")
-      && Number.isSafeInteger(friend.serial) && (friend.serial as number) >= 0
-      && Number.isSafeInteger(friend.family) && (friend.family as number) >= 0
-      && (friend.family as number) < FAMILY_PERKS.length;
-  }) && [d.bought, d.spent, d.leftover, d.yourTickets, d.fieldTickets]
-    .every(n => typeof n === "number" && Number.isFinite(n));
+    return (prize.fate === "you" || prize.fate === "field")
+      && (prize.rarity === undefined || (typeof prize.rarity === "string" && Object.hasOwn(RARITY_INFO, prize.rarity)));
+  }) && [d.mints, d.yourTickets, d.fieldTickets].every(n => typeof n === "number" && Number.isFinite(n));
 }
 
 function newRunId() {
@@ -398,21 +371,20 @@ export class ExpeditionError extends Error {}
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 function spend(state: State, amount: number, label: string): Partial<State> {
-  if (amount > state.rf + 1e-9) throw new InsufficientFunds(`Not enough RF for ${label}`);
+  if (amount > state.balance + 1e-9) throw new InsufficientFunds(`Not enough USDC for ${label}`);
   const ledger = applySpend(state, amount);
-  const { burned, pooled, raffle, locked } = splitSpend(amount);
-  const entry: LedgerEntry = { at: Date.now(), kind: "spend", label, amount, burned, pooled, raffle, locked };
+  const { revenue, pooled, locked } = splitSpend(amount);
+  const entry: LedgerEntry = { at: Date.now(), kind: "spend", label, amount, revenue, pooled, locked };
   return { ...ledger, log: [entry, ...state.log].slice(0, 60) };
 }
 
 /** A log line for something that is not a spend or a payout split, such as a lock opening. */
-function note(kind: LedgerEntry["kind"], label: string, amount: number, burned = 0): LedgerEntry {
-  return { at: Date.now(), kind, label, amount, burned, pooled: 0, raffle: 0 };
+function note(kind: LedgerEntry["kind"], label: string, amount: number, revenue = 0): LedgerEntry {
+  return { at: Date.now(), kind, label, amount, revenue, pooled: 0 };
 }
 
 const lockName = (lock: Lock, heroes: HeroNft[]) => {
-  if (lock.kind === "stake") return `${lock.value} RF stake`;
-  if (lock.kind === "friend") return "your Rare Friend";
+  if (lock.kind === "stake") return `${dollars(lock.value)} stake`;
   const hero = heroes.find(h => heroLockKey(h.id) === lock.key);
   return hero ? `${CLASSES[hero.classId].name} #${hero.serial}` : "a Delver";
 };
@@ -421,7 +393,7 @@ const lockName = (lock: Lock, heroes: HeroNft[]) => {
 export function migrateSavedState(persisted: unknown, version: number) {
   const saved = { ...(persisted as Partial<State>) };
   if (version < 2) {
-    Object.assign(saved, { raffle: saved.raffle ?? 0, tickets: saved.tickets ?? 0, fieldTickets: 0, friendsBurned: 0, week: saved.week ?? 1, nextSerial: 1, prizes: [], lastDraw: null });
+    Object.assign(saved, { tickets: saved.tickets ?? 0, fieldTickets: 0, week: saved.week ?? 1, lastDraw: null });
   }
   if (version < 3) Object.assign(saved, { pass: null, passWeek: 0 });
   // v4 replaced the fixed gold rate with round shares, so the old 250k pool has no meaning any more.
@@ -504,7 +476,7 @@ export const useGame = create<State & Actions>()(
         const s = get();
         if (s.runSpent > 0 || s.keys < 1) return false;
         const cost = s.flasks * FLASK_PRICE;
-        if (cost > s.rf) return false;
+        if (cost > s.balance) return false;
         // The potions go into the descent's pack now, so closing the tab cannot hand them back.
         set({
           ...spend(s, cost, `${s.flasks} oil flask${s.flasks > 1 ? "s" : ""}`),
@@ -545,12 +517,12 @@ export const useGame = create<State & Actions>()(
             minted.push(mintHero(rarity, ++mints, "sigil", undefined, edition));
           }
         }
-        const burned = splitSpend(s.runSpent).burned;
+        const revenue = splitSpend(s.runSpent).revenue;
         const tickets = ticketsKept(extracted, run.tickets);
         const report: RunReport = {
           outcome: extracted ? "extracted" : "dead",
           depth: run.deepest, gold: run.gold, crystals: run.crystals, sigils: run.sigils,
-          payout: 0, spent: s.runSpent, burned, minted, tickets, ticketsFound: run.tickets, steps: run.steps, kills: run.kills,
+          payout: 0, spent: s.runSpent, revenue, minted, tickets, ticketsFound: run.tickets, steps: run.steps, kills: run.kills,
           bossSlain: !!run.bossSlain,
         };
         set({
@@ -592,13 +564,13 @@ export const useGame = create<State & Actions>()(
           stats: { ...s.stats, runs: s.stats.runs + 1, deaths: s.stats.deaths + 1 },
           log: [{
             at: Date.now(), kind: "payout" as const, label: "Descent abandoned: lost in the dark",
-            amount: 0, burned: 0, pooled: 0, raffle: 0,
+            amount: 0, revenue: 0, pooled: 0,
           }, ...s.log].slice(0, 60),
         });
         return true;
       },
 
-      claimRound: (friendHeld = false) => {
+      claimRound: () => {
         const s = get();
         // A round with no gold of yours still closes if your locks are waiting to age and farm.
         if (s.roundGold <= 0 && s.locks.length === 0) return null;
@@ -607,18 +579,18 @@ export const useGame = create<State & Actions>()(
         const settled = applyClaim(s, result);
         const percent = Math.round(result.share * 10_000) / 100;
         // The lock pool is shared by passive gold, apart from the pool descents compete for.
-        const lockResult = settleLocks(s.locks, s.round, s.locked, s.fieldLockGold, l => l.kind !== "friend" || friendHeld);
+        const lockResult = settleLocks(s.locks, s.round, s.locked, s.fieldLockGold);
         const farmed = round2(Object.values(lockResult.payouts).reduce((a, b) => a + b, 0));
         const log: LedgerEntry[] = [];
-        if (farmed > 0) log.push(note("payout", `Round ${s.round}: your locks farmed ${farmed} RF (paid when they mature)`, farmed));
+        if (farmed > 0) log.push(note("payout", `Round ${s.round}: your locks farmed ${dollars(farmed)} (paid when they mature)`, farmed));
         if (s.roundGold > 0) {
           log.push({
             at: Date.now(), kind: "payout" as const,
-            label: `Round ${s.round}: ${percent}% of the gold`, amount: result.payout, burned: 0, pooled: -result.payout, raffle: 0,
+            label: `Round ${s.round}: ${percent}% of the gold`, amount: result.payout, revenue: 0, pooled: -result.payout,
           });
         }
         set({
-          rf: settled.rf, returned: settled.returned,
+          balance: settled.balance, returned: settled.returned,
           // A new round opens with a simulated crowd already in it.
           pool: round2(settled.pool + ROUND_SEED_POOL),
           locked: round2(lockResult.carry + ROUND_SEED_LOCKED),
@@ -645,14 +617,7 @@ export const useGame = create<State & Actions>()(
         set({ locks: [...s.locks, lock], log: [note("payout", `Locked ${lockName(lock, s.heroes)}`, 0), ...s.log].slice(0, 60) });
       },
 
-      lockFriend: () => {
-        const s = get();
-        if (s.locks.some(l => l.key === FRIEND_LOCK_KEY)) return;
-        const lock: Lock = { key: FRIEND_LOCK_KEY, kind: "friend", since: s.round, value: FRIEND_LOCK_VALUE, farmed: 0, dust: 0 };
-        set({ locks: [...s.locks, lock], log: [note("payout", "Locked your Rare Friend", 0), ...s.log].slice(0, 60) });
-      },
-
-      stakeRf: amount => {
+      stake: amount => {
         const s = get();
         let lock: Lock;
         try {
@@ -660,11 +625,11 @@ export const useGame = create<State & Actions>()(
         } catch (e) {
           throw new LockError(e instanceof Error ? e.message : "That stake is not allowed");
         }
-        if (amount > s.rf + 1e-9) throw new InsufficientFunds("Not enough RF to stake");
+        if (amount > s.balance + 1e-9) throw new InsufficientFunds("Not enough USDC to stake");
         set({
-          rf: round2(s.rf - amount),
+          balance: round2(s.balance - amount),
           locks: [...s.locks.filter(l => l.key !== STAKE_LOCK_KEY), lock],
-          log: [note("spend", `Staked ${amount} RF (${lock.value} in total, yours to take back)`, amount), ...s.log].slice(0, 60),
+          log: [note("spend", `Staked ${dollars(amount)} (${dollars(lock.value)} in total, yours to take back)`, amount), ...s.log].slice(0, 60),
         });
       },
 
@@ -673,19 +638,19 @@ export const useGame = create<State & Actions>()(
         const lock = s.locks.find(l => l.key === key);
         if (!lock) throw new LockError("That lock does not exist");
         const terms = exitTerms(lock, s.round);
-        // An NFT is never moved, so its fee comes out of your balance; a stake pays the fee out of what it returns.
-        if (lock.kind !== "stake" && terms.fee > s.rf + 1e-9) throw new InsufficientFunds(`Not enough RF for the ${terms.fee} RF exit fee`);
+        // A Delver is never moved, so its fee comes out of your balance; a stake pays the fee out of what it returns.
+        if (lock.kind !== "stake" && terms.fee > s.balance + 1e-9) throw new InsufficientFunds(`Not enough USDC for the ${dollars(terms.fee)} exit fee`);
         const gained = round2(terms.payout + terms.stakeBack - (lock.kind === "stake" ? 0 : terms.fee));
-        const burned = applyBurn(s, terms.fee);
+        const fee = applyFee(s, terms.fee);
         set({
-          rf: round2(s.rf + gained),
-          burned: burned.burned, spent: burned.spent,
+          balance: round2(s.balance + gained),
+          revenue: fee.revenue, spent: fee.spent,
           returned: round2(s.returned + terms.payout),
           // What an early leaver gives up goes back to the delvers who stay.
           locked: round2(s.locked + terms.forfeit),
           locks: s.locks.filter(l => l.key !== key),
           log: [
-            note(terms.early ? "spend" : "payout", `${terms.early ? "Broke" : "Released"} ${lockName(lock, s.heroes)}${terms.early ? `: ${terms.forfeit} RF forfeited, ${terms.fee} RF burned` : ""}`,
+            note(terms.early ? "spend" : "payout", `${terms.early ? "Broke" : "Released"} ${lockName(lock, s.heroes)}${terms.early ? `: ${dollars(terms.forfeit)} forfeited, ${dollars(terms.fee)} fee` : ""}`,
               terms.early ? terms.fee : gained, terms.fee),
             ...s.log,
           ].slice(0, 60),
@@ -697,11 +662,11 @@ export const useGame = create<State & Actions>()(
         const s = get();
         const lock = s.locks.find(l => l.key === key);
         if (!lock) throw new LockError("That lock does not exist");
-        if (!isMature(lock, s.round)) throw new LockError("Farmed RF can be harvested once the lock is mature");
+        if (!isMature(lock, s.round)) throw new LockError("What a lock farmed can be harvested once it is mature");
         const amount = lock.farmed;
         if (amount <= 0) return 0;
         set({
-          rf: round2(s.rf + amount),
+          balance: round2(s.balance + amount),
           returned: round2(s.returned + amount),
           locks: s.locks.map(l => l.key === key ? { ...l, farmed: 0 } : l),
           log: [note("payout", `Harvested ${lockName(lock, s.heroes)}`, amount), ...s.log].slice(0, 60),
@@ -715,14 +680,14 @@ export const useGame = create<State & Actions>()(
         if (s.expeditions.some(e => e.heroId === heroId)) throw new ExpeditionError("That Delver is already away");
         if (s.runSpent > 0 && s.hero.kind === "nft" && s.hero.id === heroId) throw new ExpeditionError("Finish the descent first: that Delver is in the cave");
         const cost = EXPEDITION_COST + EXPEDITION_PACKS[pack].price;
-        if (cost > s.rf + 1e-9) throw new InsufficientFunds(`Not enough RF: this expedition costs ${cost} RF`);
+        if (cost > s.balance + 1e-9) throw new InsufficientFunds(`Not enough USDC: this expedition costs ${dollars(cost)}`);
         const split = splitExpeditionSpend(cost);
         const trip: Expedition = {
           id: newRunId(), heroId, pack, sentAt: now, returnsAt: now + EXPEDITION_DURATION_MS, outcome: rollExpedition(randomSeed(), pack),
         };
         const entry: LedgerEntry = {
           at: Date.now(), kind: "spend", label: `Expedition (${EXPEDITION_PACKS[pack].name})`, amount: cost,
-          burned: split.burned, pooled: split.pooled, raffle: split.raffle, locked: 0,
+          revenue: split.revenue, pooled: split.pooled, locked: 0,
         };
         set({
           ...applySpend(s, cost, split),
@@ -765,8 +730,8 @@ export const useGame = create<State & Actions>()(
       faucet: () => {
         const s = get();
         set({
-          rf: s.rf + FAUCET_AMOUNT,
-          log: [{ at: Date.now(), kind: "faucet" as const, label: "Simulated top-up", amount: FAUCET_AMOUNT, burned: 0, pooled: 0, raffle: 0 }, ...s.log].slice(0, 60),
+          balance: s.balance + FAUCET_AMOUNT,
+          log: [{ at: Date.now(), kind: "faucet" as const, label: "Simulated top-up", amount: FAUCET_AMOUNT, revenue: 0, pooled: 0 }, ...s.log].slice(0, 60),
         });
       },
 
@@ -774,40 +739,50 @@ export const useGame = create<State & Actions>()(
         const s = get();
         const week = fieldWeek();
         set({
-          raffle: Math.round((s.raffle + week.treasury) * 100) / 100,
           pool: Math.round((s.pool + week.pooled) * 100) / 100,
           locked: round2(s.locked + week.locked),
           fieldGold: s.fieldGold + week.gold,
           fieldLockGold: s.fieldLockGold + week.lockGold,
           fieldTickets: s.fieldTickets + week.tickets,
-          log: [{ at: Date.now(), kind: "spend" as const, label: "Other delvers this week (simulated)", amount: week.spent, burned: 0, pooled: week.pooled, raffle: week.treasury, locked: week.locked }, ...s.log].slice(0, 60),
+          log: [{ at: Date.now(), kind: "spend" as const, label: "Other delvers this week (simulated)", amount: week.spent, revenue: week.revenue, pooled: week.pooled, locked: week.locked }, ...s.log].slice(0, 60),
         });
       },
 
       drawRaffle: () => {
         const s = get();
-        const draw = drawWeek({
-          treasury: s.raffle, yourTickets: s.tickets, fieldTickets: s.fieldTickets,
-          seed: randomSeed(), nextSerial: s.nextSerial,
-        });
+        const draw = drawWeek({ yourTickets: s.tickets, fieldTickets: s.fieldTickets, seed: randomSeed() });
         if (!draw) return null;
-        const won = draw.prizes.filter(p => p.fate === "you").map(p => ({ ...p.friend, wonAt: Date.now() }));
+        // Each win is a free mint from the fixed supply. A sold-out rarity is skipped; if every Delver is minted, a win
+        // has nothing left to give.
+        const minted: HeroNft[] = [];
+        const mintedNow: Record<Rarity, number> = { common: 0, rare: 0, epic: 0, legendary: 0 };
+        let mints = s.stats.mints;
+        const prizes = draw.prizes.map(prize => {
+          if (prize.fate !== "you") return prize;
+          const available = RARITIES.filter(r => mintsLeft(r, s.minted[r] + mintedNow[r]) > 0);
+          if (available.length === 0) return prize;
+          const rarity = rollSigilRarity(undefined, available);
+          const edition = WORLD_MINT_SEED[rarity] + s.minted[rarity] + mintedNow[rarity] + 1;
+          mintedNow[rarity]++;
+          minted.push(mintHero(rarity, ++mints, "draw", undefined, edition));
+          return { ...prize, rarity };
+        });
+        const result: DrawResult = { ...draw, prizes };
         set({
-          raffle: draw.leftover,
           tickets: 0,
           fieldTickets: 0,
           week: s.week + 1,
-          nextSerial: s.nextSerial + draw.bought,
-          friendsBurned: s.friendsBurned + 1,
-          prizes: [...won, ...s.prizes],
-          lastDraw: draw,
+          heroes: [...minted, ...s.heroes],
+          minted: { common: s.minted.common + mintedNow.common, rare: s.minted.rare + mintedNow.rare, epic: s.minted.epic + mintedNow.epic, legendary: s.minted.legendary + mintedNow.legendary },
+          stats: { ...s.stats, mints },
+          lastDraw: result,
           log: [{
             at: Date.now(), kind: "payout" as const,
-            label: `Week ${s.week}: bought ${draw.bought}, burned 1, drew ${draw.bought - 1}`,
-            amount: 0, burned: 0, pooled: 0, raffle: -draw.spent,
+            label: `Week ${s.week} draw: ${draw.mints} free mint${draw.mints === 1 ? "" : "s"}, ${minted.length} for you`,
+            amount: 0, revenue: 0, pooled: 0,
           }, ...s.log].slice(0, 60),
         });
-        return draw;
+        return result;
       },
 
       buyPass: id => {
@@ -826,7 +801,7 @@ export const useGame = create<State & Actions>()(
       reset: () => set({ ...initial() }),
     }),
     {
-      name: "emberdeep-save-v1",
+      name: "emberdeep-arc-save-v1",
       version: 7,
       merge: mergeSavedState,
       migrate: migrateSavedState,
@@ -836,52 +811,36 @@ export const useGame = create<State & Actions>()(
 
 if (typeof window !== "undefined") {
   window.addEventListener("storage", event => {
-    if (event.key === "emberdeep-save-v1" && event.storageArea === localStorage && event.newValue) {
+    if (event.key === "emberdeep-arc-save-v1" && event.storageArea === localStorage && event.newValue) {
       void useGame.persist.rehydrate();
     }
   });
 }
 
-export const worldBurned = (burned: number) => WORLD_BURN_SEED + burned;
-
 export function activePass(state: Pick<State, "pass" | "passWeek" | "week">): PassId | null {
   return state.pass && state.passWeek === state.week ? state.pass : null;
 }
 
-export type FriendContext = {
-  hasFriend: boolean;
-  family: number | null;
-};
-
 /**
- * Perks for the chosen hero, plus the Rare Friend blessing when the wallet holds one. Everything you only hold
- * works at HOLD_FACTOR of its strength; locking it (and waiting) makes it stronger. Staked RF adds gold.
+ * Perks for the chosen Delver. Everything you only hold works at HOLD_FACTOR of its strength; locking it (and waiting)
+ * makes it stronger. A stake adds gold.
  */
-export function computePerks(state: Pick<State, "hero" | "heroes" | "prizes" | "locks" | "round">, friend: FriendContext): Perks {
+export function computePerks(state: Pick<State, "hero" | "heroes" | "locks" | "round">): Perks {
   const lockOf = (key: string) => state.locks.find(l => l.key === key);
-  // A Friend lock only counts while the wallet still holds a Friend.
-  const friendStrength = strength(friend.hasFriend ? lockOf(FRIEND_LOCK_KEY) : undefined, state.round);
   const parts: Partial<Perks>[] = [];
-  if (friend.hasFriend) parts.push(scalePerks(FRIEND_BLESSING, friendStrength));
   if (state.hero.kind === "nft") {
     const id = state.hero.id;
     const hero = state.heroes.find(h => h.id === id);
     if (hero) parts.push(scalePerks(heroPerks(hero), strength(lockOf(heroLockKey(hero.id)), state.round)));
-  } else if (state.hero.kind === "friend" && friend.family !== null) {
-    parts.push(scalePerks(FAMILY_PERKS[friend.family]?.perk ?? {}, friendStrength));
-  } else if (state.hero.kind === "prize") {
-    const serial = state.hero.serial;
-    const prize = state.prizes.find(p => p.serial === serial);
-    if (prize) parts.push(scalePerks(FAMILY_PERKS[prize.family]?.perk ?? {}, HOLD_FACTOR));
   }
   const stake = stakeGoldPct(lockOf(STAKE_LOCK_KEY), state.round);
   if (stake > 0) parts.push({ goldPct: stake });
   return mergePerks(...parts);
 }
 
-export function computeRunPerks(state: Pick<State, "hero" | "heroes" | "prizes" | "locks" | "round" | "weapon" | "armor">, friend: FriendContext): Perks {
+export function computeRunPerks(state: Pick<State, "hero" | "heroes" | "locks" | "round" | "weapon" | "armor">): Perks {
   return mergePerks(
-    computePerks(state, friend),
+    computePerks(state),
     { lightOnKill: WEAPONS[state.weapon].lightOnKill },
     { drainReduce: ARMORS[state.armor ?? "none"].drainReduce },
   );

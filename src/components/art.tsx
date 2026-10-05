@@ -1,7 +1,6 @@
 import { useMemo } from "react";
 import { RARITY_INFO, type ClassId, type Rarity } from "@/game/catalog";
 import { RARITY_SUPPLY } from "@/game/config";
-import { FRIEND_PICTURES } from "@/lib/friend-pictures";
 import { cn } from "@/lib/utils";
 import { ITEM_ART, portraitArt, type ItemArtId } from "@/render/item-art";
 import { spriteToDataUrl } from "@/render/pixel-art";
@@ -10,18 +9,6 @@ import { spriteToDataUrl } from "@/render/pixel-art";
 export function ItemArt({ id, px = 3, className }: { id: ItemArtId; px?: number; className?: string }) {
   const src = useMemo(() => spriteToDataUrl(ITEM_ART[id], px), [id, px]);
   return <img src={src} alt="" aria-hidden className={cn("pixelated shrink-0", className)} draggable={false} />;
-}
-
-/** One Friend of the weekly lot. Uses a real Rare Friends picture when some are supplied, otherwise a tinted portrait. */
-export function FriendArt({ serial, family = 0, size = 64, className }: { serial: number; family?: number; size?: number; className?: string }) {
-  const src = useMemo(() => spriteToDataUrl(portraitArt("wanderer", "epic"), 6), []);
-  const picture = FRIEND_PICTURES.length ? FRIEND_PICTURES[Math.abs(serial) % FRIEND_PICTURES.length] : null;
-  return picture ? (
-    <img src={picture} alt="" aria-hidden draggable={false} className={cn("pixelated rounded-lg object-cover", className)} style={{ width: size, height: size }} />
-  ) : (
-    <img src={src} alt="" aria-hidden draggable={false} className={cn("pixelated rounded-lg", className)}
-      style={{ width: size, height: size, filter: `hue-rotate(${family * 40}deg) saturate(1.3)` }} />
-  );
 }
 
 export type Portrait = { kind: ClassId | "wanderer"; rarity: Rarity; edition?: number };

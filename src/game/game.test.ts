@@ -1,42 +1,40 @@
 import { describe, expect, it } from "vitest";
 import {
-  BOSS_DEPTH, BOSS_DRAIN, BOSS_HP, BOSS_SIZE, BURN_SHARE, HOARD_CRYSTALS, HOARD_GOLD, HOARD_SIGIL_CHANCE, HP_SCALE, FLASK_LIGHT, HEAL_LIGHT, KEY_PRICE, LOCK_SHARE, NIGHT_VISION_STEPS, POOL_SHARE, RAFFLE_SHARE, ACTIVE_SHARE,
+  BOSS_DEPTH, BOSS_DRAIN, BOSS_HP, BOSS_SIZE, DRAW_MINTS, HOARD_CRYSTALS, HOARD_GOLD, HOARD_SIGIL_CHANCE, HP_SCALE, FLASK_LIGHT, HEAL_LIGHT, KEY_PRICE, LOCK_SHARE, NIGHT_VISION_STEPS, POOL_SHARE, REVENUE_SHARE, ACTIVE_SHARE,
   RAGE_HITS, RAGE_MULT, REGEN_TURNS,
-  FIELD_GOLD_PER_RF, FLASK_PRICE, HOLD_FACTOR, MAX_ROUND_RETURN, ROUND_SEED_GOLD, ROUND_SEED_LOCKED, ROUND_SEED_POOL, enemyCount,
+  FIELD_GOLD_PER_CENT, FLASK_PRICE, HOLD_FACTOR, MAX_ROUND_RETURN, ROUND_SEED_GOLD, ROUND_SEED_LOCKED, ROUND_SEED_POOL, enemyCount,
   floorScale, stepCost,
 } from "./config";
 import { enemyDef } from "./enemies";
-import { FRIEND_BLESSING, MAX_STEP_DISCOUNT, NO_PERKS, POTIONS, POTION_DROP_WEIGHTS, SHOP_POTION_IDS, mergePerks, scalePerks } from "./catalog";
+import { MAX_STEP_DISCOUNT, NO_PERKS, POTIONS, POTION_DROP_WEIGHTS, SHOP_POTION_IDS, mergePerks, scalePerks } from "./catalog";
 import { dimlingDistance, distances, footprint, generateFloor, idx, themeForDepth, type Dimling } from "./dungeon";
 import { applyClaim, applySpend, roundShare, settleRound, splitSpend } from "./economy";
-import { drawWeek, lotSize, passCost, ticketChance, ticketsKept } from "./raffle";
+import { drawWeek, passCost, ticketChance, ticketsKept } from "./raffle";
 import { createRng } from "./rng";
 import { applyAction, bossAlive, emptyBag, onStairs, startRun, type RunState } from "./run";
 import { simulateFogMany, simulateMany, simulateRound, type Cohort } from "./sim";
 
-const ledger = { rf: 1_000, pool: ROUND_SEED_POOL, locked: ROUND_SEED_LOCKED, raffle: 0, burned: 0, spent: 0, returned: 0 };
+const ledger = { balance: 1_000, pool: ROUND_SEED_POOL, locked: ROUND_SEED_LOCKED, revenue: 0, spent: 0, returned: 0 };
 
 describe("economy", () => {
-  it("burns exactly the configured share of every spend and pools the rest", () => {
-    const { burned, raffle, locked, pooled } = splitSpend(100);
-    expect(burned).toBe(100 * BURN_SHARE);
-    expect(raffle).toBe(100 * RAFFLE_SHARE);
+  it("pays the studio exactly the configured share of every spend and pools the rest", () => {
+    const { revenue, locked, pooled } = splitSpend(100);
+    expect(revenue).toBe(100 * REVENUE_SHARE);
     expect(locked).toBeCloseTo(100 * LOCK_SHARE, 10);
-    expect(burned + raffle + locked + pooled).toBe(100);
+    expect(revenue + locked + pooled).toBe(100);
     const after = applySpend(ledger, 100);
-    expect(after.rf).toBe(900);
-    expect(after.burned).toBe(25);
-    expect(after.raffle).toBe(8);
+    expect(after.balance).toBe(900);
+    expect(after.revenue).toBe(33);
     expect(after.locked).toBeCloseTo(ROUND_SEED_LOCKED + 7, 6);
     expect(after.pool).toBe(ROUND_SEED_POOL + 60);
   });
 
   it("keeps 67% for players, split between the round pool and the lock pool", () => {
     expect(ACTIVE_SHARE + LOCK_SHARE).toBeCloseTo(POOL_SHARE, 10);
-    expect(BURN_SHARE + RAFFLE_SHARE + POOL_SHARE).toBeCloseTo(1, 10);
+    expect(REVENUE_SHARE + POOL_SHARE).toBeCloseTo(1, 10);
     for (const amount of [1, 7, 13.37, 50, 999.99]) {
-      const { burned, raffle, locked, pooled } = splitSpend(amount);
-      expect(burned + raffle + locked + pooled).toBeCloseTo(amount, 2);
+      const { revenue, locked, pooled } = splitSpend(amount);
+      expect(revenue + locked + pooled).toBeCloseTo(amount, 2);
     }
   });
 
@@ -77,7 +75,7 @@ describe("economy", () => {
   });
 
   it("caps what a delver takes back at a multiple of what they put in, and leaves the rest in the pool", () => {
-    // 90% of the gold would be 9,000 RF, but only 100 RF went into descents.
+    // 90% of the gold would be $90, but only $1 went into descents.
     const s = settleRound(10_000, 900, 100, MAX_ROUND_RETURN * 100);
     expect(s.payout).toBe(MAX_ROUND_RETURN * 100);
     expect(s.withheld).toBe(9_000 - s.payout);
@@ -96,7 +94,7 @@ describe("economy", () => {
     const s = settleRound(2_000, 50, 150);
     const after = applyClaim({ ...ledger, pool: 2_000 }, s);
     expect(s.payout).toBe(500);
-    expect(after.rf).toBe(ledger.rf + 500);
+    expect(after.balance).toBe(ledger.balance + 500);
     expect(after.returned).toBe(500);
     expect(after.pool).toBe(0);
   });
@@ -550,30 +548,37 @@ describe("raffle", () => {
     expect(passCost("plus", "pro")).toBeNull();
   });
 
-  it("holds the treasury until it can buy two Friends, and never burns the only prize", () => {
-    expect(lotSize(499)).toBe(0);
-    expect(lotSize(999)).toBe(0);
-    expect(lotSize(1_000)).toBe(2);
-    expect(lotSize(10_000)).toBe(5);
-    const draw = drawWeek({ treasury: 1_600, yourTickets: 3, fieldTickets: 9, seed: 11, nextSerial: 1 });
+  it("draws the week's free mints by ticket, and nothing when nobody holds one", () => {
+    const draw = drawWeek({ yourTickets: 3, fieldTickets: 9, seed: 11 });
     expect(draw).not.toBeNull();
-    expect(draw!.bought).toBe(3);
-    expect(draw!.leftover).toBe(100);
-    expect(draw!.prizes.filter(p => p.fate === "burned")).toHaveLength(1);
-    expect(draw!.prizes.filter(p => p.fate !== "burned")).toHaveLength(2);
-    expect(drawWeek({ treasury: 1_600, yourTickets: 0, fieldTickets: 0, seed: 1, nextSerial: 1 })).toBeNull();
+    expect(draw!.mints).toBe(DRAW_MINTS);
+    expect(draw!.prizes).toHaveLength(DRAW_MINTS);
+    expect(draw!.prizes.every(p => p.fate === "you" || p.fate === "field")).toBe(true);
+    expect(drawWeek({ yourTickets: 0, fieldTickets: 0, seed: 1 })).toBeNull();
+    expect(drawWeek({ yourTickets: 5, fieldTickets: 5, seed: 1, mints: 0 })).toBeNull();
   });
 
-  it("gives every drawn Friend to the only ticket holder", () => {
-    const draw = drawWeek({ treasury: 1_000, yourTickets: 4, fieldTickets: 0, seed: 3, nextSerial: 8 })!;
-    expect(draw.prizes.filter(p => p.fate === "you")).toHaveLength(1);
-    expect(draw.prizes.filter(p => p.fate === "field")).toHaveLength(0);
+  it("gives every mint to the only ticket holder", () => {
+    const draw = drawWeek({ yourTickets: 4, fieldTickets: 0, seed: 3 })!;
+    expect(draw.prizes.filter(p => p.fate === "you")).toHaveLength(DRAW_MINTS);
+  });
+
+  it("shares the mints by tickets over many weeks", () => {
+    let mine = 0, all = 0;
+    for (let seed = 1; seed <= 400; seed++) {
+      const draw = drawWeek({ yourTickets: 1, fieldTickets: 3, seed })!;
+      mine += draw.prizes.filter(p => p.fate === "you").length;
+      all += draw.mints;
+    }
+    expect(mine / all).toBeGreaterThan(0.2);
+    expect(mine / all).toBeLessThan(0.3);
   });
 });
 
 describe("balance", () => {
   // These bots almost never die, so they are an upper bound on skilled play, not a forecast.
-  const strong = mergePerks({ stepDiscount: 0.35, radius: 1 }, { stepDiscount: 0.25 }, { goldPct: 20, radius: 1 });
+  // The strongest build: a Legendary Pathfinder locked to full strength (the step discount hits the shared cap) and the full stake.
+  const strong = mergePerks(scalePerks({ stepDiscount: 0.35, radius: 1 }, 1.3), { goldPct: 10 });
 
   it("caps stacked step discounts so light cannot be multiplied without limit", () => {
     expect(mergePerks({ stepDiscount: 0.35 }, { stepDiscount: 0.25 }).stepDiscount).toBe(MAX_STEP_DISCOUNT);
@@ -581,49 +586,51 @@ describe("balance", () => {
   });
 
   it("keeps the two bots close, so the fog bot is a fair stand-in for the perfect one", { timeout: 60_000 }, () => {
-    const omni = simulateMany(40, 2).goldPerRf;
-    const fog = simulateFogMany(40, 2).goldPerRf;
+    const omni = simulateMany(40, 2).goldPerCent;
+    const fog = simulateFogMany(40, 2).goldPerCent;
     // The fog bot sees less, so it is a little behind the perfect one; 40 runs each leave a few points of noise.
     expect(Math.abs(omni - fog) / omni).toBeLessThan(0.18);
   });
 
   it("sets the simulated crowd's rate a little below what the mixed crowd of bots banks, since people make mistakes", { timeout: 120_000 }, () => {
-    // 70% unperked, 20% holding a Friend's blessing, 10% holding the strongest build, all only holding their perks.
+    // 70% unperked, 20% holding a Rare Prospector, 10% holding a Legendary Pathfinder, all only holding their perks.
     const held = (p: Parameters<typeof scalePerks>[0]) => scalePerks(p, HOLD_FACTOR);
     const mix = [
       { share: 70, flasks: 2, perks: NO_PERKS },
-      { share: 20, flasks: 2, perks: mergePerks(held(FRIEND_BLESSING)) },
-      { share: 10, flasks: 3, perks: mergePerks(held({ stepDiscount: 0.35 }), held({ radius: 1 }), held({ stepDiscount: 0.25 }), held(FRIEND_BLESSING)) },
+      { share: 20, flasks: 2, perks: mergePerks(held({ goldPct: 25 })) },
+      { share: 10, flasks: 3, perks: mergePerks(held({ stepDiscount: 0.35, radius: 1 })) },
     ];
     let gold = 0, spent = 0;
     for (const m of mix) {
       const cost = m.flasks * FLASK_PRICE + KEY_PRICE;
-      gold += m.share * cost * simulateFogMany(40, m.flasks, m.perks).goldPerRf;
+      gold += m.share * cost * simulateFogMany(40, m.flasks, m.perks).goldPerCent;
       spent += m.share * cost;
     }
     const bots = gold / spent;
-    expect(FIELD_GOLD_PER_RF).toBeLessThanOrEqual(bots);
-    expect(FIELD_GOLD_PER_RF).toBeGreaterThanOrEqual(bots * 0.7);
+    expect(FIELD_GOLD_PER_CENT).toBeLessThanOrEqual(bots);
+    expect(FIELD_GOLD_PER_CENT).toBeGreaterThanOrEqual(bots * 0.7);
   });
 
   it("makes a key a fixed cost of every descent, so a single flask does not pay for itself", { timeout: 60_000 }, () => {
-    const one = simulateFogMany(30, 1).goldPerRf;
-    const two = simulateFogMany(30, 2).goldPerRf;
+    const one = simulateFogMany(30, 1).goldPerCent;
+    const two = simulateFogMany(30, 2).goldPerCent;
     expect(KEY_PRICE).toBeGreaterThan(0);
     expect(two).toBeGreaterThan(one * 1.5);
   });
 
-  it("lets the best build bank more gold per RF, but within 3x of an unperked delver", { timeout: 120_000 }, () => {
-    const base = simulateFogMany(40, 2).goldPerRf;
-    const best = simulateFogMany(40, 2, strong).goldPerRf;
+  it("lets the best build bank more gold per cent spent, but within 3.5x of an unperked delver", { timeout: 120_000 }, () => {
+    // The strongest legal build, locked 10+ rounds, banks about 3.1x (the Rare Friends version's reached 3.4x). Payouts are
+    // bounded anyway: a round never returns more than MAX_ROUND_RETURN of what went into its descents.
+    const base = simulateFogMany(40, 2).goldPerCent;
+    const best = simulateFogMany(40, 2, strong).goldPerCent;
     expect(best / base).toBeGreaterThan(1.2);
-    expect(best / base).toBeLessThan(3);
+    expect(best / base).toBeLessThan(3.5);
   });
 
   it("splits exactly the pool between a mixed crowd, with more gold taking more", { timeout: 120_000 }, () => {
     const cohorts: Cohort[] = [
       { name: "base", perks: NO_PERKS, flasks: 2, share: 70 },
-      { name: "blessed", perks: mergePerks({ goldPct: 20, radius: 1 }), flasks: 2, share: 20 },
+      { name: "prospector", perks: mergePerks({ goldPct: 25 }), flasks: 2, share: 20 },
       { name: "strong", perks: strong, flasks: 3, share: 10 },
     ];
     const sim = simulateRound(cohorts, 2_000, 20);
@@ -631,8 +638,8 @@ describe("balance", () => {
     expect(sim.overall + sim.withheld).toBeCloseTo(ACTIVE_SHARE, 2);
     for (const r of Object.values(sim.rtp)) expect(r).toBeLessThanOrEqual(MAX_ROUND_RETURN + 1e-9);
     expect(Object.values(sim.goldShare).reduce((a, b) => a + b, 0)).toBeCloseTo(1, 6);
-    expect(sim.rtp.strong).toBeGreaterThan(sim.rtp.blessed);
-    expect(sim.rtp.blessed).toBeGreaterThan(sim.rtp.base);
+    expect(sim.rtp.strong).toBeGreaterThan(sim.rtp.prospector);
+    expect(sim.rtp.prospector).toBeGreaterThan(sim.rtp.base);
   });
 });
 

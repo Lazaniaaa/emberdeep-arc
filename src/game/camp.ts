@@ -20,10 +20,10 @@ export const STATIONS: readonly Station[] = [
   { id: "gate", x: 20, y: 5, name: "Dungeon Gate", blurb: "Pick who descends, buy oil and an entry key, then light the lantern." },
   { id: "altar", x: 9, y: 9, name: "Ember Altar", blurb: "Mint Delvers, lock them for stronger perks, or send them on expeditions." },
   { id: "armory", x: 31, y: 9, name: "Armory", blurb: "Weapons, potions and crafting with crystals." },
-  { id: "board", x: 9, y: 19, name: "Friend Board", blurb: "The weekly Friend lot, your tickets and the passes." },
-  { id: "ledger", x: 31, y: 19, name: "Vault", blurb: "The reward round, where every RF goes, and your session." },
+  { id: "board", x: 9, y: 19, name: "Draw Board", blurb: "The weekly draw for free Delver mints, your tickets and the passes." },
+  { id: "ledger", x: 31, y: 19, name: "Vault", blurb: "The reward round, where every dollar goes, and your session." },
   { id: "guide", x: 16, y: 18, name: "Welcome Board", blurb: "How a descent works, in four steps." },
-  { id: "hall", x: 24, y: 18, name: "Hall of Delvers", blurb: "Your own records. Nobody else's numbers are shown here." },
+  { id: "hall", x: 24, y: 18, name: "Hall of Delvers", blurb: "Your own records, and the Hall of Descents on Arc." },
 ];
 
 export type CampProp = { x: number; y: number; kind: "fire" | "lamp" | "crystal" | "mushroom" | "crate" | "rock" };

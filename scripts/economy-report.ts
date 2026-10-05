@@ -1,53 +1,55 @@
 // Regenerates docs/economy-report.md: `npm run economy` (a few minutes). Deterministic: same seeds every run.
 // It uses the same bots and settlement code as the game, so the tables cannot drift from the rules.
+// Money is in cents of simulated USDC everywhere in the game; this report shows it in dollars.
 import { writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { it } from "vitest";
 import {
-  ACTIVE_SHARE, FIELD_GOLD_PER_RF, FIELD_LOCK_GOLD, FLASK_PRICE, HOLD_FACTOR, KEY_PRICE, LOCK_MAX, LOCK_SHARE, LOCK_START,
-  MATURITY_ROUNDS, MAX_ROUND_RETURN, POOL_SHARE, ROUND_SEED_GOLD, ROUND_SEED_LOCKED, ROUND_SEED_POOL, STAKE_MAX,
-  EXPEDITION_BASE_LOOT, EXPEDITION_BURN, EXPEDITION_COST, EXPEDITION_DURATION_MS, EXPEDITION_LOT, EXPEDITION_PACKS, EXPEDITION_POOL,
-  EXPEDITION_TIERS, type PackId,
+  ACTIVE_SHARE, FIELD_GOLD_PER_CENT, FIELD_LOCK_GOLD, FLASK_PRICE, HOLD_FACTOR, KEY_PRICE, LOCK_MAX, LOCK_SHARE, LOCK_START,
+  MATURITY_ROUNDS, MAX_ROUND_RETURN, POOL_SHARE, REVENUE_SHARE, ROUND_SEED_GOLD, ROUND_SEED_LOCKED, ROUND_SEED_POOL, STAKE_MAX,
+  EXIT_FEE, EXPEDITION_BASE_LOOT, EXPEDITION_COST, EXPEDITION_DURATION_MS, EXPEDITION_PACKS, EXPEDITION_POOL, EXPEDITION_REVENUE,
+  EXPEDITION_TIERS, toUsd, type PackId,
 } from "../src/game/config";
 import { chanceAtLeast, expectedLoot, meanMultiplier } from "../src/game/expedition";
-import { FAMILY_PERKS, FRIEND_BLESSING, NO_PERKS, RARITY_INFO, heroPerks, mergePerks, scalePerks, type HeroNft } from "../src/game/catalog";
+import { NO_PERKS, RARITY_INFO, heroPerks, mergePerks, scalePerks, type HeroNft } from "../src/game/catalog";
 import { settleRound } from "../src/game/economy";
-import { FRIEND_LOCK_VALUE, STAKE_LOCK_KEY, lockFactor, settleLocks, stakeGoldPct, type Lock } from "../src/game/locks";
+import { STAKE_LOCK_KEY, lockFactor, settleLocks, stakeGoldPct, type Lock } from "../src/game/locks";
 import { simulateFogMany, simulateRound, type Cohort } from "../src/game/sim";
 
-// Legendary Pathfinder (-35% light per step, +1 radius) + Hoverer family perk (-25%) + Friend's Blessing, at strength k.
+// The strongest build: a Legendary Pathfinder (-35% light per step, +1 radius) at strength k, plus a stake's gold.
 const pathfinder: HeroNft = { id: "p", serial: 1, classId: "pathfinder", rarity: "legendary", source: "altar", mintedAt: 0 };
-const strongAt = (k: number, stakeGold = 0) => mergePerks(
-  scalePerks(heroPerks(pathfinder), k), scalePerks(FAMILY_PERKS[5].perk, k), scalePerks(FRIEND_BLESSING, k), { goldPct: stakeGold },
-);
-const blessingAt = (k: number) => mergePerks(scalePerks(FRIEND_BLESSING, k));
+const strongAt = (k: number, stakeGold = 0) => mergePerks(scalePerks(heroPerks(pathfinder), k), { goldPct: stakeGold });
+// A middling build: a Rare Prospector (+25% gold) at strength k.
+const prospector: HeroNft = { id: "r", serial: 2, classId: "prospector", rarity: "rare", source: "altar", mintedAt: 0 };
+const prospectorAt = (k: number) => mergePerks(scalePerks(heroPerks(prospector), k));
 
 const stakeAfter = (rounds: number) => {
   const stake: Lock = { key: STAKE_LOCK_KEY, kind: "stake", since: 1, value: STAKE_MAX, farmed: 0, dust: 0 };
   return stakeGoldPct(stake, 1 + rounds);
 };
 
+const pct = (n: number) => `${Math.round(n * 100)}%`;
+/** Cents as dollars. */
+const money = (cents: number) => `$${toUsd(cents).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
 const strategies = [
   { name: "Unperked, 1 flask", perks: NO_PERKS, flasks: 1 },
   { name: "Unperked, 2 flasks", perks: NO_PERKS, flasks: 2 },
   { name: "Unperked, 3 flasks", perks: NO_PERKS, flasks: 3 },
-  { name: `Friend's Blessing, held (×${HOLD_FACTOR}), 2 flasks`, perks: blessingAt(HOLD_FACTOR), flasks: 2 },
-  { name: "Friend's Blessing, locked 4 rounds (×1.00), 2 flasks", perks: blessingAt(lockFactor(4)), flasks: 2 },
-  { name: `Friend's Blessing, locked 10+ rounds (×${LOCK_MAX}), 2 flasks`, perks: blessingAt(LOCK_MAX), flasks: 2 },
+  { name: `Rare Prospector, held (×${HOLD_FACTOR}), 2 flasks`, perks: prospectorAt(HOLD_FACTOR), flasks: 2 },
+  { name: "Rare Prospector, locked 4 rounds (×1.00), 2 flasks", perks: prospectorAt(lockFactor(4)), flasks: 2 },
+  { name: `Rare Prospector, locked 10+ rounds (×${LOCK_MAX}), 2 flasks`, perks: prospectorAt(LOCK_MAX), flasks: 2 },
   { name: `Strongest build, held (×${HOLD_FACTOR}), 3 flasks`, perks: strongAt(HOLD_FACTOR), flasks: 3 },
   { name: `Strongest build, just locked (×${LOCK_START}), 3 flasks`, perks: strongAt(LOCK_START), flasks: 3 },
   { name: "Strongest build, locked 4 rounds (×1.00), 3 flasks", perks: strongAt(lockFactor(4)), flasks: 3 },
   { name: `Strongest build, locked 10+ rounds (×${LOCK_MAX}), 3 flasks`, perks: strongAt(LOCK_MAX), flasks: 3 },
-  { name: `Strongest build locked 10+ rounds and ${STAKE_MAX.toLocaleString("en-US")} RF staked, 3 flasks`, perks: strongAt(LOCK_MAX, stakeAfter(10)), flasks: 3 },
+  { name: `Strongest build locked 10+ rounds and ${money(STAKE_MAX)} staked, 3 flasks`, perks: strongAt(LOCK_MAX, stakeAfter(10)), flasks: 3 },
 ];
-
-const pct = (n: number) => `${Math.round(n * 100)}%`;
-const usdRf = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 2 });
 
 it("writes the economy report", { timeout: 900_000 }, () => {
   const RUNS = 80;
   const stats = strategies.map(s => ({ ...s, ...simulateFogMany(RUNS, s.flasks, s.perks), cost: s.flasks * FLASK_PRICE + KEY_PRICE }));
-  const base = stats[1].goldPerRf;
+  const base = stats[1].goldPerCent;
   const byName = (prefix: string) => stats.find(s => s.name.startsWith(prefix))!;
   const out: string[] = [];
 
@@ -55,45 +57,46 @@ it("writes the economy report", { timeout: 900_000 }, () => {
   out.push(
     "Generated by `npm run economy` from the same code the game runs. Every number is a simulation with bots, not a measurement of players.",
     "The bots see only what the lantern lights (\"fog\" bots) and rarely die, so treat the returns as an upper bound for real players.",
-    `Descent cost = one entry key (${KEY_PRICE} RF) + lantern flasks (${FLASK_PRICE} RF each). One-off purchases (Delver mints, weapons, armor, passes) are extra spend that also goes through the split; they are not in the return columns.`,
-    `Every RF spent is split 25% burned, 8% weekly Friend lot, ${pct(LOCK_SHARE)} lock pool and ${pct(ACTIVE_SHARE)} round pool (${pct(POOL_SHARE)} back to players in total). The round pool is shared by descent gold, the lock pool by passive gold, so the total paid out is fixed: nothing here can print or drain tokens, and a lock can never take RF from a delver who plays.`,
+    "Money is simulated USDC. The game counts it in cents; this report shows dollars.",
+    `Descent cost = one entry key (${money(KEY_PRICE)}) + lantern flasks (${money(FLASK_PRICE)} each). One-off purchases (Delver mints, weapons, armor, passes) are extra spend that also goes through the split; they are not in the return columns.`,
+    `Every dollar spent is split ${pct(ACTIVE_SHARE)} round pool, ${pct(LOCK_SHARE)} lock pool (${pct(POOL_SHARE)} back to players in total) and ${pct(REVENUE_SHARE)} studio revenue. The round pool is shared by descent gold, the lock pool by passive gold, so the total paid out is fixed: nothing here can print or drain money, and a lock can never take anything from a delver who plays.`,
     `The return cap: a delver takes back at most ${pct(MAX_ROUND_RETURN)} of what they put into descents in a round (keys and oil), so the best case is +${Math.round((MAX_ROUND_RETURN - 1) * 100)}% a round. What the cap holds back stays in the pool for the next round. Cells marked † are where the cap bound.`,
     `Strength: a perk you only hold works at ×${HOLD_FACTOR}. A lock starts at ×${LOCK_START}, gains ×0.05 for every round closed and stops at ×${LOCK_MAX}. A lock is mature after ${MATURITY_ROUNDS} rounds (×1.00).`,
     "",
   );
 
   out.push(`## A. What a descent yields (${RUNS} seeded descents per strategy)`, "");
-  out.push("| Strategy | Cost per descent | Gold banked per RF spent | vs unperked, 2 flasks | Died | Avg deepest floor |", "| --- | --- | --- | --- | --- | --- |");
-  for (const s of stats) out.push(`| ${s.name} | ${s.cost} RF | ${s.goldPerRf.toFixed(2)} | ×${(s.goldPerRf / base).toFixed(2)} | ${pct(s.deathRate)} | ${s.avgDepth.toFixed(1)} |`);
+  out.push("| Strategy | Cost per descent | Gold banked per cent spent | vs unperked, 2 flasks | Died | Avg deepest floor |", "| --- | --- | --- | --- | --- | --- |");
+  for (const s of stats) out.push(`| ${s.name} | ${money(s.cost)} | ${s.goldPerCent.toFixed(2)} | ×${(s.goldPerCent / base).toFixed(2)} | ${pct(s.deathRate)} | ${s.avgDepth.toFixed(1)} |`);
   out.push("", "Holding is the weak setting on purpose. Locking wins the strength back over about four rounds and adds a little beyond it, so the reward for commitment is a stronger perk plus a share of the lock pool (table E), not a different game.");
 
   const subset = [
-    byName("Unperked, 2 flasks"), byName("Friend's Blessing, held"), byName("Strongest build, held"),
+    byName("Unperked, 2 flasks"), byName("Rare Prospector, held"), byName("Strongest build, held"),
     byName("Strongest build, locked 10+"), byName("Strongest build locked 10+ rounds and"),
   ];
-  const crowdRates = [...new Set([2.2, 3.2, FIELD_GOLD_PER_RF, 5.4, 6.6])].sort((a, b) => a - b);
+  const crowdRates = [...new Set([2.2, 3.2, FIELD_GOLD_PER_CENT, 5.4, 6.6])].sort((a, b) => a - b);
   const crowdSpend = 20_000;
-  /** RF back / RF put into the descents, after the return cap; † marks a cap that bound. */
+  /** Money back / money put into the descents, after the return cap; † marks a cap that bound. */
   const returnCell = (spend: number, gold: number, crowd: number, crowdGold: number) => {
     const s = settleRound((crowd + spend) * ACTIVE_SHARE, gold, crowdGold, MAX_ROUND_RETURN * spend);
     return `${pct(s.payout / spend)}${s.withheld > 0 ? " †" : ""}`;
   };
-  out.push("", `## B. Sensitivity to the crowd's skill (the demo assumes ${FIELD_GOLD_PER_RF} gold per RF)`, "");
-  out.push(`One delver making 10 descents against a crowd that spent ${crowdSpend.toLocaleString("en-US")} RF and banked the given gold per RF. Cells are RF received from the round pool / RF put into the descents, after the return cap († = the cap bound).`, "");
+  out.push("", `## B. Sensitivity to the crowd's skill (the demo assumes ${FIELD_GOLD_PER_CENT} gold per cent spent)`, "");
+  out.push(`One delver making 10 descents against a crowd that spent ${money(crowdSpend)} and banked the given gold per cent. Cells are money received from the round pool / money put into the descents, after the return cap († = the cap bound).`, "");
   out.push(`| Strategy | ${crowdRates.map(r => `crowd ${r}`).join(" | ")} |`, `| --- | ${crowdRates.map(() => "---").join(" | ")} |`);
   for (const s of subset) {
-    const spend = s.cost * 10, gold = s.goldPerRf * spend;
+    const spend = s.cost * 10, gold = s.goldPerCent * spend;
     const cells = crowdRates.map(r => returnCell(spend, gold, crowdSpend, crowdSpend * r));
     out.push(`| ${s.name} | ${cells.join(" | ")} |`);
   }
-  out.push("", `A cell scales with \`your gold per RF / the crowd's gold per RF\`. If the demo's ${FIELD_GOLD_PER_RF} is wrong, uncapped returns move by about the same factor, but the cap keeps the best case at +${Math.round((MAX_ROUND_RETURN - 1) * 100)}% a round, and the sum paid out to the whole crowd stays at most 60% of spend.`);
+  out.push("", `A cell scales with \`your gold per cent / the crowd's gold per cent\`. If the demo's ${FIELD_GOLD_PER_CENT} is wrong, uncapped returns move by about the same factor, but the cap keeps the best case at +${Math.round((MAX_ROUND_RETURN - 1) * 100)}% a round, and the sum paid out to the whole crowd stays at most ${pct(ACTIVE_SHARE)} of spend.`);
 
   const sizes = [2_000, 20_000, 200_000];
-  out.push("", `## C. Sensitivity to crowd size (crowd of unperked 2-flask delvers at ${FIELD_GOLD_PER_RF} gold per RF)`, "");
-  out.push(`| Strategy | ${sizes.map(n => `crowd ${n.toLocaleString("en-US")} RF`).join(" | ")} |`, `| --- | ${sizes.map(() => "---").join(" | ")} |`);
+  out.push("", `## C. Sensitivity to crowd size (crowd of unperked 2-flask delvers at ${FIELD_GOLD_PER_CENT} gold per cent)`, "");
+  out.push(`| Strategy | ${sizes.map(n => `crowd ${money(n)}`).join(" | ")} |`, `| --- | ${sizes.map(() => "---").join(" | ")} |`);
   for (const s of subset) {
-    const spend = s.cost * 10, gold = s.goldPerRf * spend;
-    const cells = sizes.map(n => returnCell(spend, gold, n, n * FIELD_GOLD_PER_RF));
+    const spend = s.cost * 10, gold = s.goldPerCent * spend;
+    const cells = sizes.map(n => returnCell(spend, gold, n, n * FIELD_GOLD_PER_CENT));
     out.push(`| ${s.name} | ${cells.join(" | ")} |`);
   }
   out.push("", "In a tiny crowd one delver is a large part of the gold, so its own spend dilutes its share. Returns settle as the crowd grows.");
@@ -103,31 +106,30 @@ it("writes the economy report", { timeout: 900_000 }, () => {
     "Each row is a whole round with players in the given proportions (share of all descents). \"Paid out / spent\" is the round pool paid to everyone, after the return cap, divided by everything spent; \"Carried\" is what the cap held back for the next round. The lock pool is separate (table E).",
     "\"Held\" players only own their perks; \"locked\" players have kept the strongest build locked for 10+ rounds.", "",
   );
-  out.push("| Crowd: unperked / Blessing held / strongest held / strongest locked | Paid out / spent | Carried | Unperked | Blessing held | Strongest held | Strongest locked |", "| --- | --- | --- | --- | --- | --- | --- |");
+  out.push("| Crowd: unperked / Prospector held / strongest held / strongest locked | Paid out / spent | Carried | Unperked | Prospector held | Strongest held | Strongest locked |", "| --- | --- | --- | --- | --- | --- | --- |");
   for (const [a, b, c, d] of [[100, 0, 0, 0], [70, 20, 10, 0], [70, 20, 0, 10], [50, 30, 0, 20], [20, 30, 0, 50], [0, 0, 0, 100]]) {
     const cohorts: Cohort[] = [
       { name: "base", perks: NO_PERKS, flasks: 2, share: a },
-      { name: "blessed", perks: blessingAt(HOLD_FACTOR), flasks: 2, share: b },
+      { name: "prospector", perks: prospectorAt(HOLD_FACTOR), flasks: 2, share: b },
       { name: "strongHeld", perks: strongAt(HOLD_FACTOR), flasks: 3, share: c },
       { name: "strongLocked", perks: strongAt(LOCK_MAX), flasks: 3, share: d },
     ].filter(x => x.share > 0);
     const sim = simulateRound(cohorts, 3_000, 40);
     const f = (n: string) => (sim.rtp[n] === undefined ? "n/a" : pct(sim.rtp[n]));
-    out.push(`| ${a} / ${b} / ${c} / ${d} | ${(sim.overall * 100).toFixed(1)}% | ${(sim.withheld * 100).toFixed(1)}% | ${f("base")} | ${f("blessed")} | ${f("strongHeld")} | ${f("strongLocked")} |`);
+    out.push(`| ${a} / ${b} / ${c} / ${d} | ${(sim.overall * 100).toFixed(1)}% | ${(sim.withheld * 100).toFixed(1)}% | ${f("base")} | ${f("prospector")} | ${f("strongHeld")} | ${f("strongLocked")} |`);
   }
   out.push(
     "",
-    "The strongest build earns well above average only while few others play it. Its edge is paid by everyone else's gold, and it shrinks as it spreads (compare the rows); if everyone has it, the round pays every delver exactly 60% again.",
+    `The strongest build earns well above average only while few others play it. Its edge is paid by everyone else's gold, and it shrinks as it spreads (compare the rows); if everyone has it, the round pays every delver exactly ${pct(ACTIVE_SHARE)} again.`,
     "That is why an edge is worth buying but cannot be farmed without limit: the more delvers buy it, the less each one's gold share is worth.",
   );
 
   // E. The lock pool: what passive farming pays, per lock, against a simulated crowd of lockers.
   const lockKinds: { name: string; make: (since: number) => Lock }[] = [
-    { name: `Common Delver (${RARITY_INFO.common.price} RF)`, make: since => ({ key: "hero:c", kind: "hero", since, value: RARITY_INFO.common.price, farmed: 0, dust: 0 }) },
-    { name: `Epic Delver (${RARITY_INFO.epic.price} RF)`, make: since => ({ key: "hero:e", kind: "hero", since, value: RARITY_INFO.epic.price, farmed: 0, dust: 0 }) },
-    { name: `Legendary Delver (${RARITY_INFO.legendary.price.toLocaleString("en-US")} RF)`, make: since => ({ key: "hero:l", kind: "hero", since, value: RARITY_INFO.legendary.price, farmed: 0, dust: 0 }) },
-    { name: `Rare Friend (${FRIEND_LOCK_VALUE} RF)`, make: since => ({ key: "friend", kind: "friend", since, value: FRIEND_LOCK_VALUE, farmed: 0, dust: 0 }) },
-    { name: `Stake (${STAKE_MAX.toLocaleString("en-US")} RF)`, make: since => ({ key: STAKE_LOCK_KEY, kind: "stake", since, value: STAKE_MAX, farmed: 0, dust: 0 }) },
+    { name: `Common Delver (${money(RARITY_INFO.common.price)})`, make: since => ({ key: "hero:c", kind: "hero", since, value: RARITY_INFO.common.price, farmed: 0, dust: 0 }) },
+    { name: `Epic Delver (${money(RARITY_INFO.epic.price)})`, make: since => ({ key: "hero:e", kind: "hero", since, value: RARITY_INFO.epic.price, farmed: 0, dust: 0 }) },
+    { name: `Legendary Delver (${money(RARITY_INFO.legendary.price)})`, make: since => ({ key: "hero:l", kind: "hero", since, value: RARITY_INFO.legendary.price, farmed: 0, dust: 0 }) },
+    { name: `Stake (${money(STAKE_MAX)})`, make: since => ({ key: STAKE_LOCK_KEY, kind: "stake", since, value: STAKE_MAX, farmed: 0, dust: 0 }) },
   ];
   const farmedIn = (lock: Lock, round: number, fieldGold = FIELD_LOCK_GOLD) => settleLocks([lock], round, ROUND_SEED_LOCKED, fieldGold).payouts[lock.key];
   const horizon = (lock: Lock, rounds: number, fieldGold = FIELD_LOCK_GOLD) => {
@@ -137,56 +139,56 @@ it("writes the economy report", { timeout: 900_000 }, () => {
   };
   out.push("", "## E. The lock pool: what passive farming pays", "");
   out.push(
-    `Each simulated crowd week puts ${usdRf(ROUND_SEED_LOCKED)} RF (${pct(LOCK_SHARE)} of ${(20_000).toLocaleString("en-US")} RF spent) in the lock pool, shared by passive gold. The demo's crowd of lockers farms ${FIELD_LOCK_GOLD.toLocaleString("en-US")} passive gold a round; that is an assumption, like the crowd's gold per RF. Passive gold = value × 0.1 × strength, so the pool follows capital, not luck.`,
-    "RF farmed by one lock, alone in a crowd of that size:", "",
+    `Each simulated crowd week puts ${money(ROUND_SEED_LOCKED)} (${pct(LOCK_SHARE)} of ${money(20_000)} spent) in the lock pool, shared by passive gold. The demo's crowd of lockers farms ${FIELD_LOCK_GOLD.toLocaleString("en-US")} passive gold a round; that is an assumption, like the crowd's gold per cent. Passive gold = value in cents × 0.1 × strength, so the pool follows capital, not luck.`,
+    "Farmed by one lock, alone in a crowd of that size:", "",
   );
   out.push("| Lock | Round 1 | Round 5 | Round 10 | 10 rounds in total | Per round, % of value | Payback on a mint |", "| --- | --- | --- | --- | --- | --- | --- |");
   for (const k of lockKinds) {
     const l = k.make(1);
     const total10 = horizon(l, 10);
     const payback = l.kind === "hero" ? `${Math.ceil(l.value / (total10 / 10))} rounds` : "n/a";
-    out.push(`| ${k.name} | ${usdRf(farmedIn(l, 1))} | ${usdRf(farmedIn(l, 5))} | ${usdRf(farmedIn(l, 10))} | ${usdRf(total10)} | ${(total10 / 10 / l.value * 100).toFixed(1)}% | ${payback} |`);
+    out.push(`| ${k.name} | ${money(farmedIn(l, 1))} | ${money(farmedIn(l, 5))} | ${money(farmedIn(l, 10))} | ${money(total10)} | ${(total10 / 10 / l.value * 100).toFixed(1)}% | ${payback} |`);
   }
-  out.push("", `Payback compares the yield to the RF spent minting the Delver (it also burned 25% of that). A stake is never spent, so its yield is on top of getting the RF back. The farmed RF is held until the lock is mature (${MATURITY_ROUNDS} rounds).`);
+  out.push("", `Payback compares the yield to what minting the Delver cost (${pct(REVENUE_SHARE)} of which went to the studio). A stake is never spent, so its yield is on top of getting it back. What a lock farms is held until it is mature (${MATURITY_ROUNDS} rounds).`);
 
   const fields = [8_000, 16_000, 32_000, 64_000];
   out.push("", "### Sensitivity to how many other lockers there are", "");
-  out.push(`Same lock, different crowds of lockers (passive gold a round). RF farmed over the first 10 rounds:`, "");
+  out.push(`Same lock, different crowds of lockers (passive gold a round). Farmed over the first 10 rounds:`, "");
   out.push(`| Lock | ${fields.map(f => `crowd ${f.toLocaleString("en-US")}`).join(" | ")} |`, `| --- | ${fields.map(() => "---").join(" | ")} |`);
-  for (const k of lockKinds) out.push(`| ${k.name} | ${fields.map(f => usdRf(horizon(k.make(1), 10, f))).join(" | ")} |`);
+  for (const k of lockKinds) out.push(`| ${k.name} | ${fields.map(f => money(horizon(k.make(1), 10, f))).join(" | ")} |`);
   out.push("", "The pool is fixed, so more lockers means a smaller cut for each. Yield falls as the crowd of lockers grows; it cannot inflate.");
 
   const leg = lockKinds[2].make(1);
   const oneRound = farmedIn(leg, 1);
   out.push("", "### Why hopping in and out does not pay", "");
   out.push(
-    `A Legendary Delver farms about ${usdRf(oneRound)} RF in its first round. Breaking it before maturity forfeits half of that and burns ${usdRf(leg.value * 0.1)} RF (10% of ${leg.value.toLocaleString("en-US")}), roughly ${Math.round(leg.value * 0.1 / oneRound)} times a round's yield. So a lock only makes sense if it is kept, and the burn feeds the same sink as everything else.`,
+    `A Legendary Delver farms about ${money(oneRound)} in its first round. Breaking it before maturity forfeits half of that and costs a fee of ${money(leg.value * EXIT_FEE)} (${pct(EXIT_FEE)} of ${money(leg.value)}), roughly ${Math.round(leg.value * EXIT_FEE / oneRound)} times a round's yield. So a lock only makes sense if it is kept.`,
     "",
   );
 
   // F. Expeditions: a Delver sent away for a random haul.
-  const TICKET_RF = 20;
-  const GOLD_RF = ROUND_SEED_POOL / ROUND_SEED_GOLD;
+  const TICKET_CENTS = 20;
+  const GOLD_CENTS = ROUND_SEED_POOL / ROUND_SEED_GOLD;
   const packs = Object.keys(EXPEDITION_PACKS) as PackId[];
   out.push("", "## F. Expeditions", "");
   out.push(
-    `A Delver can be sent away for ${EXPEDITION_COST} RF plus an optional pack (preview: ${EXPEDITION_DURATION_MS / 1000} seconds; a live version would take hours to a day). The price is split ${pct(EXPEDITION_BURN)} burned, ${pct(EXPEDITION_LOT)} weekly Friend lot, ${pct(EXPEDITION_POOL)} round pool. It comes back with a haul or with nothing.`,
+    `A Delver can be sent away for ${money(EXPEDITION_COST)} plus an optional pack (preview: ${EXPEDITION_DURATION_MS / 1000} seconds; a live version would take hours to a day). The price is split ${pct(EXPEDITION_POOL)} round pool and ${pct(EXPEDITION_REVENUE)} studio revenue. It comes back with a haul or with nothing.`,
     `A haul is a multiplier between ×${EXPEDITION_TIERS[0].min} and ×${EXPEDITION_TIERS[EXPEDITION_TIERS.length - 1].max} of ${EXPEDITION_BASE_LOOT.keys} key, ${EXPEDITION_BASE_LOOT.tickets} ticket and ${EXPEDITION_BASE_LOOT.gold} gold; its rarity is drawn from ${EXPEDITION_TIERS.map(t => `${t.label} ${(t.weight / 100).toFixed(t.weight < 100 ? 1 : 0)}%`).join(", ")}. The average successful haul is ×${meanMultiplier().toFixed(2)}.`,
-    `Worth is in RF: a key ${KEY_PRICE}, a ticket ${TICKET_RF} (an assumption: what a ticket is worth depends on the whole week's draw), a gold ${GOLD_RF.toFixed(2)} (what one gold is worth in the demo's round pool before the return cap). Hauls are never paid in RF.`,
+    `Worth: a key ${money(KEY_PRICE)}, a ticket ${money(TICKET_CENTS)} (an assumption: what a ticket is worth depends on the whole week's draw), a gold ${money(GOLD_CENTS)} (what one gold is worth in the demo's round pool before the return cap). Hauls are never paid in money.`,
     "",
   );
-  out.push("| Pack | Total cost | Burned | Friend lot | Round pool | Returns with a haul | Average haul | Average worth | Worth ÷ cost | ×2 or more | ×5 or more | ×10 or more |", "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |");
+  out.push("| Pack | Total cost | Studio | Round pool | Returns with a haul | Average haul | Average worth | Worth ÷ cost | ×2 or more | ×5 or more | ×10 or more |", "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |");
   for (const id of packs) {
     const pack = EXPEDITION_PACKS[id];
     const cost = EXPEDITION_COST + pack.price;
     const l = expectedLoot(id);
-    const worth = l.keys * KEY_PRICE + l.tickets * TICKET_RF + l.gold * GOLD_RF;
-    out.push(`| ${pack.name} | ${cost} RF | ${usdRf(cost * EXPEDITION_BURN)} | ${usdRf(cost * EXPEDITION_LOT)} | ${usdRf(cost * EXPEDITION_POOL)} | ${pct(pack.chance)} | ${l.keys.toFixed(2)} keys, ${l.tickets.toFixed(2)} tickets, ${Math.round(l.gold)} gold | ${usdRf(worth)} RF | ${pct(worth / cost)} | ${(chanceAtLeast(id, 2) * 100).toFixed(1)}% | ${(chanceAtLeast(id, 5) * 100).toFixed(2)}% | ${(chanceAtLeast(id, 10) * 100).toFixed(2)}% |`);
+    const worth = l.keys * KEY_PRICE + l.tickets * TICKET_CENTS + l.gold * GOLD_CENTS;
+    out.push(`| ${pack.name} | ${money(cost)} | ${money(cost * EXPEDITION_REVENUE)} | ${money(cost * EXPEDITION_POOL)} | ${pct(pack.chance)} | ${l.keys.toFixed(2)} keys, ${l.tickets.toFixed(2)} tickets, ${Math.round(l.gold)} gold | ${money(worth)} | ${pct(worth / cost)} | ${(chanceAtLeast(id, 2) * 100).toFixed(1)}% | ${(chanceAtLeast(id, 5) * 100).toFixed(2)}% | ${(chanceAtLeast(id, 10) * 100).toFixed(2)}% |`);
   }
   out.push(
     "",
     "Even with the best pack an average trip is worth less than it cost, so an expedition is a sink with a lottery ticket attached, not a faucet. Packs are priced so that the average worth stays at about half the cost at every tier: a pack buys a steadier trip (a higher chance of coming back with a haul), not a better deal.",
-    "The keys and tickets are game items, not RF, but a key is worth what a player would otherwise pay to descend (50 RF), so the table counts them. Gold joins the round like gold from a descent and is subject to the return cap.",
+    `The keys and tickets are game items, not money, but a key is worth what a player would otherwise pay to descend (${money(KEY_PRICE)}), so the table counts them. Gold joins the round like gold from a descent and is subject to the return cap.`,
     "",
   );
 

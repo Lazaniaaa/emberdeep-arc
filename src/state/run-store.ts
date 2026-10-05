@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
+import { MAX_MOVES, encodeMove } from "@/game/replay";
 import { applyAction, startRun, type RunAction, type RunSetup, type RunState } from "@/game/run";
 import { floorHeight, floorWidth } from "@/game/config";
 import { isSpecies } from "@/game/enemies";
@@ -8,9 +9,16 @@ import { isGearId, isPropKind } from "@/game/props";
 import { POTION_IDS } from "@/game/catalog";
 import { useGame } from "@/state/store";
 
+/** How a descent started and every move made in it, as short codes. Enough to replay it exactly (game/replay.ts). */
+export type DescentLog = { setup: RunSetup; moves: string[] };
+
 type RunStore = {
   run: RunState | null;
   prevPlayer: { x: number; y: number } | null;
+  /** The descent being played. Null for a descent restored from a save that kept no moves. */
+  log: DescentLog | null;
+  /** The last descent that ended, kept after the run screen closes so the run report can have it signed. */
+  lastDescent: DescentLog | null;
   start: (setup: RunSetup) => void;
   act: (action: RunAction) => RunState | null;
   clear: () => void;
@@ -116,20 +124,41 @@ export function settle(run: RunState) {
   }
 }
 
+/** A saved log must belong to the saved descent and stay within what the server would replay. */
+function validLog(value: unknown, seed?: number): value is DescentLog {
+  const log = object(value);
+  const setup = object(log.setup);
+  return Number.isSafeInteger(setup.seed) && (seed === undefined || setup.seed === seed)
+    && Array.isArray(log.moves) && log.moves.length <= MAX_MOVES && log.moves.every(m => typeof m === "string" && m.length <= 16);
+}
+
 export const useRun = create<RunStore>()(persist((set, get) => ({
   run: null,
   prevPlayer: null,
-  start: setup => set({ run: startRun(setup), prevPlayer: null }),
+  log: null,
+  lastDescent: null,
+  start: setup => set({ run: startRun(setup), prevPlayer: null, log: { setup, moves: [] }, lastDescent: null }),
   act: action => {
-    const run = get().run;
+    const { run, log } = get();
     if (!run) return null;
     const next = applyAction(run, action);
-    if (next !== run) set({ run: next, prevPlayer: { x: run.player.x, y: run.player.y } });
+    if (next !== run) {
+      let nextLog: DescentLog | null = null;
+      if (log && run.status === "playing" && log.moves.length < MAX_MOVES) {
+        // A move the replay could not read would make the descent impossible to sign; stop logging rather than lie.
+        try { nextLog = { setup: log.setup, moves: [...log.moves, encodeMove(action)] }; } catch { nextLog = null; }
+      }
+      const ended = next.status !== "playing" && run.status === "playing";
+      set({
+        run: next, prevPlayer: { x: run.player.x, y: run.player.y }, log: nextLog,
+        ...(ended ? { lastDescent: nextLog } : {}),
+      });
+    }
     // The result is banked the moment the descent ends. Leaving the result screen only closes it.
     if (next.status !== "playing" && run.status === "playing") settle(next);
     return next;
   },
-  clear: () => set({ run: null, prevPlayer: null }),
+  clear: () => set({ run: null, prevPlayer: null, log: null }),
 }), {
   name: "emberdeep-run-v1",
   storage: createJSONStorage(() => sessionStorage),
@@ -144,6 +173,8 @@ export const useRun = create<RunStore>()(persist((set, get) => ({
     const prev = object(data.prevPlayer);
     const prevPlayer = run && Number.isSafeInteger(prev.x) && Number.isSafeInteger(prev.y)
       ? { x: prev.x as number, y: prev.y as number } : null;
-    return { ...current, run, prevPlayer };
+    const log = run && validLog(data.log, run.seed) ? data.log : null;
+    const lastDescent = validLog(data.lastDescent) ? data.lastDescent : null;
+    return { ...current, run, prevPlayer, log, lastDescent };
   },
 }));

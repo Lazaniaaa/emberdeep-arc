@@ -51,22 +51,6 @@ await session(1280, 900, "desktop", async page => {
   await page.screenshot({ path: `${out}/report.png` });
 });
 
-const watch = process.env.WATCH_ADDRESS;
-if (watch) {
-  await session(1280, 900, "friend", async page => {
-    await page.goto(`${base}?watch=${watch}`);
-    await page.getByRole("button", { name: "Open Dungeon Gate" }).click();
-    await page.getByText("Blessed").waitFor({ timeout: 30_000 });
-    await page.getByRole("radio", { name: /Rare Friend #/ }).click();
-    await page.waitForTimeout(300);
-    await page.screenshot({ path: `${out}/friend-camp.png` });
-    await page.getByRole("button", { name: /Light it and descend/ }).click();
-    for (const k of ["ArrowRight", "ArrowDown", "ArrowRight", "ArrowUp"]) { await page.keyboard.press(k); await page.waitForTimeout(60); }
-    await page.waitForTimeout(200);
-    await page.screenshot({ path: `${out}/friend-run.png` });
-  });
-}
-
 await session(390, 844, "mobile", async page => {
   await page.getByRole("button", { name: "Open Dungeon Gate" }).waitFor();
   await page.screenshot({ path: `${out}/camp-mobile.png` });

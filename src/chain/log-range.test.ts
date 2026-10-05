@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { LOG_SPAN, fetchInRanges } from "./log-range";
 
-/** A provider that refuses wide queries the way Robinhood Chain's public RPC does. */
+/** A provider that refuses wide queries the way some public RPCs do. */
 function provider(maxSpan: bigint) {
   const calls: Array<[bigint, bigint]> = [];
   const fetchRange = async (from: bigint, to: bigint) => {

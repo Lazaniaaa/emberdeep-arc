@@ -10,7 +10,7 @@ const NOW = 1_000_000;
 
 function fresh(over: Record<string, unknown> = {}) {
   useGame.getState().reset();
-  useGame.setState({ heroes: [hero, other], hero: { kind: "nft", id: hero.id }, rf: 5_000, ...over });
+  useGame.setState({ heroes: [hero, other], hero: { kind: "nft", id: hero.id }, balance: 5_000, ...over });
 }
 
 const win: Outcome = { success: true, tier: "uncommon", multiplier: 1.5, loot: { keys: 2, tickets: 1, gold: 180 } };
@@ -20,15 +20,14 @@ const trip = (over: Partial<Expedition> = {}): Expedition => ({
 });
 
 describe("sending a Delver away", () => {
-  it("charges the trip and its pack, split 40% burned, 5% to the Friend lot and 55% to the round pool", () => {
+  it("charges the trip and its pack, split 45% to the studio and 55% to the round pool", () => {
     fresh();
     const before = useGame.getState();
     const sent = useGame.getState().sendExpedition(hero.id, "ranger", NOW);
     const after = useGame.getState();
     const cost = EXPEDITION_COST + EXPEDITION_PACKS.ranger.price;
-    expect(after.rf).toBeCloseTo(before.rf - cost, 6);
-    expect(after.burned - before.burned).toBeCloseTo(cost * 0.4, 6);
-    expect(after.raffle - before.raffle).toBeCloseTo(cost * 0.05, 6);
+    expect(after.balance).toBeCloseTo(before.balance - cost, 6);
+    expect(after.revenue - before.revenue).toBeCloseTo(cost * 0.45, 6);
     expect(after.pool - before.pool).toBeCloseTo(cost * 0.55, 6);
     expect(after.locked).toBeCloseTo(before.locked, 6);
     expect(after.spent - before.spent).toBeCloseTo(cost, 6);
@@ -63,11 +62,11 @@ describe("sending a Delver away", () => {
     expect(() => useGame.getState().sendExpedition(hero.id, "none", NOW)).toThrow(/already away/);
     fresh({ runSpent: 40 });
     expect(() => useGame.getState().sendExpedition(hero.id, "none", NOW)).toThrow(/descent/);
-    fresh({ rf: EXPEDITION_COST - 1 });
+    fresh({ balance: EXPEDITION_COST - 1 });
     expect(() => useGame.getState().sendExpedition(hero.id, "none", NOW)).toThrow(InsufficientFunds);
-    fresh({ rf: EXPEDITION_COST });
+    fresh({ balance: EXPEDITION_COST });
     expect(() => useGame.getState().sendExpedition(hero.id, "vanguard", NOW)).toThrow(InsufficientFunds);
-    expect(useGame.getState().rf).toBe(EXPEDITION_COST);
+    expect(useGame.getState().balance).toBe(EXPEDITION_COST);
     expect(useGame.getState().expeditions).toHaveLength(0);
     useGame.getState().reset();
   });
@@ -168,7 +167,7 @@ describe("saved expeditions", () => {
   });
 
   it("starts an older save with no expeditions", () => {
-    const old = migrateSavedState({ rf: 500 }, 6) as Record<string, unknown>;
+    const old = migrateSavedState({ balance: 500 }, 6) as Record<string, unknown>;
     expect(old.expeditions).toEqual([]);
     expect(old.returns).toEqual([]);
     const restored = mergeSavedState({}, useGame.getState());

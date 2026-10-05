@@ -4,30 +4,26 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { playSfx } from "@/audio/sfx";
-import { ACTIVE_SHARE, BURN_SHARE, FLASK_LIGHT, FLASK_PRICE, HOLD_FACTOR, KEY_PRICE, LOCK_SHARE, MAX_FLASKS, MAX_KEYS, PASSES, RAFFLE_SHARE } from "@/game/config";
+import { ACTIVE_SHARE, FLASK_LIGHT, FLASK_PRICE, HOLD_FACTOR, KEY_PRICE, LOCK_SHARE, MAX_FLASKS, MAX_KEYS, PASSES, REVENUE_SHARE } from "@/game/config";
 import { ARMORS, POTIONS, POTION_IDS, WEAPONS } from "@/game/catalog";
-import { FRIEND_LOCK_KEY, heroLockKey, strength } from "@/game/locks";
+import { heroLockKey, strength } from "@/game/locks";
 import { ticketChance } from "@/game/raffle";
 import { randomSeed } from "@/game/rng";
-import { rf, usd } from "@/lib/format";
+import { usd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useRun } from "@/state/run-store";
 import { activePass, computeRunPerks, useGame, type HeroChoice } from "@/state/store";
 import { InsufficientFunds } from "@/state/store";
 import { foreignRunActive } from "@/state/run-lock";
-import { useFriendContext, useWallet } from "@/state/wallet";
-import { FriendPanel } from "./friend-panel";
-import { WANDERER, friendVisual, nftVisual, prizeVisual, type HeroVisual } from "./hero-info";
+import { WANDERER, nftVisual, type HeroVisual } from "./hero-info";
 import { HeroAvatar, ItemArt } from "./art";
 import { PixelSprite } from "./pixel-sprite";
 
 export function DescendTab() {
   const game = useGame();
-  const wallet = useWallet();
-  const friend = useFriendContext();
   const start = useRun(s => s.start);
 
-  const perks = computeRunPerks(game, friend);
+  const perks = computeRunPerks(game);
   const pass = activePass(game);
   const drop = ticketChance(pass);
   const cost = game.flasks * FLASK_PRICE;
@@ -41,27 +37,20 @@ export function DescendTab() {
   const heroChoices: { choice: HeroChoice; visual: HeroVisual; key: string; away?: boolean }[] = [
     { choice: { kind: "wanderer" }, visual: WANDERER, key: "wanderer" },
   ];
-  if (friend.hasFriend && wallet.selected !== null) {
-    const visual = friendVisual(wallet.selected, wallet.sprite, strength(lockOf(FRIEND_LOCK_KEY), game.round));
-    heroChoices.push({ choice: { kind: "friend" }, visual: lockedTag(visual, FRIEND_LOCK_KEY), key: "friend" });
-  }
   for (const h of game.heroes) {
     const key = heroLockKey(h.id);
     const visual = lockedTag(nftVisual(h, strength(lockOf(key), game.round)), key);
     const away = awayIds.has(h.id);
     heroChoices.push({ choice: { kind: "nft", id: h.id }, visual: away ? { ...visual, subtitle: `${visual.subtitle} · away` } : visual, key: h.id, away });
   }
-  for (const p of game.prizes) heroChoices.push({ choice: { kind: "prize", serial: p.serial }, visual: prizeVisual(p), key: `prize-${p.serial}` });
 
   const isSelected = (c: HeroChoice) => {
     if (c.kind !== game.hero.kind) return false;
     if (c.kind === "nft" && game.hero.kind === "nft") return c.id === game.hero.id;
-    if (c.kind === "prize" && game.hero.kind === "prize") return c.serial === game.hero.serial;
     return true;
   };
   // A Delver that is on an expedition cannot descend, so it counts as not picked.
   const selectedValid = heroChoices.some(h => !h.away && isSelected(h.choice));
-  const friendPerkPending = selectedValid && game.hero.kind === "friend" && !wallet.sprite;
 
   const buyKeys = (count: number) => {
     try {
@@ -69,15 +58,11 @@ export function DescendTab() {
       playSfx("buy", useGame.getState().muted);
       toast.success(`${count} entry key${count > 1 ? "s" : ""} bought.`);
     } catch (e) {
-      toast.error(e instanceof InsufficientFunds ? `Not enough RF for ${count} key${count > 1 ? "s" : ""}.` : "You are holding as many keys as you can.");
+      toast.error(e instanceof InsufficientFunds ? `Not enough USDC for ${count} key${count > 1 ? "s" : ""}.` : "You are holding as many keys as you can.");
     }
   };
 
   const descend = () => {
-    if (friendPerkPending) {
-      toast.error("Wait for your Rare Friend's family perk to load, or choose Wanderer.");
-      return;
-    }
     if (foreignRunActive()) {
       toast.error("A descent is already running in another tab. Finish it there first.");
       return;
@@ -89,11 +74,11 @@ export function DescendTab() {
       toast("Your last descent was lost when the page closed. Its key and oil are gone.");
     }
     if (useGame.getState().keys < 1) {
-      toast.error(`You need an entry key (${KEY_PRICE} RF). Buy one below.`);
+      toast.error(`You need an entry key (${usd(KEY_PRICE)}). Buy one below.`);
       return;
     }
     if (!game.payForRun()) {
-      toast.error(`You need ${cost} RF for ${game.flasks} flask${game.flasks > 1 ? "s" : ""}. Top up in the Vault.`);
+      toast.error(`You need ${usd(cost)} for ${game.flasks} flask${game.flasks > 1 ? "s" : ""}. Top up in the Vault.`);
       return;
     }
     playSfx("burn", game.muted);
@@ -101,7 +86,7 @@ export function DescendTab() {
     start({
       seed: randomSeed(),
       flasks: state.flasks,
-      perks: computeRunPerks(state, friend),
+      perks: computeRunPerks(state),
       ticketChance: ticketChance(activePass(state)),
       weaponDamage: WEAPONS[state.weapon].damage,
       bag: { ...state.carried },
@@ -148,13 +133,11 @@ export function DescendTab() {
       </Card>
 
       <div className="space-y-4">
-        <FriendPanel />
-
         <Card>
           <CardHeader>
             <CardTitle className="font-pixel">Entry keys</CardTitle>
             <CardDescription>
-              One key opens one descent and is spent when you light the lantern. A key costs {KEY_PRICE} RF ({usd(KEY_PRICE)}), split like every other spend: {Math.round(BURN_SHARE * 100)}% burned, {Math.round(RAFFLE_SHARE * 100)}% to the Friend lot, {Math.round(LOCK_SHARE * 100)}% to the lock pool, {Math.round(ACTIVE_SHARE * 100)}% into this round's reward pool.
+              One key opens one descent and is spent when you light the lantern. A key costs {usd(KEY_PRICE)} of simulated USDC, split like every other spend: {Math.round(ACTIVE_SHARE * 100)}% into this round's reward pool, {Math.round(LOCK_SHARE * 100)}% to the lock pool, {Math.round(REVENUE_SHARE * 100)}% to the studio.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-wrap items-center justify-between gap-3">
@@ -164,8 +147,8 @@ export function DescendTab() {
               <span className="text-xs text-muted-foreground">held (max {MAX_KEYS})</span>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={() => buyKeys(1)} disabled={game.rf < KEY_PRICE || game.keys + 1 > MAX_KEYS}>Buy 1 · {rf(KEY_PRICE)} RF</Button>
-              <Button variant="outline" size="sm" onClick={() => buyKeys(5)} disabled={game.rf < KEY_PRICE * 5 || game.keys + 5 > MAX_KEYS}>Buy 5 · {rf(KEY_PRICE * 5)} RF</Button>
+              <Button variant="outline" size="sm" onClick={() => buyKeys(1)} disabled={game.balance < KEY_PRICE || game.keys + 1 > MAX_KEYS}>Buy 1 · {usd(KEY_PRICE)}</Button>
+              <Button variant="outline" size="sm" onClick={() => buyKeys(5)} disabled={game.balance < KEY_PRICE * 5 || game.keys + 5 > MAX_KEYS}>Buy 5 · {usd(KEY_PRICE * 5)}</Button>
             </div>
           </CardContent>
         </Card>
@@ -174,7 +157,7 @@ export function DescendTab() {
           <CardHeader>
             <CardTitle className="font-pixel">Lantern oil</CardTitle>
             <CardDescription>
-              Each flask costs {FLASK_PRICE} RF and gives {FLASK_LIGHT} light. More light, wider vision. {Math.round(BURN_SHARE * 100)}% is burned, {Math.round(RAFFLE_SHARE * 100)}% buys the weekly Friend lot. Finds drop a raffle ticket {Math.round(drop * 1000) / 10}% of the time{pass ? ` (${PASSES[pass].name})` : ""}. Carry it home or lose it.
+              Each flask costs {usd(FLASK_PRICE)} and gives {FLASK_LIGHT} light. More light, wider vision. Finds drop a draw ticket {Math.round(drop * 1000) / 10}% of the time{pass ? ` (${PASSES[pass].name})` : ""}. Carry it home or lose it.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -185,8 +168,8 @@ export function DescendTab() {
                 <Button variant="outline" size="icon" aria-label="More flasks" onClick={() => game.setFlasks(game.flasks + 1)} disabled={game.flasks >= MAX_FLASKS}><Plus /></Button>
               </div>
               <div className="text-right">
-                <div className="font-pixel text-sm">{cost} RF <span className="font-sans text-xs text-muted-foreground">{usd(cost)}</span></div>
-                <div className="text-xs text-muted-foreground">{light} light · burns {rf(cost * BURN_SHARE)} · lot {rf(cost * RAFFLE_SHARE)}</div>
+                <div className="font-pixel text-sm">{usd(cost)}</div>
+                <div className="text-xs text-muted-foreground">{light} light · {usd(cost * (1 - REVENUE_SHARE))} back to players</div>
               </div>
             </div>
 
@@ -198,12 +181,11 @@ export function DescendTab() {
               ))}
             </div>
 
-            <Button size="lg" className="h-12 w-full font-pixel text-base" onClick={descend} disabled={cost > game.rf || game.keys < 1 || friendPerkPending}>
+            <Button size="lg" className="h-12 w-full font-pixel text-base" onClick={descend} disabled={cost > game.balance || game.keys < 1}>
               <Flame data-icon="inline-start" /> Light it and descend
             </Button>
             {game.keys < 1 && <p className="text-xs text-destructive">No entry key. Buy one to descend.</p>}
-            {cost > game.rf && <p className="text-xs text-destructive">Not enough RF. Grab a simulated top-up in the Vault.</p>}
-            {friendPerkPending && <p className="text-xs text-muted-foreground">Wait for your Rare Friend's family perk, or choose Wanderer.</p>}
+            {cost > game.balance && <p className="text-xs text-destructive">Not enough USDC. Grab a simulated top-up in the Vault.</p>}
           </CardContent>
         </Card>
       </div>

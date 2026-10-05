@@ -4,11 +4,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { playSfx } from "@/audio/sfx";
-import { BURN_SHARE } from "@/game/config";
+import { REVENUE_SHARE } from "@/game/config";
 import {
   ARMORS, ARMOR_IDS, POTIONS, SHOP_POTION_IDS, WEAPONS, WEAPON_IDS, type ArmorId, type PotionId, type WeaponId,
 } from "@/game/catalog";
-import { rf, usd } from "@/lib/format";
+import { usd } from "@/lib/format";
 import { InsufficientFunds, useGame } from "@/state/store";
 import { ItemArt } from "./art";
 
@@ -19,7 +19,7 @@ export function ArmoryTab() {
     try { act(); playSfx("buy", game.muted); toast.success(label); }
     catch (e) { toast.error(e instanceof InsufficientFunds ? e.message : "Purchase failed."); }
   };
-  const buyPotion = (id: PotionId, pay: "rf" | "crystals") => {
+  const buyPotion = (id: PotionId, pay: "usdc" | "crystals") => {
     try { game.buyPotion(id, pay); playSfx("buy", game.muted); }
     catch (e) { toast.error(e instanceof InsufficientFunds ? e.message : "Purchase failed."); }
   };
@@ -52,8 +52,8 @@ export function ArmoryTab() {
                       {equipped ? <><Check data-icon="inline-start" /> Equipped</> : "Equip"}
                     </Button>
                   ) : (
-                    <Button size="sm" onClick={() => buy(`${w.name} forged and equipped.`, () => game.buyWeapon(id as WeaponId))} disabled={game.rf < w.price || game.crystals < w.crystals}>
-                      {rf(w.price)} RF{w.crystals > 0 && <> + {w.crystals} <Gem className="text-crystal" /></>}
+                    <Button size="sm" onClick={() => buy(`${w.name} forged and equipped.`, () => game.buyWeapon(id as WeaponId))} disabled={game.balance < w.price || game.crystals < w.crystals}>
+                      {usd(w.price)}{w.crystals > 0 && <> + {w.crystals} <Gem className="text-crystal" /></>}
                     </Button>
                   )}
                 </div>
@@ -65,7 +65,7 @@ export function ArmoryTab() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 font-pixel"><Shield className="size-4" /> Armor</CardTitle>
-            <CardDescription>Permanent. Armor thins the light dimlings drink from you. It stacks with class and Friend perks up to 80%.</CardDescription>
+            <CardDescription>Permanent. Armor thins the light dimlings drink from you. It stacks with class perks up to 80%.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
             {ARMOR_IDS.filter(id => id !== "none").map(id => {
@@ -87,8 +87,8 @@ export function ArmoryTab() {
                       {equipped ? <><Check data-icon="inline-start" /> Worn</> : "Wear"}
                     </Button>
                   ) : (
-                    <Button size="sm" onClick={() => buy(`${a.name} fitted and worn.`, () => game.buyArmor(id))} disabled={game.rf < a.price || game.crystals < a.crystals}>
-                      {rf(a.price)} RF{a.crystals > 0 && <> + {a.crystals} <Gem className="text-crystal" /></>}
+                    <Button size="sm" onClick={() => buy(`${a.name} fitted and worn.`, () => game.buyArmor(id))} disabled={game.balance < a.price || game.crystals < a.crystals}>
+                      {usd(a.price)}{a.crystals > 0 && <> + {a.crystals} <Gem className="text-crystal" /></>}
                     </Button>
                   )}
                 </div>
@@ -102,7 +102,7 @@ export function ArmoryTab() {
         <CardHeader>
           <CardTitle className="font-pixel">Potions</CardTitle>
           <CardDescription>
-            Carried into every descent and only consumed when used. Pay RF ({Math.round(BURN_SHARE * 100)}% burned) or craft with crystals you brought home.
+            Carried into every descent and only consumed when used. Pay in simulated USDC ({Math.round((1 - REVENUE_SHARE) * 100)}% goes back to players) or craft with crystals you brought home.
             You own <span className="text-crystal">{game.crystals} crystals</span>.
           </CardDescription>
         </CardHeader>
@@ -121,8 +121,8 @@ export function ArmoryTab() {
                   <p className="text-xs text-muted-foreground">{p.blurb}</p>
                 </div>
                 <div className="flex gap-1.5">
-                  <Button size="sm" onClick={() => buyPotion(id, "rf")} disabled={game.rf < p.price} aria-label={`Buy ${p.name} for ${p.price} RF`}>
-                    {p.price} RF <span className="text-[10px] opacity-70">{usd(p.price)}</span>
+                  <Button size="sm" onClick={() => buyPotion(id, "usdc")} disabled={game.balance < p.price} aria-label={`Buy ${p.name} for ${usd(p.price)}`}>
+                    {usd(p.price)}
                   </Button>
                   <Button size="sm" variant="outline" onClick={() => buyPotion(id, "crystals")} disabled={game.crystals < p.crystals} aria-label={`Craft ${p.name} for ${p.crystals} crystals`}>
                     {p.crystals} <Gem className="text-crystal" />

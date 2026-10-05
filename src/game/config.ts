@@ -1,25 +1,22 @@
 // Every tunable number of the Emberdeep economy lives here.
+// Every amount of money is in cents of simulated USDC (Arc's native token): 50 is $0.50. Nothing moves on chain.
 
-/** Simulated reference price used only to show USD equivalents. */
-export const RF_USD = 0.01;
+/** Dollars per unit of money in the game: one cent. */
+export const CENT = 0.01;
 
 /**
- * Every RF spent anywhere in the game is split this way.
- * The raffle share buys Rare Friends; one of each weekly lot is burned and the rest are drawn,
- * so most of that 8% still comes back to players as NFTs.
+ * Every cent spent anywhere in the game is split this way. The studio's revenue keeps the game running (the server,
+ * development, and the gas for the Hall of Descents on Arc); the rest goes back to players.
  */
-export const BURN_SHARE = 0.25;
-export const RAFFLE_SHARE = 0.08;
+export const REVENUE_SHARE = 0.33;
 /** What goes back to players in total: the gold-share round pool plus the lock pool. */
 export const POOL_SHARE = 0.67;
-/** The part of it reserved for locked NFTs and RF. Shared by passive gold, never by descents. */
+/** The part of it reserved for locked Delvers and stakes. Shared by passive gold, never by descents. */
 export const LOCK_SHARE = 0.07;
 /** The gold-share round pool: POOL_SHARE minus LOCK_SHARE. */
 export const ACTIVE_SHARE = 0.6;
 
 export const START_BALANCE = 2_000;
-/** Simulated RF already burned by the wider community before this session. */
-export const WORLD_BURN_SEED = 1_284_310;
 export const FAUCET_AMOUNT = 1_000;
 
 /** One flask of lantern oil: the entry ticket for a descent. */
@@ -36,19 +33,19 @@ export const KEY_PRICE = 50;
 export const START_KEYS = 3;
 export const MAX_KEYS = 30;
 
-// Rewards are a share of the round's pool, never a fixed rate per gold. The pool is 60% of every RF
+// Rewards are a share of the round's pool, never a fixed rate per gold. The pool is 60% of every cent
 // spent in the round (ACTIVE_SHARE; another 7% feeds the lock pool). Gold is only earned by extracting
 // alive, and when the round closes each delver receives (their gold / all gold) of the pool, so nothing
-// in the game promises an amount of RF.
+// in the game promises an amount of money.
 
-/** One click of "other delvers this week": their spend. It feeds the raffle treasury and the round pool. */
+/** One click of "other delvers this week": their spend ($200). It feeds the round pool and the lock pool. */
 export const FIELD_WEEK_SPEND = 20_000;
 /**
- * Simulated crowd: gold banked per RF they spend. The simulated 70/20/10 crowd of unperked, blessed and top-build
+ * Simulated crowd: gold banked per cent they spend. The simulated 70/20/10 crowd of unperked, held-Delver and top-build
  * bots banks about 4.8 now that they smash props, level up and find oil in creatures and props; real players make mistakes
  * the bots do not, so the crowd is set a little below that.
  */
-export const FIELD_GOLD_PER_RF = 4.2;
+export const FIELD_GOLD_PER_CENT = 4.2;
 /**
  * The most a delver takes back from the round pool, as a multiple of what they put into descents that round
  * (entry keys plus oil): +60% at the very best. Whatever the cap withholds stays in the pool for the next round.
@@ -56,10 +53,10 @@ export const FIELD_GOLD_PER_RF = 4.2;
 export const MAX_ROUND_RETURN = 1.6;
 /** Every round opens with one simulated crowd week already in it, so a share is never trivially 100%. */
 export const ROUND_SEED_POOL = FIELD_WEEK_SPEND * ACTIVE_SHARE;
-export const ROUND_SEED_GOLD = FIELD_WEEK_SPEND * FIELD_GOLD_PER_RF;
+export const ROUND_SEED_GOLD = FIELD_WEEK_SPEND * FIELD_GOLD_PER_CENT;
 /** The same crowd week also fills the lock pool and brings its own lockers. */
 export const ROUND_SEED_LOCKED = FIELD_WEEK_SPEND * LOCK_SHARE;
-/** Passive gold the simulated crowd's lockers farm in a crowd week. An assumption, like FIELD_GOLD_PER_RF. */
+/** Passive gold the simulated crowd's lockers farm in a crowd week. An assumption, like FIELD_GOLD_PER_CENT. */
 export const FIELD_LOCK_GOLD = 16_000;
 
 export const MAP_W = 27;
@@ -115,15 +112,12 @@ export const HOARD_SIGIL_CHANCE = 0.4;
 export const NIGHT_VISION_STEPS = 25;
 export const WARD_STEPS = 15;
 
-/** Simulated ask for one floor Generations NFT. Labeled simulated; live play would buy listings. */
-export const FRIEND_ASK_RF = 500;
-/** A lot needs two Friends so one can burn and one can be won. Extra RF waits for next week. */
-export const LOT_MIN = 2;
-export const LOT_MAX = 5;
+/** Delvers minted free each week for the holders of the winning draw tickets. They count against the supply. */
+export const DRAW_MINTS = 3;
 /** Chance a gold pile, crystal, chest, vault or kill drops a raffle ticket. Dying still drops them on the floor. */
 export const TICKET_DROP_CHANCE = 0.03;
-/** Rough loot rolls per RF the simulated crowd spends, so their ticket count matches the free drop rate. */
-export const FIELD_ROLLS_PER_RF = 0.12;
+/** Rough loot rolls per cent the simulated crowd spends, so their ticket count matches the free drop rate. */
+export const FIELD_ROLLS_PER_CENT = 0.12;
 /** Share of that spend assumed to come home, so the field's ticket count stays believable. */
 export const FIELD_EXTRACT_SHARE = 0.55;
 
@@ -149,29 +143,29 @@ export const REGEN_TURNS = 5;
 export const HEAL_LIGHT = 60;
 
 // ---------------------------------------------------------------- locks
-// A perk you merely hold works at HOLD_FACTOR of its full strength. Locking a Delver, your wallet's Friend
-// or RF starts at LOCK_START and grows by LOCK_STEP for every round closed since, up to LOCK_MAX. The clock
+// A perk you merely hold works at HOLD_FACTOR of its full strength. Locking a Delver
+// or a stake starts at LOCK_START and grows by LOCK_STEP for every round closed since, up to LOCK_MAX. The clock
 // is closed rounds: the Vault's button in the demo, a schedule in production.
 
 export const HOLD_FACTOR = 0.6;
 export const LOCK_START = 0.8;
 export const LOCK_STEP = 0.05;
 export const LOCK_MAX = 1.3;
-/** Closed rounds until a lock is mature: farmed RF can be harvested and it can be released for free. */
+/** Closed rounds until a lock is mature: what it farmed can be harvested and it can be released for free. */
 export const MATURITY_ROUNDS = 4;
 /** Leaving a lock early forfeits this share of what it has farmed (it goes back to the lock pool)... */
 export const EXIT_FORFEIT = 0.5;
-/** ...and burns this share of the lock's value: an NFT's mint price, a Friend's floor ask, or the stake. */
-export const EXIT_BURN = 0.1;
-/** Passive gold a lock farms per round per RF of value (before the tenure factor). It sets its share of the lock pool. */
-export const LOCK_GOLD_PER_RF = 0.1;
-/** Most RF one wallet can stake, and the smallest step to add. */
+/** ...and costs this share of the lock's value as a fee (a Delver's mint price, or the stake), which is studio revenue. */
+export const EXIT_FEE = 0.1;
+/** Passive gold a lock farms per round per cent of value (before the tenure factor). It sets its share of the lock pool. */
+export const LOCK_GOLD_PER_CENT = 0.1;
+/** Most one wallet can stake ($50), and the smallest step to add ($5). */
 export const STAKE_MAX = 5_000;
 export const STAKE_STEP = 500;
-/** Staked RF adds this much gold per STAKE_STEP locked, up to the cap (both before the tenure factor). */
+/** A stake adds this much gold per STAKE_STEP locked, up to the cap (both before the tenure factor). */
 export const STAKE_GOLD_PER_STEP = 1;
 export const STAKE_GOLD_CAP = 8;
-/** NFT locks (Delvers and the wallet Friend) earn this fraction of a raffle ticket per round, for the first few locks only. */
+/** Delver locks earn this fraction of a raffle ticket per round, for the first few locks only. */
 export const LOCK_TICKET_DUST = 0.25;
 export const LOCK_TICKET_LOCKS = 2;
 
@@ -181,9 +175,8 @@ export const LOCK_TICKET_LOCKS = 2;
 
 /** What one expedition costs, before any pack. About $1. */
 export const EXPEDITION_COST = 100;
-/** Expedition spend has its own split: more is burned than for ordinary spend, and no lock pool takes a cut. */
-export const EXPEDITION_BURN = 0.4;
-export const EXPEDITION_LOT = 0.05;
+/** Expedition spend has its own split: more goes to the studio than for ordinary spend, and no lock pool takes a cut. */
+export const EXPEDITION_REVENUE = 0.45;
 export const EXPEDITION_POOL = 0.55;
 /**
  * How long a Delver is away. 5 seconds is a test preview so a whole trip can be seen at once; a live
@@ -203,7 +196,7 @@ export const EXPEDITION_TIERS: readonly { id: ExpeditionTierId; label: string; w
 ];
 export type PackId = "none" | "scout" | "ranger" | "vanguard";
 /**
- * Gear for one trip: it costs RF and raises the chance of coming back with a haul. Prices are set so the average haul
+ * Gear for one trip: it costs money and raises the chance of coming back with a haul. Prices are set so the average haul
  * stays worth about half of what the trip costs at every tier: a pack buys a steadier trip, not a better deal.
  */
 export const EXPEDITION_PACKS: Record<PackId, { id: PackId; name: string; price: number; chance: number; blurb: string }> = {
@@ -230,6 +223,6 @@ export function lightRadius(light: number) {
   return Math.max(1, Math.min(5, 1 + Math.floor(light / 25)));
 }
 
-export function toUsd(rf: number) {
-  return rf * RF_USD;
+export function toUsd(cents: number) {
+  return cents * CENT;
 }

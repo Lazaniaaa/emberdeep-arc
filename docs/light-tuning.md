@@ -11,7 +11,7 @@ Light comes back from four places: oil jars lying on the floor, broken props, de
 ## How it was measured
 
 - **Diver:** a bot that only wants to go down. It fights what is in its way, picks up loot within four steps of its path, takes every stairs at once and never goes home, so it stops only when the light is gone. Where it stops is how far that oil carries a player who does not collect. The *newcomer* finds the stairs by exploring; the *expert* already knows where they are. Both dodge marked tiles; the *sloppy* one does not.
-- **Collector:** the bot behind the economy report. It gathers loot and leaves when the walk home would use up its reserve. Its gold per RF shows how much the extra oil inflates the economy (the simulated crowd is recalibrated to it).
+- **Collector:** the bot behind the economy report. It gathers loot and leaves when the walk home would use up its reserve. Its gold per cent spent shows how much the extra oil inflates the economy (the simulated crowd is recalibrated to it).
 - 40 descents per cell, the same seeds for every scenario.
 
 ## Results
@@ -30,7 +30,7 @@ Each cell is the mean deepest floor, then the share of descents that got to floo
 
 ### Where the light came from and went, per descent (newcomer diver, 3 flasks)
 
-| Scenario | Start | Oil jars | Props | Creatures | Levels | Steps | Blows taken | Collector gold per RF (2 flasks) |
+| Scenario | Start | Oil jars | Props | Creatures | Levels | Steps | Blows taken | Collector gold per cent spent (2 flasks) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | **Before** | 240 | 72 | 33 | 0 | 43 | -344 | -44 | 2.91 |
 | **Creatures only** | 240 | 81 | 42 | 83 | 52 | -443 | -55 | 3.59 |
@@ -55,7 +55,7 @@ Each cell is the mean deepest floor, then the share of descents that got to floo
 
 With the chosen values a 2-flask descent reaches floor 4.1 on average (93% reach floor 3; it was 3.1 and 83%), 3 flasks reach floor 4.3, and the most a player can carry, 5 flasks, reach floor 5.0, with 28% of newcomers and 25% of experts getting as far as Cerberus (before: 0% and 0%). The boss is reachable but not handed over, and every extra flask still carries a descent further, though less than it used to (one flask takes a newcomer to floor 3.4, five to floor 5.0; before: 2.5 and 4.0), because oil now comes back to whoever is running dry.
 
-The price is gold: a collector banks 3.88 gold per RF instead of 2.91, because it stays deeper where loot is worth more. The simulated crowd is set from the bots, so this moves the crowd's rate and not anyone's share.
+The price is gold: a collector banks 3.88 gold per cent spent instead of 2.91, because it stays deeper where loot is worth more. The simulated crowd is set from the bots, so this moves the crowd's rate and not anyone's share.
 
 ## What this does not show
 
