@@ -320,3 +320,7 @@ The game is rendered on a canvas. The camp, items, portraits and the nine creatu
 ## Credits
 
 Built with AI assistance (Claude). Fonts Geist and Silkscreen (SIL OFL) via Fontsource. See [NOTICE.md](NOTICE.md).
+
+## License
+
+MIT, see [LICENSE](LICENSE).

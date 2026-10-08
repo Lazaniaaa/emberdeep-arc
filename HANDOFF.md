@@ -209,7 +209,7 @@ PNG героїв стискаються до палітри 256 кольорів
 4. **Деплой на Arc** до 14 жовтня (робить власник за інструкцією `docs/arc/README.md`, розділ «Deploying, in order»):
    сервер підпису → USDC на газ → деплой Hall через `deploy-hall.html` → верифікація на explorer → запуск сервера з адресою Hall → заповнити `DEPLOYED` в `src/chain/arc-config.ts` → передеплоїти сайт.
    Сервер підпису збирати з **того самого коду**, що й сайт (через відступ скелета).
-5. **Новий GitHub-репозиторій** для Arc-версії: власник створює `Lazaniaaa/Emberdeep-ArcMicrogrants` (public, без README/.gitignore/license на GitHub: README і .gitignore вже є локально, а будь-який файл, створений на GitHub, дасть конфлікт при першому push). Ліцензії в проєкті поки **немає** — якщо власник захоче, додати `LICENSE` локально окремим комітом, потім `git remote add origin …` і push (власник).
+5. **GitHub-репозиторій** Arc-версії: [`Lazaniaaa/emberdeep-arc`](https://github.com/Lazaniaaa/emberdeep-arc) (public), власник створив 2026-10-08 порожнім (без README/.gitignore/license на GitHub — інакше конфлікт при першому push). Ліцензія MIT додана локально (`LICENSE`, `NOTICE.md`, `README.md`, `package.json`). Далі власник: `git remote add origin https://github.com/Lazaniaaa/emberdeep-arc.git`, `git push -u origin main`.
 6. Нові скріншоти для README і подачі (`npm run smoke`, спершу полагодити сам скрипт під Arc-версію) — старі показують людину-героя й старих мобів.
 
 ### Відомі недоліки й ідеї на потім
