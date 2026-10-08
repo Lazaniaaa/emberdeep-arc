@@ -20,7 +20,7 @@ export type DimlingPhase = "idle" | "windup" | "recovery";
 /**
  * A creature. `x, y` is the top-left tile: ordinary creatures fill one tile, the boss fills `size` x `size`.
  * A creature that has noticed the delver winds up before it hits (see enemies.ts); the fields after `size` track that.
- * Descents saved before creatures had species omit them, and are read as idle Wickgnaws.
+ * Descents saved before creatures had species omit them, and are read as idle Waxlings (id "wickgnaw").
  */
 export type Dimling = Point & {
   id: number; hp: number; maxHp: number; awake: boolean; boss?: boolean; size?: number;
@@ -30,6 +30,8 @@ export type Dimling = Point & {
   windupLeft?: number;
   /** Turns left recovering after a blow. */
   cooldown?: number;
+  /** For a creature that keeps its distance: turns left before its next step back. */
+  rest?: number;
   /** The direction a line attack is aimed, fixed when the wind-up starts. */
   aim?: Point | null;
 };

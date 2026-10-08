@@ -1,9 +1,10 @@
 import {
   CAMP_H, CAMP_PROPS, CAMP_W, STATIONS, campHash, terrainAt, type Station, type StationId, type Terrain,
 } from "@/game/camp";
-import { NPC_COLORS, type Npc } from "@/game/camp-crowd";
+import { ANIMALS } from "@/game/animals";
+import type { Npc } from "@/game/camp-crowd";
+import { drawHero, type HeroPose } from "./mob-art";
 import { PALETTE } from "./pixel-art";
-import { heroMask, drawMask, type Mask } from "./sprites";
 
 export { PALETTE };
 
@@ -365,8 +366,10 @@ export type CampFrame = {
   camera: { x: number; y: number };
   /** Size of the picture in world pixels. */
   view: View;
-  heroMask: Mask;
-  flip: boolean;
+  /** Whole screen pixels per world pixel; render directly at this scale to keep the 2x hero texture. */
+  zoom: number;
+  /** The delver's picture this frame; it is drawn at `playerPos`. */
+  hero: HeroPose;
   playerPos: { x: number; y: number };
   playerName: string;
   playerColor: string;
@@ -441,14 +444,24 @@ function drawStation(ctx: CanvasRenderingContext2D, s: Station, near: boolean) {
   }
 }
 
+const CAMP_SHADOW = "rgba(20,12,50,0.3)";
+
 function drawNpc(ctx: CanvasRenderingContext2D, n: CampNpc, time: number) {
-  const kind = n.npc.kind === "elder" ? "lamplighter" : n.npc.kind;
-  const step = n.walking ? Math.floor(time / 90) % 2 : 0;
-  drawMask(ctx, heroMask(kind, step), n.x * CAMP_TILE, n.y * CAMP_TILE, 2, NPC_COLORS[n.npc.kind], n.npc.facing === "left", "#150c2b");
+  // The other delvers are animals too, each its own by id; the elder is the old Maine Coon.
+  drawHero(ctx, {
+    animal: n.npc.kind === "elder" ? "cat-maine-coon" : ANIMALS[n.npc.id % ANIMALS.length],
+    dir: n.npc.facing,
+    frame: n.walking ? (Math.floor(time / 110) % 2 ? "b" : "c") : "a",
+    offX: 0, offY: 0, flash: 0,
+  }, n.x * CAMP_TILE, n.y * CAMP_TILE, CAMP_TILE, CAMP_SHADOW);
 }
+
+/** Names float above a delver's head, which rises half a tile over the tile it stands on. */
+const NAME_ABOVE = 22;
 
 /** Draws the whole camp for one frame. Everything is pixel art built from rectangles. */
 export function drawCamp(ctx: CanvasRenderingContext2D, f: CampFrame) {
+  ctx.setTransform(f.zoom, 0, 0, f.zoom, 0, 0);
   ctx.imageSmoothingEnabled = false;
   const cam = f.camera;
   const { w: viewW, h: viewH } = f.view;
@@ -487,11 +500,7 @@ export function drawCamp(ctx: CanvasRenderingContext2D, f: CampFrame) {
   for (const n of f.crowd) things.push({ y: n.y + 0.01, draw: () => drawNpc(ctx, n, f.time) });
   things.push({
     y: f.playerPos.y + 0.02,
-    draw: () => {
-      ctx.fillStyle = "rgba(20,12,50,0.25)";
-      ctx.fillRect(f.playerPos.x * CAMP_TILE + 6, f.playerPos.y * CAMP_TILE + 28, 20, 4);
-      drawMask(ctx, f.heroMask, f.playerPos.x * CAMP_TILE, f.playerPos.y * CAMP_TILE, 2, "#fbf7ff", f.flip, "#150c2b");
-    },
+    draw: () => drawHero(ctx, f.hero, f.playerPos.x * CAMP_TILE, f.playerPos.y * CAMP_TILE, CAMP_TILE, CAMP_SHADOW),
   });
   things.sort((a, b) => a.y - b.y).forEach(t => t.draw());
 
@@ -529,11 +538,11 @@ export function drawCamp(ctx: CanvasRenderingContext2D, f: CampFrame) {
     outlined(ctx, "START HERE", center(gate.x), gate.y * CAMP_TILE - 48 + bob, "#ccff00", 11);
   }
   for (const n of f.crowd) {
-    const top = n.y * CAMP_TILE - 6;
+    const top = n.y * CAMP_TILE - NAME_ABOVE;
     outlined(ctx, n.npc.name, center(n.x), top, n.npc.kind === "elder" ? "#c9bcff" : "#ffffff", 9);
     if (n.npc.say) bubble(ctx, n.npc.say, center(n.x), top - 10);
   }
-  outlined(ctx, f.playerName, center(f.playerPos.x), f.playerPos.y * CAMP_TILE - 6, f.playerColor, 8);
+  outlined(ctx, f.playerName, center(f.playerPos.x), f.playerPos.y * CAMP_TILE - NAME_ABOVE, f.playerColor, 8);
   ctx.restore();
 
   // Soft vignette pulls the eye to the middle of the picture.

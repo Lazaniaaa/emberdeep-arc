@@ -8,6 +8,7 @@ import { Header } from "@/components/header";
 import { MOVE_KEYS as KEYS, MOVE_MS } from "@/lib/controls";
 import { playSfx } from "@/audio/sfx";
 import { lootMultiplier } from "@/game/config";
+import type { Animal } from "@/game/animals";
 import { POTIONS, POTION_IDS, type PotionId } from "@/game/catalog";
 import { roundShare } from "@/game/economy";
 import { MAX_LEVEL, xpToNext } from "@/game/levels";
@@ -15,11 +16,13 @@ import { GEAR } from "@/game/props";
 import { baseDamage, bossAlive, currentRadius, currentStepCost, levelOf, onRift, onStairs, xpOf, type RunAction, type RunState } from "@/game/run";
 import { percent } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { FxQueue } from "@/render/fx";
+import { heroMotion, turnEffects } from "@/render/hero-anim";
 import { COLORS, TILE, cameraFor, drawRun, type View } from "@/render/renderer";
 import { settle, useRun } from "@/state/run-store";
 import { holdRunLock } from "@/state/run-lock";
 import { useGame } from "@/state/store";
-import { resolveHero, type HeroVisual } from "./hero-info";
+import { resolveHero } from "./hero-info";
 
 type Screen = { w: number; h: number };
 
@@ -116,7 +119,7 @@ export function RunView() {
   return (
     <div ref={root} className="fixed inset-0 overflow-hidden bg-black text-white">
       <div key={shake} className={cn("absolute inset-0", shake > 0 && "animate-[shake_180ms_ease-in-out]")}>
-        <GameCanvas run={run} hero={hero} reducedMotion={game.reducedMotion} view={view} zoom={zoom}
+        <GameCanvas run={run} animal={game.animal} reducedMotion={game.reducedMotion} view={view} zoom={zoom}
           onMove={(dx, dy) => dispatch({ type: "move", dx, dy })} />
       </div>
       {hurt > 0 && <div key={`hurt-${hurt}`} aria-hidden className="pointer-events-none absolute inset-0 z-10 animate-[hurt_450ms_ease-out_forwards]" />}
@@ -259,14 +262,17 @@ function PotionButton({ id, run, onUse }: { id: PotionId; run: RunState; onUse: 
   );
 }
 
-function GameCanvas({ run, hero, reducedMotion, view: viewSize, zoom, onMove }: {
-  run: RunState; hero: HeroVisual; reducedMotion: boolean; view: View; zoom: number; onMove: (dx: number, dy: number) => void;
+function GameCanvas({ run, animal, reducedMotion, view: viewSize, zoom, onMove }: {
+  run: RunState; animal: Animal; reducedMotion: boolean; view: View; zoom: number; onMove: (dx: number, dy: number) => void;
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const camera = useRef<View>({ x: 0, y: 0, w: viewSize.w, h: viewSize.h });
-  const live = useRef({ run, hero, reducedMotion });
-  useEffect(() => { live.current = { run, hero, reducedMotion }; });
+  const live = useRef({ run, animal, reducedMotion });
+  useEffect(() => { live.current = { run, animal, reducedMotion }; });
   const tween = useRef({ from: { x: run.player.x, y: run.player.y }, to: { x: run.player.x, y: run.player.y }, at: 0, depth: run.depth });
+  const fx = useRef(new FxQueue());
+  const motion = useRef({ attackAt: -Infinity, hurtAt: -Infinity });
+  const shown = useRef(run);
 
   useEffect(() => {
     const t = tween.current;
@@ -274,6 +280,19 @@ function GameCanvas({ run, hero, reducedMotion, view: viewSize, zoom, onMove }: 
     if (p.x === t.to.x && p.y === t.to.y && run.depth === t.depth) return;
     const teleport = run.depth !== t.depth || Math.abs(p.x - t.to.x) + Math.abs(p.y - t.to.y) > 1;
     tween.current = { from: teleport ? { ...p } : { ...t.to }, to: { x: p.x, y: p.y }, at: performance.now(), depth: run.depth };
+  }, [run]);
+
+  // Each turn leaves its effects: the delver's swing, numbers, puffs, and the bursts of creatures' blows.
+  useEffect(() => {
+    const prev = shown.current;
+    shown.current = run;
+    if (prev === run) return;
+    if (prev.depth !== run.depth || prev.seed !== run.seed) fx.current.clear();
+    const now = performance.now();
+    const turn = turnEffects(prev, run, now);
+    turn.fx.forEach(f => fx.current.add(f));
+    if (turn.attack) motion.current.attackAt = now;
+    if (turn.hurt) motion.current.hurtAt = now;
   }, [run]);
 
   useEffect(() => {
@@ -286,7 +305,7 @@ function GameCanvas({ run, hero, reducedMotion, view: viewSize, zoom, onMove }: 
     const frame = (time: number) => {
       raf = requestAnimationFrame(frame);
       if (document.hidden) return;
-      const { run, hero, reducedMotion } = live.current;
+      const { run, animal, reducedMotion } = live.current;
       const interval = reducedMotion ? 100 : 1000 / 30;
       if (time - lastDraw < interval) return;
       lastDraw = time;
@@ -294,14 +313,12 @@ function GameCanvas({ run, hero, reducedMotion, view: viewSize, zoom, onMove }: 
       const k = reducedMotion ? 1 : Math.min(1, (time - t.at) / MOVE_MS);
       const walking = k < 1;
       const pos = { x: t.from.x + (t.to.x - t.from.x) * k, y: t.from.y + (t.to.y - t.from.y) * k };
-      const animFrame = walking ? Math.floor(time / 60) % 8 : reducedMotion ? 0 : Math.floor(time / 180) % 8;
-      const facing = run.player.facing;
-      const mask = hero.mirrored
-        ? hero.mask(facing, true, run.steps % 2)
-        : hero.mask(facing, walking, animFrame);
+      const dir = run.player.facing;
+      // Every step to a neighbouring tile changes x + y by one, so its parity swaps the leading foot step by step.
+      const m = heroMotion(time, dir, walking, t.to.x + t.to.y, motion.current.attackAt, motion.current.hurtAt, reducedMotion);
       const view = cameraFor(pos, run.floor.w, run.floor.h, viewW, viewH);
       camera.current = view;
-      drawRun(ctx, run, { time, reducedMotion, heroMask: mask, flip: hero.mirrored && facing === "left", playerPos: pos, view, zoom });
+      drawRun(ctx, run, { time, reducedMotion, hero: { animal, dir, ...m }, fx: fx.current, playerPos: pos, view, zoom });
     };
     raf = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf);

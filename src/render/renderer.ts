@@ -4,7 +4,9 @@ import { DEFAULT_SPECIES } from "@/game/enemies";
 import { ART_DOORWAYS } from "@/game/map-art";
 import { currentRadius, propsOf, type RunState } from "@/game/run";
 import { CreatureAnimator, restPose, type Pose } from "./creature-anim";
-import { mobCanvas, propCanvas } from "./mob-art";
+import type { FxQueue } from "./fx";
+import { drawHero, propCanvas, type HeroPose } from "./mob-art";
+import { MOB_CELL_H, MOB_CELL_W, MOB_FOOT_X, MOB_FOOT_Y, MOB_HEIGHT, mobFrameX, mobSheet } from "./mob-sheets";
 import { ICONS, drawMask, type Mask } from "./sprites";
 
 export const TILE = 32;
@@ -94,8 +96,10 @@ export type View = { x: number; y: number; w: number; h: number };
 export type DrawOptions = {
   time: number;
   reducedMotion: boolean;
-  heroMask: Mask;
-  flip: boolean;
+  /** The delver's picture this frame; it is drawn at `playerPos`. */
+  hero: HeroPose;
+  /** Effects of the last turns, drawn over everything else. */
+  fx: FxQueue;
   playerPos: Point;
   view: View;
   /** Screen pixels per logical pixel. Whole numbers keep the pixel art sharp. */
@@ -216,32 +220,50 @@ function drawCerberus(ctx: CanvasRenderingContext2D, d: Dimling, time: number, s
 
 const animator = new CreatureAnimator();
 
-/** A creature is a 16 x 16 pixel sprite drawn at twice its size, like the delver, so it stands on one tile. */
-const MOB_SCALE = 2;
-
 /**
- * A creature: its sprite on the tile in the frame of its pose (walk, wind-up), a health bar, and a bar that shows its
- * attack. The attack bar is empty while it is idle, fills red as it winds up, and shows blue while it recovers.
+ * A creature's picture on its tile in the frame of its pose (walk, wind-up, blow), with its shadow and the flash of a
+ * hit. It stands with its feet just above the tile's bottom edge; facing left it is mirrored around its feet.
  */
-function drawCreature(ctx: CanvasRenderingContext2D, d: Dimling, pose: Pose, time: number, still: boolean) {
+function drawCreature(ctx: CanvasRenderingContext2D, d: Dimling, pose: Pose) {
   const species = d.species ?? DEFAULT_SPECIES;
   const phase = d.phase ?? "idle";
   const tileX = pose.x * TILE, tileY = pose.y * TILE;
-  const left = Math.round(tileX + pose.offX), top = Math.round(tileY - pose.lift + pose.offY);
-  const cx = left + TILE / 2;
+  const cx = Math.round(tileX + pose.offX) + TILE / 2;
 
-  // The shadow stays on the floor and shrinks as the sprite leaves it.
+  // The shadow stays on the floor and shrinks as the creature leaves it.
   ctx.fillStyle = "rgba(0,0,0,0.4)";
   ctx.beginPath();
-  ctx.ellipse(cx, Math.round(tileY) + TILE - 3, TILE * 0.36 * (1 - Math.min(0.3, pose.lift / 24)), 3, 0, 0, Math.PI * 2);
+  ctx.ellipse(cx, Math.round(tileY) + TILE - 3, TILE * 0.3 * (1 - Math.min(0.35, pose.lift / 24)), 3, 0, 0, Math.PI * 2);
   ctx.fill();
 
+  const sheet = mobSheet(species);
+  if (!sheet) return;
+  const sx = mobFrameX(pose.frame);
   ctx.save();
+  ctx.translate(cx, Math.round(tileY + TILE - 3 - pose.lift + pose.offY));
+  if (pose.flip) ctx.scale(-1, 1);
   if (!d.awake) ctx.globalAlpha = 0.72;
-  else if (phase === "recovery") ctx.globalAlpha = 0.6;
+  else if (phase === "recovery" && !pose.striking) ctx.globalAlpha = 0.6;
   ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(mobCanvas(species, pose.frame, pose.flip), left, top, 16 * MOB_SCALE, 16 * MOB_SCALE);
+  ctx.drawImage(sheet.image, sx, 0, MOB_CELL_W, MOB_CELL_H, -MOB_FOOT_X, -MOB_FOOT_Y, MOB_CELL_W, MOB_CELL_H);
+  if (pose.flash) {
+    ctx.globalAlpha = 0.85;
+    ctx.drawImage(sheet.tint("#ffffff"), sx, 0, MOB_CELL_W, MOB_CELL_H, -MOB_FOOT_X, -MOB_FOOT_Y, MOB_CELL_W, MOB_CELL_H);
+  }
   ctx.restore();
+}
+
+/**
+ * What a creature shows over the scene, so nothing standing in front hides it: "z" while it sleeps, "!" while it winds up,
+ * a health bar, and a bar for its attack. The attack bar is empty while it is idle, fills red as it winds up, and shows
+ * blue while it recovers.
+ */
+function drawCreatureMarks(ctx: CanvasRenderingContext2D, d: Dimling, pose: Pose, time: number, still: boolean) {
+  const phase = d.phase ?? "idle";
+  const tileX = pose.x * TILE, tileY = pose.y * TILE;
+  // The top of the creature's head: marks float just above it.
+  const top = Math.round(tileY + TILE - 3 - MOB_HEIGHT[d.species ?? DEFAULT_SPECIES] - pose.lift + pose.offY);
+  const cx = Math.round(tileX + pose.offX) + TILE / 2;
 
   if (!d.awake) {
     ctx.font = "8px Silkscreen, monospace";
@@ -597,19 +619,29 @@ export function drawRun(ctx: CanvasRenderingContext2D, state: RunState, opts: Dr
     if (tiles.some(t => t.x === heroTile.x && t.y === heroTile.y)) heroThreat = Math.max(heroThreat ?? 0, progress);
   }
 
-  for (const d of floor.dimlings) {
-    if (!footprint(d).some(c => visible.has(idx(floor, c.x, c.y)))) continue;
-    if (d.boss) {
-      drawCerberus(ctx, d, opts.time, opts.reducedMotion);
-      continue;
-    }
-    drawCreature(ctx, d, poseOf(d), opts.time, opts.reducedMotion);
-  }
-
+  // Back to front: what stands lower on the screen is drawn later, so the delver's head, which rises into the tile
+  // above, goes over a creature there, and a creature below goes over the delver's blade.
   const pp = opts.playerPos;
-  drawMask(ctx, opts.heroMask, pp.x * TILE, pp.y * TILE, 2, COLORS.white, opts.flip, "#000");
-  // The hero hides the mark under their feet, so the mark is drawn again over them.
-  if (heroThreat !== null) drawDanger(ctx, [heroTile], heroThreat, opts.time, opts.reducedMotion);
+  const shown = floor.dimlings
+    .filter(d => footprint(d).some(c => visible.has(idx(floor, c.x, c.y))))
+    .map(d => ({ d, pose: d.boss ? restPose(d) : poseOf(d) }));
+  const drawOne = ({ d, pose }: (typeof shown)[number]) => {
+    if (d.boss) drawCerberus(ctx, d, opts.time, opts.reducedMotion);
+    else drawCreature(ctx, d, pose);
+  };
+  const behind = (s: (typeof shown)[number]) => s.pose.y + (s.d.size ?? 1) - 1 <= pp.y;
+  shown.filter(behind).forEach(drawOne);
+  drawHero(ctx, opts.hero, pp.x * TILE, pp.y * TILE, TILE, "rgba(0,0,0,0.4)");
+  // The hero hides the mark under their feet, so the mark is drawn again over them, half seen so the hero still reads.
+  if (heroThreat !== null) {
+    ctx.save();
+    ctx.globalAlpha = 0.5;
+    drawDanger(ctx, [heroTile], heroThreat, opts.time, opts.reducedMotion);
+    ctx.restore();
+  }
+  shown.filter(s => !behind(s)).forEach(drawOne);
+  // Bars and warnings go over everyone, so a creature behind the hero's head still shows its health and its blow.
+  for (const s of shown) if (!s.d.boss) drawCreatureMarks(ctx, s.d, s.pose, opts.time, opts.reducedMotion);
 
   const cx = pp.x * TILE + TILE / 2, cy = pp.y * TILE + TILE / 2;
   const flicker = opts.reducedMotion ? 0 : Math.sin(opts.time / 90) * 3 + Math.sin(opts.time / 37) * 2;
@@ -645,4 +677,7 @@ export function drawRun(ctx: CanvasRenderingContext2D, state: RunState, opts: Dr
     ctx.arc(cx, cy, TILE * 0.9, 0, Math.PI * 2);
     ctx.stroke();
   }
+
+  // Blows, numbers and puffs go over the darkness, so they read even at the edge of the light.
+  opts.fx.draw(ctx, opts.time, opts.reducedMotion);
 }

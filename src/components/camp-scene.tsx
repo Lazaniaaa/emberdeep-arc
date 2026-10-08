@@ -12,6 +12,7 @@ import {
 } from "@/game/camp";
 import { advanceCrowd, createCrowd, npcPosition, type Crowd } from "@/game/camp-crowd";
 import { roundShare } from "@/game/economy";
+import type { Animal } from "@/game/animals";
 import { DRAW_MINTS } from "@/game/config";
 import { MOVE_KEYS, MOVE_MS } from "@/lib/controls";
 import { percent, usd } from "@/lib/format";
@@ -173,7 +174,7 @@ export function CampScene() {
 
   return (
     <div ref={root} className="fixed inset-0 overflow-hidden bg-[#150c2b] text-white">
-      <CampCanvas walker={walker} tween={tween} camera={camera} hero={hero} reducedMotion={game.reducedMotion}
+      <CampCanvas walker={walker} tween={tween} camera={camera} hero={hero} animal={game.animal} reducedMotion={game.reducedMotion}
         near={near?.id ?? null} firstVisit={game.stats.runs === 0} view={view} zoom={zoom}
         onTapStation={walkTo}
         onTapGround={(x, y) => {
@@ -287,11 +288,12 @@ function Pill({ icon, value, label, color }: { icon: React.ReactNode; value: num
   );
 }
 
-function CampCanvas({ walker, tween, camera, hero, reducedMotion, near, firstVisit, view, zoom, onTapStation, onTapGround }: {
+function CampCanvas({ walker, tween, camera, hero, animal, reducedMotion, near, firstVisit, view, zoom, onTapStation, onTapGround }: {
   walker: Walker;
   tween: React.RefObject<{ from: { x: number; y: number }; to: { x: number; y: number }; at: number }>;
   camera: React.RefObject<{ x: number; y: number }>;
   hero: HeroVisual;
+  animal: Animal;
   reducedMotion: boolean;
   near: StationId | null;
   firstVisit: boolean;
@@ -302,8 +304,8 @@ function CampCanvas({ walker, tween, camera, hero, reducedMotion, near, firstVis
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const crowd = useRef<Crowd | null>(null);
-  const live = useRef({ walker, hero, reducedMotion, near, firstVisit, view });
-  useEffect(() => { live.current = { walker, hero, reducedMotion, near, firstVisit, view }; });
+  const live = useRef({ walker, hero, animal, reducedMotion, near, firstVisit, view });
+  useEffect(() => { live.current = { walker, hero, animal, reducedMotion, near, firstVisit, view }; });
 
   useEffect(() => {
     const canvas = ref.current;
@@ -315,7 +317,7 @@ function CampCanvas({ walker, tween, camera, hero, reducedMotion, near, firstVis
     const frame = (time: number) => {
       raf = requestAnimationFrame(frame);
       if (document.hidden) return;
-      const { walker, hero, reducedMotion, near, firstVisit, view } = live.current;
+      const { walker, hero, animal, reducedMotion, near, firstVisit, view } = live.current;
       const interval = reducedMotion ? 100 : 1000 / 30;
       if (time - lastDraw < interval) return;
       lastDraw = time;
@@ -323,20 +325,21 @@ function CampCanvas({ walker, tween, camera, hero, reducedMotion, near, firstVis
       const k = reducedMotion ? 1 : Math.min(1, (time - t.at) / MOVE_MS);
       const walking = k < 1;
       const pos = { x: t.from.x + (t.to.x - t.from.x) * k, y: t.from.y + (t.to.y - t.from.y) * k };
-      const animFrame = walking ? Math.floor(time / 60) % 8 : reducedMotion ? 0 : Math.floor(time / 180) % 8;
-      const mask = hero.mirrored ? hero.mask(walker.facing, true, walking ? animFrame : 0) : hero.mask(walker.facing, walking, animFrame);
+      // Every step to a neighbouring tile changes x + y by one, so its parity swaps the leading foot step by step.
+      const pose = walking ? ((t.to.x + t.to.y) % 2 ? "b" : "c") : "a";
       const c = crowd.current!;
       advanceCrowd(c, time, [{ x: t.to.x, y: t.to.y }]);
       camera.current = campCamera(pos, view);
       drawCamp(ctx, {
-        time, reducedMotion, camera: camera.current, view, heroMask: mask, flip: hero.mirrored && walker.facing === "left",
+        time, reducedMotion, camera: camera.current, view, zoom,
+        hero: { animal, dir: walker.facing, frame: pose, offX: 0, offY: 0, flash: 0 },
         playerPos: pos, playerName: hero.name, playerColor: hero.color, near, firstVisit,
         crowd: c.npcs.map(npc => ({ npc, ...npcPosition(npc, time) })),
       });
     };
     raf = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf);
-  }, [tween, camera]);
+  }, [tween, camera, zoom]);
 
   const onPointer = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -353,8 +356,8 @@ function CampCanvas({ walker, tween, camera, hero, reducedMotion, near, firstVis
   return (
     <canvas
       ref={ref}
-      width={view.w}
-      height={view.h}
+      width={view.w * zoom}
+      height={view.h * zoom}
       onPointerDown={onPointer}
       style={{ width: view.w * zoom, height: view.h * zoom }}
       className="pixelated absolute top-0 left-0 block touch-none select-none"

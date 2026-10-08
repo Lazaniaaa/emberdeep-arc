@@ -354,6 +354,23 @@ function creatureAct(state: RunState, d: Dimling, visible: Set<number>, nearest:
     say(state, `${def.name} winds up. Step off the marked tiles${def.windup > 1 ? ` (${def.windup} turns)` : " (next move)"}.`);
     return;
   }
+  if (def.retreat) {
+    // It keeps its distance: a step away, then a rest of a few turns, so a delver who presses on catches it.
+    d.rest = (d.rest ?? 0) - 1;
+    if (d.rest > 0) return;
+    const here = nearest(footprint(d));
+    const away = [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }]
+      .map(step => ({ x: d.x + step.x, y: d.y + step.y }))
+      .filter(p => isFloor(floor, p.x, p.y)
+        && !(p.x === player.x && p.y === player.y)
+        && !propsOf(floor).some(pr => pr.x === p.x && pr.y === p.y)
+        && !floor.dimlings.some(o => o !== d && footprint(o).some(oc => oc.x === p.x && oc.y === p.y))
+        && nearest([p]) > here)
+      .sort((a, b) => nearest([b]) - nearest([a]));
+    if (away.length) { d.x = away[0].x; d.y = away[0].y; }
+    d.rest = int(rng, def.retreat[0], def.retreat[1]);
+    return;
+  }
   if (def.move <= 0 || !chance(rng, Math.min(0.95, moveChance * def.move))) return;
   const here = nearest(footprint(d));
   const options = [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }]

@@ -1,0 +1,260 @@
+[
+  {
+    "name": "cat-ginger-tabby",
+    "width": 1402,
+    "height": 1122,
+    "rects": [
+      {
+        "left": 173,
+        "top": 97,
+        "width": 43,
+        "height": 42
+      },
+      {
+        "left": 94,
+        "top": 98,
+        "width": 43,
+        "height": 41
+      },
+      {
+        "left": 443,
+        "top": 97,
+        "width": 43,
+        "height": 42
+      },
+      {
+        "left": 365,
+        "top": 98,
+        "width": 43,
+        "height": 41
+      },
+      {
+        "left": 719,
+        "top": 97,
+        "width": 42,
+        "height": 42
+      },
+      {
+        "left": 640,
+        "top": 98,
+        "width": 42,
+        "height": 41
+      },
+      {
+        "left": 997,
+        "top": 97,
+        "width": 43,
+        "height": 42
+      },
+      {
+        "left": 919,
+        "top": 97,
+        "width": 44,
+        "height": 42
+      },
+      {
+        "left": 1287,
+        "top": 97,
+        "width": 43,
+        "height": 42
+      },
+      {
+        "left": 1210,
+        "top": 98,
+        "width": 43,
+        "height": 41
+      },
+      {
+        "left": 84,
+        "top": 361,
+        "width": 39,
+        "height": 40
+      },
+      {
+        "left": 363,
+        "top": 361,
+        "width": 39,
+        "height": 40
+      },
+      {
+        "left": 636,
+        "top": 360,
+        "width": 40,
+        "height": 41
+      },
+      {
+        "left": 908,
+        "top": 361,
+        "width": 39,
+        "height": 40
+      },
+      {
+        "left": 1172,
+        "top": 361,
+        "width": 40,
+        "height": 40
+      },
+      {
+        "left": 175,
+        "top": 623,
+        "width": 39,
+        "height": 40
+      },
+      {
+        "left": 456,
+        "top": 623,
+        "width": 39,
+        "height": 40
+      },
+      {
+        "left": 725,
+        "top": 623,
+        "width": 40,
+        "height": 40
+      },
+      {
+        "left": 1009,
+        "top": 624,
+        "width": 39,
+        "height": 39
+      },
+      {
+        "left": 1286,
+        "top": 623,
+        "width": 39,
+        "height": 40
+      }
+    ],
+    "changed": 33537,
+    "outside": 0
+  },
+  {
+    "name": "dog-husky",
+    "width": 1402,
+    "height": 1122,
+    "rects": [
+      {
+        "left": 174,
+        "top": 99,
+        "width": 37,
+        "height": 37
+      },
+      {
+        "left": 111,
+        "top": 99,
+        "width": 37,
+        "height": 37
+      },
+      {
+        "left": 388,
+        "top": 99,
+        "width": 36,
+        "height": 36
+      },
+      {
+        "left": 449,
+        "top": 99,
+        "width": 37,
+        "height": 36
+      },
+      {
+        "left": 714,
+        "top": 101,
+        "width": 36,
+        "height": 37
+      },
+      {
+        "left": 652,
+        "top": 101,
+        "width": 37,
+        "height": 37
+      },
+      {
+        "left": 998,
+        "top": 109,
+        "width": 36,
+        "height": 36
+      },
+      {
+        "left": 938,
+        "top": 99,
+        "width": 36,
+        "height": 36
+      },
+      {
+        "left": 1225,
+        "top": 99,
+        "width": 37,
+        "height": 37
+      },
+      {
+        "left": 1281,
+        "top": 109,
+        "width": 29,
+        "height": 34
+      },
+      {
+        "left": 72,
+        "top": 363,
+        "width": 31,
+        "height": 35
+      },
+      {
+        "left": 355,
+        "top": 363,
+        "width": 29,
+        "height": 35
+      },
+      {
+        "left": 622,
+        "top": 362,
+        "width": 30,
+        "height": 36
+      },
+      {
+        "left": 893,
+        "top": 362,
+        "width": 29,
+        "height": 35
+      },
+      {
+        "left": 1168,
+        "top": 370,
+        "width": 30,
+        "height": 34
+      },
+      {
+        "left": 193,
+        "top": 627,
+        "width": 30,
+        "height": 35
+      },
+      {
+        "left": 474,
+        "top": 628,
+        "width": 31,
+        "height": 35
+      },
+      {
+        "left": 740,
+        "top": 627,
+        "width": 32,
+        "height": 36
+      },
+      {
+        "left": 1018,
+        "top": 628,
+        "width": 30,
+        "height": 35
+      },
+      {
+        "left": 1299,
+        "top": 626,
+        "width": 31,
+        "height": 35
+      }
+    ],
+    "changed": 23606,
+    "outside": 0
+  }
+]

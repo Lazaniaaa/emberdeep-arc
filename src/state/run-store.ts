@@ -64,7 +64,7 @@ const validDimling = (w: number, h: number) => (value: unknown) => {
     // Creature fields added with the telegraphed attacks; saves from before them omit all of these.
     && (d.species === undefined || isSpecies(d.species))
     && (d.phase === undefined || d.phase === "idle" || d.phase === "windup" || d.phase === "recovery")
-    && count(d.windupLeft) && count(d.cooldown)
+    && count(d.windupLeft) && count(d.cooldown) && count(d.rest)
     && (d.aim === undefined || d.aim === null || (Number.isSafeInteger(object(d.aim).x) && Number.isSafeInteger(object(d.aim).y)
       && Math.abs(object(d.aim).x as number) + Math.abs(object(d.aim).y as number) === 1));
 };

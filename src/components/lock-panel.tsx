@@ -95,7 +95,7 @@ export function LockPanel() {
                 return (
                   <li key={l.key} className="flex flex-wrap items-center gap-3 rounded-lg border border-white/10 bg-black/40 p-3">
                     <div className="grid size-12 shrink-0 place-items-center rounded-md bg-black">
-                      {info.hero ? <HeroAvatar portrait={nftVisual(info.hero).portrait!} px={2} /> : l.kind === "stake" ? <Sprout className="size-6 text-lime" /> : <LockIcon className="size-6 text-lime" />}
+                      {info.hero ? <HeroAvatar portrait={nftVisual(info.hero).portrait} px={2} /> : l.kind === "stake" ? <Sprout className="size-6 text-lime" /> : <LockIcon className="size-6 text-lime" />}
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">

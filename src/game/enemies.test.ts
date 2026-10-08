@@ -4,7 +4,6 @@ import { ENEMY_HIT_MULT, ENEMY_RECOVERY, MAP_H, MAP_W, enemyCount, floorHeight, 
 import { generateFloor, idx, type Dimling } from "./dungeon";
 import { ENEMIES, enemiesAvailableAt, enemyDef } from "./enemies";
 import { attackTiles, reachDirection, windupProgress } from "./enemy-ai";
-import { mobPixels } from "@/render/mob-sprites";
 import { createRng } from "./rng";
 import { applyAction, emptyBag, startRun, type RunState } from "./run";
 
@@ -80,7 +79,7 @@ describe("a creature that strikes after a warning", () => {
     expect(s.events).toContain("kill");
     expect(s.events).not.toContain("drain");
     expect(s.floor.dimlings).toHaveLength(0);
-    expect(s.messages[0]).toMatch(/Wickgnaw defeated/);
+    expect(s.messages[0]).toMatch(/Waxling defeated/);
   });
 
   it("is turned aside by a ward, and says so", () => {
@@ -139,7 +138,7 @@ describe("a creature that strikes after a warning", () => {
     s = wait(s);
     expect(s.floor.dimlings[0].phase).toBe("idle");
     expect(s.events).not.toContain("warn");
-    // A cross reaches only as far as its range: two tiles away is out of a Wickgnaw's reach.
+    // A cross reaches only as far as its range: two tiles away is out of a Waxling's reach.
     s = room();
     s.floor.dimlings = [creature({ x: 8, y: 6 })];
     expect(reachDirection(s.floor, s.floor.dimlings[0], s.player)).toBeNull();
@@ -162,11 +161,48 @@ describe("a creature that strikes after a warning", () => {
     expect(attackTiles(s.floor, d).map(t => `${t.x},${t.y}`)).toEqual(["8,6"]);
   });
 
-  it("keeps a stationary creature where it is", () => {
+  it("has the skeleton archer back away a tile at a time, resting one to three turns between steps", () => {
     let s = room();
-    s.floor.dimlings = [creature({ species: "chaincoil", x: 11, y: 11 })];
-    for (let i = 0; i < 20; i++) s = wait(s);
-    expect(s.floor.dimlings[0]).toMatchObject({ x: 11, y: 11 });
+    // Off every line through the delver, so it has no shot and only keeps its distance.
+    s.floor.dimlings = [creature({ species: "chaincoil", x: 8, y: 9 })];
+    const far = (d: { x: number; y: number }) => Math.abs(d.x - 6) + Math.abs(d.y - 6);
+    const moves: number[] = [];
+    let last = { ...s.floor.dimlings[0] };
+    for (let turn = 0; turn < 10; turn++) {
+      s = wait(s);
+      const d = s.floor.dimlings[0];
+      if (d.x !== last.x || d.y !== last.y) {
+        expect(Math.abs(d.x - last.x) + Math.abs(d.y - last.y)).toBe(1);
+        expect(far(d)).toBeGreaterThan(far(last));
+        moves.push(turn);
+      }
+      expect(d.phase).toBe("idle");
+      last = { ...d };
+    }
+    expect(moves.length).toBeGreaterThanOrEqual(3);
+    for (let i = 1; i < moves.length; i++) {
+      expect(moves[i] - moves[i - 1]).toBeGreaterThanOrEqual(1);
+      expect(moves[i] - moves[i - 1]).toBeLessThanOrEqual(3);
+    }
+    // It rests at least once in a while, so it is slower than the delver.
+    expect(moves.length).toBeLessThan(10);
+  });
+
+  it("lets a delver who presses on catch the skeleton archer", () => {
+    let s = room();
+    for (let y = 1; y < 21; y++) for (let x = 1; x < 33; x++) s.floor.tiles[idx(s.floor, x, y)] = 1;
+    s.light = 9999; s.startLight = 9999;
+    s.floor.dimlings = [creature({ species: "chaincoil", x: 12, y: 11 })];
+    let caught = false;
+    for (let turn = 0; turn < 60 && !caught; turn++) {
+      const d = s.floor.dimlings[0];
+      const dx = d.x - s.player.x, dy = d.y - s.player.y;
+      if (Math.abs(dx) + Math.abs(dy) === 1) { caught = true; break; }
+      s = Math.abs(dx) >= Math.abs(dy)
+        ? applyAction(s, { type: "move", dx: Math.sign(dx), dy: 0 })
+        : applyAction(s, { type: "move", dx: 0, dy: Math.sign(dy) });
+    }
+    expect(caught).toBe(true);
   });
 
   it("wakes only when the delver comes near and leaves sleeping creatures alone", () => {
@@ -186,10 +222,6 @@ describe("a creature that strikes after a warning", () => {
 });
 
 describe("the creatures and the floors they live on", () => {
-  it("has a pixel sprite in every frame for every creature", () => {
-    for (const e of ENEMIES) for (const frame of ["a", "b", "w"] as const) expect(mobPixels(e.id, frame), `${e.id} ${frame}`).toHaveLength(16);
-  });
-
   it("gives every creature a reach, a wind-up and a way to be beaten", () => {
     for (const e of ENEMIES) {
       expect(e.range).toBeGreaterThanOrEqual(1);

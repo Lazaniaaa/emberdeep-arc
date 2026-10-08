@@ -33,11 +33,6 @@ export const NPC_NAMES = [
 
 const CLASS_ORDER: ClassId[] = ["prospector", "seer", "lamplighter", "pathfinder", "duelist", "scavenger"];
 
-export const NPC_COLORS: Record<ClassId | "elder", string> = {
-  prospector: "#FFB800", seer: "#7CF7FF", lamplighter: "#ff8a2a", pathfinder: "#7dff8a",
-  duelist: "#ff6060", scavenger: "#c77dff", elder: "#9b8cff",
-};
-
 const CHATTER = [
   "Two flasks and a dream.", "Anyone beaten the hound yet?", "Bank it before you spend it.",
   "Ward Charm first, dagger second.", "The fire never goes out.", "The Vault is looking heavy.",

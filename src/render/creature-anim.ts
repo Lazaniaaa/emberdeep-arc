@@ -1,12 +1,14 @@
 import type { Dimling, Point } from "@/game/dungeon";
 import { windupProgress } from "@/game/enemy-ai";
-import { DEFAULT_SPECIES, type EnemySpecies } from "@/game/enemies";
-import type { MobFrame } from "./mob-sprites";
+import { DEFAULT_SPECIES, enemyDef, type EnemySpecies } from "@/game/enemies";
+import { HERO_WINDUP_MS } from "./hero-anim";
+import type { MobFrame } from "./mob-sheets";
 
 /**
  * Which picture of a creature to show, and where. A creature glides between tiles on a walk cycle with a small hop, turns
  * to face the delver (the sprites look right, so they are mirrored to look left), bobs while it waits, and shows a
- * separate pose while it winds up. Everything is computed from the game state and the clock, with no canvas.
+ * separate pose while it winds up. When its blow lands it lunges along it; when the delver's blow lands on it, it flashes
+ * white and is knocked back a little. Everything is computed from the game state and the clock, with no canvas.
  */
 
 /** A creature crosses a tile a little slower than the delver, so the eye can follow it. */
@@ -15,18 +17,27 @@ export const CREATURE_MOVE_MS = 160;
 export const WALK_MS = 80;
 /** How long each half of the idle bob lasts. */
 export const IDLE_MS = 480;
+/** How long a creature that was hit shows white, and how long it takes to come back from the knock. */
+export const HIT_FLASH_MS = 110;
+export const KNOCKBACK_MS = 170;
+/** How long a creature's lunge lasts when its blow lands, and how far it reaches in canvas pixels. */
+export const STRIKE_MS = 220;
+const LUNGE_PX = 7;
 
-/** Hop height in pixels while crossing a tile, and whether it floats (bobs and sways) while it waits. */
-const GAIT: Record<EnemySpecies, { hop: number; floats: boolean }> = {
-  wickgnaw: { hop: 1, floats: false },
-  snaretoad: { hop: 3, floats: false },
-  "cinder-hound": { hop: 2, floats: false },
-  chaincoil: { hop: 0, floats: true },
-  "needle-wraith": { hop: 1, floats: true },
-  sootplate: { hop: 1, floats: false },
-  "hollow-burrower": { hop: 1, floats: false },
-  "fourfold-bell": { hop: 1, floats: true },
-  "rift-leaper": { hop: 4, floats: false },
+/**
+ * Hop height in pixels while crossing a tile, whether it floats (swaps frames as it hovers) while it waits, and how high
+ * above the floor a flyer hangs.
+ */
+const GAIT: Record<EnemySpecies, { hop: number; floats: boolean; hover: number }> = {
+  wickgnaw: { hop: 2, floats: false, hover: 0 },
+  snaretoad: { hop: 1, floats: false, hover: 0 },
+  "cinder-hound": { hop: 0, floats: true, hover: 8 },
+  chaincoil: { hop: 1, floats: false, hover: 0 },
+  "needle-wraith": { hop: 0, floats: true, hover: 6 },
+  sootplate: { hop: 1, floats: false, hover: 0 },
+  "hollow-burrower": { hop: 1, floats: false, hover: 0 },
+  "fourfold-bell": { hop: 3, floats: false, hover: 0 },
+  "rift-leaper": { hop: 2, floats: true, hover: 4 },
 };
 
 export type Pose = {
@@ -41,18 +52,32 @@ export type Pose = {
   frame: MobFrame;
   /** The picture looks right; true mirrors it to look left. */
   flip: boolean;
+  /** The delver's blow just landed on it: show it white. */
+  flash: boolean;
+  /** Its own blow is landing: show it whole, not faded as it is while it recovers. */
+  striking: boolean;
 };
 
 type Track = {
   fromX: number; fromY: number; toX: number; toY: number; movedAt: number;
   flip: boolean;
   last: Dimling;
+  /** When the delver's blow landed on it, and the way it was knocked. */
+  hitAt: number; knock: Point;
+  /** When its own blow landed, and the way it lunged. */
+  strikeAt: number; lunge: Point;
 };
 
 const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
 const smooth = (n: number) => n * n * (3 - 2 * n);
 
-export const restPose = (d: Point): Pose => ({ x: d.x, y: d.y, lift: 0, offX: 0, offY: 0, frame: "a", flip: false });
+/** One step from `from` toward `to` along the longer axis. */
+function toward(from: Point, to: Point): Point {
+  const dx = to.x - from.x, dy = to.y - from.y;
+  return Math.abs(dx) >= Math.abs(dy) ? { x: Math.sign(dx), y: 0 } : { x: 0, y: Math.sign(dy) };
+}
+
+export const restPose = (d: Point): Pose => ({ x: d.x, y: d.y, lift: 0, offX: 0, offY: 0, frame: "a", flip: false, flash: false, striking: false });
 
 export class CreatureAnimator {
   private tracks = new Map<number, Track>();
@@ -77,8 +102,19 @@ export class CreatureAnimator {
       if (!t) {
         this.tracks.set(d.id, {
           fromX: d.x, fromY: d.y, toX: d.x, toY: d.y, movedAt: -Infinity, flip: facing ?? false, last: d,
+          hitAt: -Infinity, knock: { x: 0, y: 0 }, strikeAt: -Infinity, lunge: { x: 0, y: 0 },
         });
         continue;
+      }
+      // Hurt: the flash waits for the delver's wind-up, so it comes with the blow. The knock is away from the delver.
+      if (d.hp < t.last.hp) {
+        t.hitAt = time + HERO_WINDUP_MS;
+        t.knock = toward(player, d);
+      }
+      // Its blow landed: it lunges along its aim (read from before, as striking clears it) or at the delver.
+      if (t.last.phase === "windup" && d.phase === "recovery") {
+        t.strikeAt = time;
+        t.lunge = t.last.aim ?? toward(d, player);
       }
       if (d.x !== t.toX || d.y !== t.toY) {
         const far = Math.abs(d.x - t.toX) + Math.abs(d.y - t.toY) > 2;
@@ -98,10 +134,21 @@ export class CreatureAnimator {
     const gait = GAIT[d.species ?? DEFAULT_SPECIES] ?? GAIT[DEFAULT_SPECIES];
     const { x, y, k } = this.position(t, time);
     const moving = k < 1 && (t.fromX !== t.toX || t.fromY !== t.toY);
-    const pose: Pose = { x, y, lift: 0, offX: 0, offY: 0, frame: "a", flip: t.flip };
+    const pose: Pose = { x, y, lift: 0, offX: 0, offY: 0, frame: "a", flip: t.flip, flash: false, striking: false };
 
+    const struck = time - t.strikeAt;
+    const hit = time - t.hitAt;
     const p = windupProgress(d);
-    if (p !== null) {
+    if (struck >= 0 && struck < STRIKE_MS) {
+      // Its blow: a lunge along it for a creature that hits up close, a small kick back for one that shoots.
+      const def = enemyDef(d.species ?? DEFAULT_SPECIES);
+      const shoots = def.attack === "line" && def.range > 1;
+      const reach = Math.round(Math.sin((Math.PI * struck) / STRIKE_MS) * (shoots ? -2 : LUNGE_PX));
+      pose.frame = "s";
+      pose.striking = true;
+      pose.offX = t.lunge.x * reach;
+      pose.offY = t.lunge.y * reach;
+    } else if (p !== null) {
       // Winding up: its attack pose, trembling more as the blow gets closer.
       pose.frame = "w";
       pose.offX = Math.round(Math.sin(time / 26) * 1.2 * p);
@@ -113,6 +160,13 @@ export class CreatureAnimator {
       const beat = Math.floor((time + d.id * 131) / IDLE_MS) % 2;
       if (gait.floats) pose.frame = beat === 0 ? "a" : "b";
       else pose.lift = beat;
+    }
+    pose.lift += gait.hover;
+    if (hit >= 0 && hit < KNOCKBACK_MS) {
+      const knock = Math.round(2 * (1 - hit / KNOCKBACK_MS));
+      pose.offX += t.knock.x * knock;
+      pose.offY += t.knock.y * knock;
+      pose.flash = hit < HIT_FLASH_MS;
     }
     return pose;
   }

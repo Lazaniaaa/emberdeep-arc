@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { computeRunPerks, mergeSavedState, migrateSavedState, useGame } from "./store";
+import { ANIMALS } from "@/game/animals";
 import { NO_PERKS } from "@/game/catalog";
 import { DRAW_MINTS, KEY_PRICE, MAX_KEYS, MAX_ROUND_RETURN, RARITY_SUPPLY, ROUND_SEED_GOLD, ROUND_SEED_POOL, START_KEYS, WORLD_MINT_SEED } from "@/game/config";
 import { ARMORS } from "@/game/catalog";
@@ -8,6 +9,14 @@ import { withTuning } from "@/game/tuning";
 import { applyAction, emptyBag, startRun } from "@/game/run";
 
 describe("saved game recovery", () => {
+  it("keeps the delver's animal, and deals one to a save from before animals", () => {
+    const current = useGame.getState();
+    expect(ANIMALS).toContain(current.animal);
+    expect(mergeSavedState({ animal: "dog-husky" }, current).animal).toBe("dog-husky");
+    expect(ANIMALS).toContain(mergeSavedState({}, current).animal);
+    expect(ANIMALS).toContain(mergeSavedState({ animal: "dragon" }, current).animal);
+  });
+
   it("recovers from missing and malformed nested data without losing store actions", () => {
     const current = useGame.getState();
     const restored = mergeSavedState({

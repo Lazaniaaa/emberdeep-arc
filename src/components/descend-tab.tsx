@@ -17,7 +17,6 @@ import { InsufficientFunds } from "@/state/store";
 import { foreignRunActive } from "@/state/run-lock";
 import { WANDERER, nftVisual, type HeroVisual } from "./hero-info";
 import { HeroAvatar, ItemArt } from "./art";
-import { PixelSprite } from "./pixel-sprite";
 
 export function DescendTab() {
   const game = useGame();
@@ -119,9 +118,7 @@ export function DescendTab() {
                     away && "cursor-not-allowed opacity-40",
                   )}
                 >
-                  {visual.portrait
-                    ? <HeroAvatar portrait={visual.portrait} px={4} />
-                    : <PixelSprite mask={visual.mask("down")} px={3} color="#F5F5F5" halo="#000" />}
+                  <HeroAvatar portrait={visual.portrait} px={4} />
                   <span className="font-pixel text-[11px] leading-tight" style={{ color: visual.color }}>{visual.name}</span>
                   <span className="text-[10px] tracking-wide text-muted-foreground uppercase">{visual.subtitle}</span>
                   <span className="text-xs text-foreground/80">{visual.perk}</span>

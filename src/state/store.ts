@@ -21,6 +21,7 @@ import {
 import { drawWeek, fieldWeek, passCost, ticketsKept, type DrawResult } from "@/game/raffle";
 import { randomSeed } from "@/game/rng";
 import { emptyBag, type PotionBag, type RunState } from "@/game/run";
+import { isAnimal, randomAnimal, type Animal } from "@/game/animals";
 
 export type HeroChoice = { kind: "wanderer" } | { kind: "nft"; id: string };
 
@@ -77,6 +78,8 @@ type State = Ledger & {
   minted: Record<Rarity, number>;
   heroes: HeroNft[];
   hero: HeroChoice;
+  /** The animal the delver is drawn as: dealt at random to a new player and kept. */
+  animal: Animal;
   flasks: number;
   log: LedgerEntry[];
   stats: Stats;
@@ -166,6 +169,7 @@ const initial = (): State => ({
   minted: { common: 0, rare: 0, epic: 0, legendary: 0 },
   heroes: [],
   hero: { kind: "wanderer" },
+  animal: randomAnimal(),
   flasks: 2,
   log: [],
   stats: { runs: 0, extracts: 0, deaths: 0, deepest: 0, bestPayout: 0, mints: 0, bosses: 0, expeditions: 0 },
@@ -263,6 +267,7 @@ export function mergeSavedState(persisted: unknown, current: State & Actions): S
     minted,
     heroes,
     hero: safeHero,
+    animal: isAnimal(saved.animal) ? saved.animal : defaults.animal,
     flasks: Math.max(1, Math.min(MAX_FLASKS, amount(saved.flasks, defaults.flasks, true))),
     log: Array.isArray(saved.log) ? saved.log.filter(isLedgerEntry).slice(0, 60) : defaults.log,
     stats: safeStats,
@@ -810,6 +815,9 @@ export const useGame = create<State & Actions>()(
 );
 
 if (typeof window !== "undefined") {
+  // The save is read as the store is made. One from before animals got an animal dealt just now: write it back at once,
+  // so it stays the same on the next visit.
+  useGame.setState({ animal: useGame.getState().animal });
   window.addEventListener("storage", event => {
     if (event.key === "emberdeep-arc-save-v1" && event.storageArea === localStorage && event.newValue) {
       void useGame.persist.rehydrate();

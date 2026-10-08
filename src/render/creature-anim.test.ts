@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Dimling } from "@/game/dungeon";
-import { CREATURE_MOVE_MS, CreatureAnimator, IDLE_MS, WALK_MS, restPose } from "./creature-anim";
+import { CREATURE_MOVE_MS, CreatureAnimator, HIT_FLASH_MS, IDLE_MS, KNOCKBACK_MS, STRIKE_MS, WALK_MS, restPose } from "./creature-anim";
+import { HERO_WINDUP_MS } from "./hero-anim";
 
 const creature = (over: Partial<Dimling> = {}): Dimling => ({
   id: 1, x: 5, y: 5, hp: 16, maxHp: 16, awake: true, species: "wickgnaw", phase: "idle", windupLeft: 0, cooldown: 0, aim: null, ...over,
@@ -100,16 +101,54 @@ describe("CreatureAnimator", () => {
 
   it("makes a waiting creature bob: floaters swap frames, the rest rise a pixel", () => {
     const a = new CreatureAnimator();
-    const bell = creature({ id: 2, species: "fourfold-bell" });
+    const moth = creature({ id: 2, species: "cinder-hound" });
     const rat = creature({ id: 3, species: "wickgnaw" });
-    a.update("run:1", [bell, rat], { x: 9, y: 5 }, 1000);
-    const bells = new Set<string>(), lifts = new Set<number>();
+    a.update("run:1", [moth, rat], { x: 9, y: 5 }, 1000);
+    const frames = new Set<string>(), lifts = new Set<number>();
     for (let t = 0; t < IDLE_MS * 3; t += 50) {
-      bells.add(a.pose(bell, 1000 + t).frame);
+      frames.add(a.pose(moth, 1000 + t).frame);
       lifts.add(a.pose(rat, 1000 + t).lift);
     }
-    expect(bells.size).toBe(2);
+    expect(frames.size).toBe(2);
     expect([...lifts].sort()).toEqual([0, 1]);
+  });
+
+  it("lunges along its blow when it lands, shown whole rather than faded", () => {
+    const a = new CreatureAnimator();
+    const winding = creature({ phase: "windup", windupLeft: 1, aim: { x: -1, y: 0 } });
+    a.update("run:1", [winding], { x: 4, y: 5 }, 1000);
+    const struck = creature({ phase: "recovery", cooldown: 1, aim: null });
+    a.update("run:1", [struck], { x: 4, y: 5 }, 2000);
+    const mid = a.pose(struck, 2000 + STRIKE_MS / 2);
+    expect(mid).toMatchObject({ frame: "s", striking: true, offY: 0 });
+    expect(mid.offX).toBeLessThan(0);
+    const after = a.pose(struck, 2000 + STRIKE_MS);
+    expect(after).toMatchObject({ striking: false, offX: 0 });
+  });
+
+  it("lunges at the delver when its blow covers every side", () => {
+    const a = new CreatureAnimator();
+    a.update("run:1", [creature({ phase: "windup", windupLeft: 1 })], { x: 5, y: 8 }, 1000);
+    const struck = creature({ phase: "recovery", cooldown: 1 });
+    a.update("run:1", [struck], { x: 5, y: 8 }, 2000);
+    const mid = a.pose(struck, 2000 + STRIKE_MS / 2);
+    expect(mid.offY).toBeGreaterThan(0);
+    expect(mid.offX).toBe(0);
+  });
+
+  it("flashes white and is knocked away from the delver when the delver's blow lands", () => {
+    const a = new CreatureAnimator();
+    a.update("run:1", [creature()], { x: 4, y: 5 }, 1000);
+    const hurt = creature({ hp: 8 });
+    a.update("run:1", [hurt], { x: 4, y: 5 }, 2000);
+    // The flash waits for the delver's wind-up, so it comes with the blow.
+    expect(a.pose(hurt, 2000).flash).toBe(false);
+    const landed = a.pose(hurt, 2000 + HERO_WINDUP_MS);
+    expect(landed.flash).toBe(true);
+    expect(landed.offX).toBeGreaterThan(0);
+    const later = a.pose(hurt, 2000 + HERO_WINDUP_MS + KNOCKBACK_MS);
+    expect(later).toMatchObject({ flash: false, offX: 0 });
+    expect(HIT_FLASH_MS).toBeLessThanOrEqual(KNOCKBACK_MS);
   });
 
   it("does not animate the boss", () => {

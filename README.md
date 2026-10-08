@@ -53,8 +53,8 @@ Other delvers wander the camp with name tags and chatter, and Old Ember by the g
 10. **Expedition (optional).** Send a Delver away for $1 plus an optional pack. It comes back with a
     random haul of keys, tickets and gold, or with nothing. See [Expeditions](#expeditions).
 
-**Creatures.** Nine kinds of creature live in the deep (Wickgnaw, Snaretoad, Cinder Hound, Chaincoil,
-Needle Wraith, Sootplate, Hollow Burrower, Fourfold Bell, Rift Leaper), with more of them the deeper you go:
+**Creatures.** Nine kinds of creature live in the deep (Waxling, Cave Spider, Lantern Moth, Skeleton Archer,
+Wisp, Stone Golem, Skull Crab, Spore Shroom, Imp), with more of them the deeper you go:
 six on depth 1, one more each depth. They hit back, but never without warning. A creature that reaches you
 *winds up*: the tiles its blow will hit get a red ring (a line for some, a cross around it for others) for one or two
 turns. Step off the rings and the blow lands on nothing, and the creature is left open for a turn. Stay on
