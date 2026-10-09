@@ -4,7 +4,7 @@
 Тут записано, що зроблено і чому, що ще треба зробити, на що звернути увагу, і як працювати з власником.
 **Оновлюйте цей файл після кожного великого шматка роботи** (розділи «Поточний стан» і «Що далі»).
 
-Останнє оновлення: 2026-10-08.
+Останнє оновлення: 2026-10-09.
 
 **З чого почати новому асистенту:** прочитати цей файл повністю, потім `docs/PROJECT.md` (українською, повний опис гри й економіки)
 або `README.md` (те саме англійською), потім `docs/art/PROMPTS.md`, якщо робота про графіку.
@@ -49,6 +49,22 @@ npm run hall:compile   # компіляція контракту -> contracts/ou
 npm run server:build   # збірка сервера підпису -> server-dist/attest.mjs
 node scripts/sprite-sheets.mjs [heroes|mobs] [назва]   # сирий AI-арт -> ігрові аркуші (див. розділ 4)
 ```
+
+
+### Мережі (chain ID, RPC) — перевірено 2026-10-09
+
+| Мережа | Chain ID (dec / hex) | RPC | Explorer | Газ | Faucet |
+| --- | --- | --- | --- | --- | --- |
+| **Arc mainnet** | `5042` / `0x13b2` | основний `https://rpc.mainnet.arc.io`; запасні `https://rpc.drpc.mainnet.arc.io`, `https://rpc.blockdaemon.mainnet.arc.io`, `https://rpc.quicknode.mainnet.arc.io` | `https://explorer.arc.io` | USDC, 18 decimals | — |
+| **Arc testnet** | `5042002` / `0x4cef52` | `https://rpc.testnet.arc.io`; запасні `https://rpc.drpc.testnet.arc.io`, `https://rpc.blockdaemon.testnet.arc.io` | `https://explorer.testnet.arc.io` | USDC, 18 decimals | `https://faucet.circle.com` |
+| vibe (testnet) | **?** — власник уточнює, що це за мережа | ? | ? | ? | ? |
+
+Джерело: [docs.arc.io — Connect to Arc](https://docs.arc.io/arc/references/connect-to-arc).
+
+- ⚠️ **З комп'ютера власника `rpc.mainnet.arc.io`, `rpc.quicknode.mainnet.arc.io` і `rpc.testnet.arc.io` відповідають `error code: 1009`** (Cloudflare: доступ закрито для країни/регіону).
+  `rpc.drpc.mainnet.arc.io` і `rpc.blockdaemon.mainnet.arc.io` працюють (`eth_chainId` = `0x13b2`). У грі (`ARC_RPC` у `src/chain/arc-config.ts`) і на `deploy-hall.html` (`src/tools/deploy-hall.ts`) стоїть заблокований основний RPC —
+  **до деплою перейти на кілька RPC через viem `fallback`**, інакше таблиця рекордів не читається з цього регіону. Гаманець (MetaMask) бере RPC з `wallet_addEthereumChain` — туди теж дати робочі адреси.
+- Ціна газу на Arc mainnet 2026-10-09: base fee **20 Gwei** (0,00000002 USDC за одиницю газу). Деплой Hall ≈ 0,81 млн газу ≈ **$0,016**; запис рекорду ≈ 0,1 млн газу ≈ $0,002.
 
 Перед тим як казати «готово», треба прогнати: `npm run typecheck`, `npm run lint`, `npm test`, `npm run build`, а для візуальних змін — подивитися гру в браузері.
 
@@ -102,7 +118,7 @@ node scripts/sprite-sheets.mjs [heroes|mobs] [назва]   # сирий AI-ар
 - **Сервер підпису** `server/attest.ts` переграє весь спуск із setup і списку ходів через `applyAction` і підписує тільки те, що вийшло в переграванні.
 - Деплой-сторінка `deploy-hall.html` (тільки dev) — власник деплоїть контракт зі свого гаманця.
 - Гра вмикає Hall, коли в `src/chain/arc-config.ts` заповнено `DEPLOYED` (адресу й блок) або задано env `VITE_ARC_HALL_ADDRESS`.
-- Arc: chain id **5042**, RPC `https://rpc.mainnet.arc.io`, explorer `https://explorer.arc.io`. Газ платиться в USDC (18 decimals). Testnet — 5042002, faucet.circle.com.
+- Arc: chain id, RPC, explorer — у таблиці «Мережі» в розділі 1. Газ платиться в USDC (18 decimals).
 - solc 0.8.28 і Solady 0.1.26 **запінені**: інша версія змінює байткод.
 
 > ⚠️ **Пастка детермінізму:** будь-яка зміна правил гри (`src/game/*`: run, dungeon, enemy-ai, enemies, props, levels, rng…) змінює результат перегравання.
@@ -197,6 +213,11 @@ PNG героїв стискаються до палітри 256 кольорів
 ---
 
 ## 6. Що далі (по порядку)
+
+**План власника (2026-10-09):** зараз — довести до ладу лобі (табір) і зробити систему логіну; **деплой на Arc mainnet — 12 жовтня**.
+Також власник хоче задеплоїти гру в тестнет мережі «vibe» (не Arc) — що це за мережа, ще уточнюється (див. таблицю «Мережі»).
+Логін: ще не вирішено — підключення свого гаманця чи гаманець, що створюється при вході (email/соцмережі). Нюанс: новий гаманець має 0 USDC на газ,
+а Hall приймає запис тільки від самого гравця (`msg.sender == player`) — для таких гаманців потрібен спонсор газу або зміна контракту **до** деплою.
 
 1. **Графіка:**
    - [x] Перенесення всіх 8 героїв у щільності 2× і округлі очі — власник підтвердив (2026-10-08).
