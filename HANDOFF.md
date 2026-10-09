@@ -57,9 +57,13 @@ node scripts/sprite-sheets.mjs [heroes|mobs] [назва]   # сирий AI-ар
 | --- | --- | --- | --- | --- | --- |
 | **Arc mainnet** | `5042` / `0x13b2` | основний `https://rpc.mainnet.arc.io`; запасні `https://rpc.drpc.mainnet.arc.io`, `https://rpc.blockdaemon.mainnet.arc.io`, `https://rpc.quicknode.mainnet.arc.io` | `https://explorer.arc.io` | USDC, 18 decimals | — |
 | **Arc testnet** | `5042002` / `0x4cef52` | `https://rpc.testnet.arc.io`; запасні `https://rpc.drpc.testnet.arc.io`, `https://rpc.blockdaemon.testnet.arc.io` | `https://explorer.testnet.arc.io` | USDC, 18 decimals | `https://faucet.circle.com` |
-| vibe (testnet) | **?** — власник уточнює, що це за мережа | ? | ? | ? | ? |
+| **Robinhood Chain Testnet** (на ній працює тестнет vibe/vibe) | `46630` / `0xb626` | `https://rpc.testnet.chain.robinhood.com` (з комп'ютера власника працює) | `https://explorer.testnet.chain.robinhood.com` | ETH (тестовий), gas price 2026-10-09 ≈ 0,01 Gwei | `https://faucet.testnet.chain.robinhood.com` |
 
-Джерело: [docs.arc.io — Connect to Arc](https://docs.arc.io/arc/references/connect-to-arc).
+Джерела: [docs.arc.io — Connect to Arc](https://docs.arc.io/arc/references/connect-to-arc), [vibe/vibe — Testnet network](https://testnet.vibevibe.fun/docs/#reference/network-and-contracts).
+
+- **vibe/vibe** (https://testnet.vibevibe.fun) — це не окрема мережа, а **лаунчпад токенів на Robinhood Chain** (тестнет — на Robinhood Chain Testnet).
+  «Задеплоїти гру» там означає створити сторінку проєкту (категорія Product & Utility: опис, картинка, посилання на гру й репозиторій) і запустити токен через їхній інтерфейс — це робить власник своїм гаманцем.
+  Окремо можна задеплоїти Hall на Robinhood Chain Testnet (контракт не залежить від мережі), але тоді гра має вміти працювати з кількома мережами — **рішення власника ще не прийняте**.
 
 - ⚠️ **З комп'ютера власника `rpc.mainnet.arc.io`, `rpc.quicknode.mainnet.arc.io` і `rpc.testnet.arc.io` відповідають `error code: 1009`** (Cloudflare: доступ закрито для країни/регіону).
   `rpc.drpc.mainnet.arc.io` і `rpc.blockdaemon.mainnet.arc.io` працюють (`eth_chainId` = `0x13b2`). У грі (`ARC_RPC` у `src/chain/arc-config.ts`) і на `deploy-hall.html` (`src/tools/deploy-hall.ts`) стоїть заблокований основний RPC —
@@ -215,7 +219,7 @@ PNG героїв стискаються до палітри 256 кольорів
 ## 6. Що далі (по порядку)
 
 **План власника (2026-10-09):** зараз — довести до ладу лобі (табір) і зробити систему логіну; **деплой на Arc mainnet — 12 жовтня**.
-Також власник хоче задеплоїти гру в тестнет мережі «vibe» (не Arc) — що це за мережа, ще уточнюється (див. таблицю «Мережі»).
+Також власник хоче задеплоїти гру на тестнет vibe/vibe (лаунчпад на Robinhood Chain Testnet, див. таблицю «Мережі»).
 Логін: ще не вирішено — підключення свого гаманця чи гаманець, що створюється при вході (email/соцмережі). Нюанс: новий гаманець має 0 USDC на газ,
 а Hall приймає запис тільки від самого гравця (`msg.sender == player`) — для таких гаманців потрібен спонсор газу або зміна контракту **до** деплою.
 
