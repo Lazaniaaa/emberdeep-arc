@@ -1,7 +1,8 @@
 import type { Point } from "@/game/dungeon";
 import { attackTiles } from "@/game/enemy-ai";
 import { propsOf, type RunEvent, type RunState } from "@/game/run";
-import type { Fx } from "./fx";
+import { GEAR } from "@/game/props";
+import type { DropIcon, Fx } from "./fx";
 import type { HeroDir, HeroFrame } from "./animal-sprites";
 
 /**
@@ -98,6 +99,16 @@ export function turnEffects(prev: RunState, next: RunState, at: number): TurnEff
         out.fx.push({ kind: "text", x: next.player.x, y: next.player.y - 0.5, text: "DODGE", color: "#ccff00", at });
       }
     }
+  }
+
+  // What fell out of what broke or fell this turn hops out, one item after another, stacked upward.
+  for (const drop of next.drops ?? []) {
+    const shown: { item: DropIcon; text: string; color: string }[] = [];
+    if (drop.gold) shown.push({ item: "gold", text: `+${drop.gold}`, color: "#ffd23f" });
+    if (drop.light) shown.push({ item: "oil", text: `+${drop.light}`, color: "#ccff00" });
+    if (drop.crystals) shown.push({ item: "crystal", text: `+${drop.crystals}`, color: "#7cf7ff" });
+    if (drop.gear) shown.push({ item: "gear", text: GEAR[drop.gear].name, color: "#ffffff" });
+    shown.forEach((s, i) => out.fx.push({ kind: "drop", x: drop.x, y: drop.y, ...s, lift: i * 15, at: land + 90 + i * 140 }));
   }
 
   // Props have no turns of their own, so whatever they lost the delver's blow took.

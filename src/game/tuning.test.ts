@@ -20,12 +20,16 @@ const strike = (s: RunState) => applyAction(s, { type: "move", dx: 1, dy: 0 });
 
 describe("the oil the deep gives back", () => {
   it("keeps every knob in a sane range", () => {
-    for (const range of [DEFAULT_TUNING.propOilChance, DEFAULT_TUNING.killDropChance]) {
-      expect(range[0]).toBeGreaterThanOrEqual(0);
-      expect(range[1]).toBeLessThanOrEqual(1);
-      // A nearly empty lantern is helped more than a full one, never less.
-      expect(range[1]).toBeGreaterThanOrEqual(range[0]);
-    }
+    const range = DEFAULT_TUNING.killDropChance;
+    expect(range[0]).toBeGreaterThanOrEqual(0);
+    expect(range[1]).toBeLessThanOrEqual(1);
+    // A nearly empty lantern is helped more than a full one, never less.
+    expect(range[1]).toBeGreaterThanOrEqual(range[0]);
+    expect(DEFAULT_TUNING.propOilWeight[1]).toBeGreaterThanOrEqual(DEFAULT_TUNING.propOilWeight[0]);
+    expect(DEFAULT_TUNING.propOilWeight[0]).toBeGreaterThan(0);
+    // The +30% test setting; anything from none extra to double is sane.
+    expect(DEFAULT_TUNING.dropOil).toBeGreaterThanOrEqual(1);
+    expect(DEFAULT_TUNING.dropOil).toBeLessThanOrEqual(2);
     expect(DEFAULT_TUNING.killDropLight[1]).toBeGreaterThanOrEqual(DEFAULT_TUNING.killDropLight[0]);
     expect(DEFAULT_TUNING.killDropLight[0]).toBeGreaterThan(0);
   });
@@ -44,8 +48,9 @@ describe("the oil the deep gives back", () => {
           drops++;
           const gained = s.light - before;
           // The step costs a little; the oil is what the creature held.
-          expect(gained).toBeGreaterThanOrEqual(DEFAULT_TUNING.killDropLight[0] - 1.5);
-          expect(gained).toBeLessThanOrEqual(DEFAULT_TUNING.killDropLight[1] + DEFAULT_TUNING.levelLight);
+          const scaled = (n: number) => Math.round(n * DEFAULT_TUNING.dropOil);
+          expect(gained).toBeGreaterThanOrEqual(scaled(DEFAULT_TUNING.killDropLight[0]) - 1.5);
+          expect(gained).toBeLessThanOrEqual(scaled(DEFAULT_TUNING.killDropLight[1]) + DEFAULT_TUNING.levelLight);
           expect(s.messages.some(m => m.includes("defeated") && m.includes("light"))).toBe(true);
         }
       }
@@ -78,8 +83,11 @@ describe("the oil the deep gives back", () => {
     s.floor.dimlings = [];
     s.floor.items = [{ id: 5, x: 7, y: 6, kind: "oil" }];
     const light = s.light;
-    const next = withTuning({ oilJarLight: 13 }, () => strike(s));
+    const next = withTuning({ oilJarLight: 13, dropOil: 1 }, () => strike(s));
     expect(next.light).toBeGreaterThanOrEqual(light + 13 - 1.01);
     expect(next.messages[0]).toContain("+13 light");
+    // All dropped oil is scaled together: +30% turns 13 into 17.
+    const richer = withTuning({ oilJarLight: 13, dropOil: 1.3 }, () => strike(s));
+    expect(richer.messages[0]).toContain("+17 light");
   });
 });

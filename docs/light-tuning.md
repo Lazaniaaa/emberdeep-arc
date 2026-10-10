@@ -20,42 +20,66 @@ Light comes back from four places: oil jars lying on the floor, broken props, de
 
 | Scenario | 1 flask | 2 flasks | 3 flasks | 5 flasks | Expert, 3 flasks | Expert, 5 flasks | Sloppy, 3 flasks |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| **Before** | 2.5 (45% / 0% / 0%) | 3.1 (83% / 3% / 0%) | 3.5 (85% / 13% / 0%) | 4.0 (88% / 53% / 0%) | 3.8 (93% / 23% / 0%) | 4.4 (93% / 57% / 0%) | 4.3 (100% / 35% / 0%) |
-| **Creatures only** | 3.0 (85% / 3% / 0%) | 3.8 (93% / 15% / 0%) | 4.1 (85% / 53% / 0%) | 4.5 (83% / 63% / 8%) | 4.5 (95% / 60% / 3%) | 4.8 (90% / 65% / 10%) | 5.3 (100% / 93% / 0%) |
-| **Props only** | 2.8 (73% / 0% / 0%) | 3.5 (90% / 8% / 0%) | 3.8 (85% / 28% / 0%) | 4.3 (90% / 60% / 0%) | 3.8 (93% / 33% / 0%) | 4.5 (90% / 63% / 0%) | 4.8 (100% / 80% / 0%) |
-| **Chosen** | 3.4 (93% / 10% / 0%) | 4.1 (93% / 40% / 0%) | 4.3 (88% / 60% / 0%) | 5.0 (85% / 68% / 28%) | 4.8 (95% / 65% / 8%) | 5.4 (95% / 78% / 25%) | 6.0 (100% / 98% / 28%) |
-| **Too generous** | 4.0 (90% / 40% / 0%) | 4.8 (98% / 70% / 3%) | 5.3 (100% / 78% / 15%) | 6.1 (100% / 90% / 45%) | 5.8 (100% / 90% / 28%) | 6.5 (100% / 90% / 63%) | 7.3 (100% / 98% / 88%) |
+| **No creature oil** | 3.2 (90% / 3% / 0%) | 3.9 (88% / 25% / 0%) | 4.3 (95% / 63% / 0%) | 4.9 (95% / 65% / 8%) | 4.7 (98% / 70% / 0%) | 5.2 (98% / 73% / 15%) | 5.5 (100% / 95% / 5%) |
+| **Flat prop oil** | 3.7 (93% / 18% / 3%) | 4.3 (90% / 53% / 0%) | 4.7 (95% / 65% / 3%) | 5.3 (95% / 65% / 33%) | 5.1 (95% / 73% / 10%) | 5.5 (100% / 65% / 38%) | 6.7 (100% / 98% / 57%) |
+| **Chosen** | 4.0 (95% / 35% / 0%) | 4.6 (93% / 57% / 5%) | 4.9 (95% / 70% / 3%) | 5.8 (98% / 75% / 43%) | 5.2 (98% / 78% / 5%) | 5.8 (100% / 80% / 40%) | 6.6 (100% / 98% / 57%) |
+| **+30% oil (test)** | 4.4 (95% / 53% / 3%) | 5.1 (98% / 80% / 10%) | 5.9 (100% / 95% / 28%) | 6.2 (98% / 85% / 53%) | 6.1 (98% / 95% / 43%) | 6.2 (100% / 83% / 60%) | 7.6 (100% / 100% / 90%) |
 
 Each cell is the mean deepest floor, then the share of descents that got to floor 3 / floor 5 / floor 7. These are newcomers unless the column says expert.
 
 ### Where the light came from and went, per descent (newcomer diver, 3 flasks)
 
-| Scenario | Start | Oil jars | Props | Creatures | Levels | Steps | Blows taken | Collector gold per cent spent (2 flasks) |
+| Scenario | Start | Oil jars | Props | Creatures | Levels | Steps | Blows taken | Collector gold per cent (2 flasks) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| **Before** | 240 | 72 | 33 | 0 | 43 | -344 | -44 | 2.91 |
-| **Creatures only** | 240 | 81 | 42 | 83 | 52 | -443 | -55 | 3.59 |
-| **Props only** | 240 | 76 | 78 | 0 | 47 | -392 | -49 | 3.63 |
-| **Chosen** | 240 | 82 | 87 | 88 | 55 | -492 | -61 | 3.88 |
-| **Too generous** | 240 | 154 | 123 | 207 | 67 | -690 | -102 | 5.36 |
+| **No creature oil** | 240 | 81 | 151 | 0 | 60 | -481 | -52 | 4.73 |
+| **Flat prop oil** | 240 | 92 | 156 | 99 | 65 | -582 | -70 | 5.17 |
+| **Chosen** | 240 | 96 | 177 | 112 | 67 | -620 | -74 | 5.55 |
+| **+30% oil (test)** | 240 | 132 | 269 | 197 | 83 | -817 | -105 | 7.22 |
 
 ### What each scenario means
 
-- **Before.** Creatures drop nothing. Props hold 4-14 light, with a 15% to 75% chance.
-- **Creatures only.** Creatures drop 5-10 light (35% to 80%), props as before.
-- **Props only.** Props hold 6-21 light with a 30% to 90% chance, creatures drop nothing.
-- **Chosen.** Both: what the game uses.
-- **Too generous.** The chosen values, plus creatures dropping 8-14 light (50% to 90%) and half as many oil jars again.
+- **No creature oil.** Creatures drop no oil; jars and props as chosen.
+- **Flat prop oil.** Oil's weight among a prop's loot moves only from 25 to 60 as the lantern empties (the first try, 2026-10-10).
+- **Chosen.** What the game uses.
+- **+30% oil (test).** All oil that drops (jars, props, creatures) times 1.3: the owner's local test (VITE_DROP_OIL=1.3).
+
+### Oil per floor (newcomer diver, 3 flasks)
+
+Light gained and spent on each floor, averaged over the descents that reached it. A floor that ends a descent is spent only partly, so the deepest rows read low.
+
+**Chosen:**
+
+| Floor | Descents there | Oil jars | Props | Creatures | **Drops** | Levels | Steps | Blows taken | **Net** |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | 40 of 40 | 34 | 22 | 17 | **73** | 20 | -113 | -26 | **-46** |
+| 2 | 40 of 40 | 28 | 32 | 18 | **78** | 16 | -122 | -16 | **-44** |
+| 3 | 38 of 40 | 17 | 47 | 22 | **86** | 11 | -142 | -10 | **-55** |
+| 4 | 34 of 40 | 13 | 45 | 31 | **88** | 14 | -135 | -17 | **-49** |
+| 5 | 28 of 40 | 9 | 41 | 34 | **84** | 9 | -150 | -9 | **-67** |
+| 6 | 15 of 40 | 2 | 29 | 18 | **48** | 5 | -75 | -4 | **-25** |
+| 7 | 1 of 40 | 8 | 48 | 15 | **71** | 0 | -80 | -6 | **-15** |
+
+**+30% oil (test):**
+
+| Floor | Descents there | Oil jars | Props | Creatures | **Drops** | Levels | Steps | Blows taken | **Net** |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | 40 of 40 | 42 | 26 | 21 | **89** | 20 | -112 | -24 | **-26** |
+| 2 | 40 of 40 | 37 | 37 | 26 | **99** | 17 | -131 | -18 | **-33** |
+| 3 | 40 of 40 | 23 | 62 | 29 | **113** | 13 | -160 | -11 | **-44** |
+| 4 | 40 of 40 | 16 | 61 | 44 | **121** | 15 | -147 | -26 | **-36** |
+| 5 | 38 of 40 | 12 | 49 | 43 | **104** | 10 | -166 | -14 | **-66** |
+| 6 | 25 of 40 | 4 | 45 | 43 | **93** | 9 | -132 | -17 | **-47** |
+| 7 | 11 of 40 | 4 | 28 | 29 | **61** | 5 | -87 | -11 | **-32** |
 
 ## What was chosen, and why
 
-- **Creatures drop 5-10 light** with a 35% chance when the lantern is full, rising to 80% when it is nearly empty. This was the most efficient lever in the wider sweep of 120 combinations: it added the most floors for the least extra gold, and it rewards fighting, which costs light.
-- **Props hold more oil and give it more often:** urns 6-10, crates 9-15, barrels 12-21, with a 30% to 90% chance.
-- **Oil jars stay at 8 light and the usual number.** Adding jars was the strongest lever but inflated the gold the most (see "Too generous").
-- **Levels stay at +10 light each**, as designed.
+- **A broken prop gives one kind of loot, sometimes two** (gold, oil or crystals; a barrel always two), plus experience and, from crates, barrels and bone piles, now and then a piece of gear. Floors hold two crates instead of one and a half, and bone piles from floor 2. Oil, when it falls out: Clay Urn 7-11, Wooden Crate 10-16, Iron-bound Barrel 14-22, Bone Pile 5-8.
+- **Oil's weight among the loot swings from 10 to 160** (beside gold 45 and crystals 15) as the lantern empties. With the first try, 25 to 60 ("Flat prop oil"), a delver with a full lantern found as much oil as one running dry, so the cheap-step builds went far deeper and the best build banked 3.7x an unperked delver's gold per cent (the economy tests allow 3.5x; it was 3.0x). The wide swing puts it back to about 3x and keeps the help for whoever runs dry.
+- **Creatures drop 5-10 light** with a 35% chance when the lantern is full, rising to 80% when it is nearly empty.
+- **Oil jars hold 8 light; levels give +10.**
+- **`dropOil` multiplies all the oil that drops** (jars, props, creatures). It is 1 for everyone; the owner can try 1.3 in local play with `VITE_DROP_OIL=1.3` in `.env.local`.
 
-With the chosen values a 2-flask descent reaches floor 4.1 on average (93% reach floor 3; it was 3.1 and 83%), 3 flasks reach floor 4.3, and the most a player can carry, 5 flasks, reach floor 5.0, with 28% of newcomers and 25% of experts getting as far as Cerberus (before: 0% and 0%). The boss is reachable but not handed over, and every extra flask still carries a descent further, though less than it used to (one flask takes a newcomer to floor 3.4, five to floor 5.0; before: 2.5 and 4.0), because oil now comes back to whoever is running dry.
-
-The price is gold: a collector banks 3.88 gold per cent spent instead of 2.91, because it stays deeper where loot is worth more. The simulated crowd is set from the bots, so this moves the crowd's rate and not anyone's share.
+With the chosen values 3 flasks take a newcomer to floor 4.9 on average, and 43% of 5-flask newcomers reach Cerberus. With +30% oil the same 3 flasks reach floor 5.9 and 53% of 5-flask newcomers reach the boss; a collector banks 7.22 gold per cent spent instead of 5.55, and one flask comes close to paying as well as two, which the economy tests do not allow. So +30% stays a local test until the owner decides.
 
 ## What this does not show
 

@@ -51,6 +51,23 @@ const DEFS: Record<PropKind, Def> = {
       return g;
     },
   },
+  bones: {
+    // W is the dark of the eye sockets here: it is not shaded, so it stays flat.
+    palette: { B: "#d9cfb2", L: "#f2ead2", D: "#8d8268", S: "#b8ad92", P: "#e0b070", W: "#241a2a", A: "#e8c070", E: "#ffd23f" },
+    draw: f => {
+      // A skull on two crossed bones.
+      const g = new Grid();
+      g.line(2, 14, 12, 9, "S").line(2, 9, 12, 14, "S");
+      g.rect(1, 13, 2, 2, "S").rect(1, 8, 2, 2, "S").rect(12, 8, 2, 2, "S").rect(12, 13, 2, 2, "S");
+      g.ell(7.5, 6.6, 3.8, 3.4, "B").rect(5, 9, 5, 2, "B").px(6, 4, "L").px(7, 4, "L").px(5, 5, "L");
+      g.px(6, 7, "W").px(9, 7, "W").px(6, 6, "W").px(9, 6, "W").px(7, 9, "W");
+      g.px(6, 11, "D").px(8, 11, "D");
+      if (f === "b") {
+        g.line(8, 3, 9, 6, "D").line(9, 6, 8, 8, "D").px(4, 4, ".").px(11, 9, ".");
+      }
+      return g;
+    },
+  },
 };
 
 const cache = new Map<string, MobPixels>();

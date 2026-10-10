@@ -7,6 +7,7 @@ import { shortAddress, usd } from "@/lib/format";
 import { useHall } from "@/state/hall";
 import { useGame } from "@/state/store";
 import { useWallet } from "@/state/wallet";
+import { DEFAULT_TUNING, tuning } from "@/game/tuning";
 
 /** The top bar. In the lobby it floats over the picture as a HUD; in a descent it is a normal sticky header. */
 export function Header({ overlay = false }: { overlay?: boolean }) {
@@ -29,6 +30,14 @@ export function Header({ overlay = false }: { overlay?: boolean }) {
               Balances, payouts and mints are simulated USDC kept in this browser. The only thing written on chain is a descent you choose to record in the Hall of Descents on Arc.
             </TooltipContent>
           </Tooltip>
+          {tuning.dropOil !== DEFAULT_TUNING.dropOil && (
+            <Tooltip>
+              <TooltipTrigger render={<Badge variant="outline" className="border-lime/60 text-lime">Oil ×{tuning.dropOil}</Badge>} />
+              <TooltipContent className="max-w-64">
+                Local test: all oil that drops in the deep is multiplied by {tuning.dropOil} (VITE_DROP_OIL in .env.local). Descents played like this cannot be recorded in the Hall.
+              </TooltipContent>
+            </Tooltip>
+          )}
         </div>
 
         <div className={overlay ? "ml-auto flex items-center gap-2 text-sm" : "ml-auto flex flex-wrap items-center gap-2 text-sm"}>

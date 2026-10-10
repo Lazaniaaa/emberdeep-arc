@@ -6,10 +6,14 @@ import { LEVEL_LIGHT } from "./levels";
  * The game reads them through `tuning`; only the tuning run changes them, with `withTuning`.
  */
 export type Tuning = {
-  /** Multiplies the oil a broken prop may hold (see props.ts). */
-  propOilScale: number;
-  /** Chance a broken prop holds oil: with the lantern full, and with it empty. */
-  propOilChance: readonly [number, number];
+  /**
+   * Multiplies all the oil that drops in the deep: jars on the floor, broken props and defeated creatures (not the
+   * light a new level gives).
+   */
+  dropOil: number;
+  /** How likely oil is to be what falls out of a broken prop, as a weight beside gold (45) and crystals (15): with the
+   *  lantern full, and with it empty (see lootWeights in props.ts). */
+  propOilWeight: readonly [number, number];
   /** Light from an oil jar lying on the floor. */
   oilJarLight: number;
   /** Multiplies how many oil jars a floor holds. */
@@ -23,8 +27,9 @@ export type Tuning = {
 
 /** Chosen by `npm run tuning`; see docs/light-tuning.md for what each knob does to how deep a descent can get. */
 export const DEFAULT_TUNING: Tuning = {
-  propOilScale: 1,
-  propOilChance: [0.3, 0.9],
+  // 1.3 (+30%) can be tried in local play with VITE_DROP_OIL (see main.tsx) before it is chosen for everyone.
+  dropOil: 1,
+  propOilWeight: [10, 160],
   oilJarLight: 8,
   oilJarCount: 1,
   killDropChance: [0.35, 0.8],
@@ -48,6 +53,8 @@ export function withTuning<T>(patch: Partial<Tuning>, fn: () => T): T {
 /** Light gained and lost, by source. Only filled in while a tuning run is counting. */
 export type LightSource = "jars" | "props" | "kills" | "levels" | "potions" | "steps" | "hits";
 export const lightTally: Record<LightSource, number> = { jars: 0, props: 0, kills: 0, levels: 0, potions: 0, steps: 0, hits: 0 };
+/** The same, split by floor: `lightByFloor[depth][source]`. */
+export const lightByFloor: Record<number, Record<LightSource, number>> = {};
 export let counting = false;
 
 export function countLight<T>(fn: () => T): T {
@@ -61,8 +68,12 @@ export function countLight<T>(fn: () => T): T {
 
 export function resetLightTally() {
   for (const k of Object.keys(lightTally) as LightSource[]) lightTally[k] = 0;
+  for (const d of Object.keys(lightByFloor)) delete lightByFloor[Number(d)];
 }
 
-export function noteLight(source: LightSource, amount: number) {
-  if (counting) lightTally[source] += amount;
+export function noteLight(source: LightSource, amount: number, depth = 0) {
+  if (!counting) return;
+  lightTally[source] += amount;
+  const floor = (lightByFloor[depth] ??= { jars: 0, props: 0, kills: 0, levels: 0, potions: 0, steps: 0, hits: 0 });
+  floor[source] += amount;
 }

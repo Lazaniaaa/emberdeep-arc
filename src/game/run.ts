@@ -8,7 +8,7 @@ import { dimlingDistance, distances, footprint, generateFloor, idx, isFloor, vis
 import { attackTiles, reachDirection } from "./enemy-ai";
 import { enemyDef, enemyName } from "./enemies";
 import { BOSS_XP, CHEST_XP, HOARD_XP, LEVEL_DAMAGE, MAX_LEVEL, VAULT_XP, killXp, levelDamage, xpToNext } from "./levels";
-import { GEAR, GEAR_DUPLICATE_XP, GEAR_IDS, gearDamage, lanternFullness, oilChance, propDef, type GearId } from "./props";
+import { GEAR, GEAR_DUPLICATE_XP, GEAR_IDS, gearDamage, lanternFullness, lootWeights, propDef, type GearId, type LootKind } from "./props";
 import { noteLight, tuning } from "./tuning";
 import { chance, createRng, int, weighted, type Rng } from "./rng";
 
@@ -68,7 +68,15 @@ export type RunState = {
   gear?: GearId[];
   /** Props broken this descent. */
   smashed?: number;
+  /** What fell out of a prop or a creature this turn, and where, so it can be shown. Cleared every turn. */
+  drops?: Drop[];
 };
+
+/** Loot that fell out of something the delver broke or defeated this turn. */
+export type Drop = { x: number; y: number; gold: number; crystals: number; light: number; gear: GearId | null };
+
+/** Oil that drops in the deep (jars, props, creatures), after `tuning.dropOil`. */
+const dropped = (light: number) => Math.max(1, Math.round(light * tuning.dropOil));
 
 export type RunAction =
   | { type: "move"; dx: number; dy: number }
@@ -163,8 +171,9 @@ function pickup(state: RunState) {
       break;
     }
     case "oil": {
-      state.light += tuning.oilJarLight; noteLight("jars", tuning.oilJarLight);
-      state.events.push("oil"); say(state, `+${tuning.oilJarLight} light from a spilled oil jar`);
+      const oil = dropped(tuning.oilJarLight);
+      state.light += oil; noteLight("jars", oil, state.depth);
+      state.events.push("oil"); say(state, `+${oil} light from a spilled oil jar`);
       break;
     }
     case "chest": {
@@ -222,7 +231,7 @@ function gainXp(state: RunState, amount: number) {
     xp -= xpToNext(level);
     level++;
     state.light += tuning.levelLight;
-    noteLight("levels", tuning.levelLight);
+    noteLight("levels", tuning.levelLight, state.depth);
     state.events.push("levelup");
     say(state, `Level ${level}! +${tuning.levelLight} light, +${LEVEL_DAMAGE} damage.`);
   }
@@ -230,7 +239,10 @@ function gainXp(state: RunState, amount: number) {
   state.xp = level >= MAX_LEVEL ? 0 : xp;
 }
 
-/** One blow at a prop. When it breaks it gives gold, experience, maybe oil (likelier the lower the lantern) and maybe gear. */
+/**
+ * One blow at a prop. When it breaks, one kind of loot falls out (gold, oil or crystals; oil likelier the lower the
+ * lantern), sometimes two, with a little experience and, from crates and barrels, now and then a piece of gear.
+ */
 function smash(state: RunState, prop: Prop) {
   const def = propDef(prop.kind);
   const raging = (state.rage ?? 0) > 0;
@@ -248,17 +260,31 @@ function smash(state: RunState, prop: Prop) {
   state.smashed = (state.smashed ?? 0) + 1;
   state.events.push("break");
   const rng = state.rng;
+  const drop: Drop = { x: prop.x, y: prop.y, gold: 0, crystals: 0, light: 0, gear: null };
   const parts: string[] = [];
-  const g = loot(state, int(rng, def.gold[0], def.gold[1]), "gold");
-  state.gold += g;
-  parts.push(`+${g} gold`);
-  if (tuning.propOilScale > 0 && chance(rng, oilChance(state.light, state.startLight))) {
-    const oil = Math.max(1, Math.round(int(rng, def.oil[0], def.oil[1]) * tuning.propOilScale));
-    state.light += oil;
-    noteLight("props", oil);
-    state.events.push("oil");
-    parts.push(`+${oil} light`);
+
+  const weights = lootWeights(def, state.light, state.startLight);
+  const kinds: LootKind[] = [weighted(rng, weights)];
+  if (chance(rng, def.second)) kinds.push(weighted(rng, { ...weights, [kinds[0]]: 0 }));
+  for (const kind of kinds) {
+    if (kind === "gold") {
+      drop.gold = loot(state, int(rng, def.gold[0], def.gold[1]), "gold");
+      state.gold += drop.gold;
+      parts.push(`+${drop.gold} gold`);
+    } else if (kind === "crystal") {
+      drop.crystals = loot(state, int(rng, def.crystals[0], def.crystals[1]), "crystal");
+      state.crystals += drop.crystals;
+      state.events.push("crystal");
+      parts.push(`+${drop.crystals} crystal${drop.crystals === 1 ? "" : "s"}`);
+    } else {
+      drop.light = dropped(int(rng, def.oil[0], def.oil[1]));
+      state.light += drop.light;
+      noteLight("props", drop.light, state.depth);
+      state.events.push("oil");
+      parts.push(`+${drop.light} light`);
+    }
   }
+
   let xp = int(rng, def.xp[0], def.xp[1]);
   if (def.gear > 0 && chance(rng, def.gear)) {
     const missing = GEAR_IDS.filter(id => !(state.gear ?? []).includes(id));
@@ -266,12 +292,14 @@ function smash(state: RunState, prop: Prop) {
       const found = missing[int(rng, 0, missing.length - 1)];
       state.gear = [...(state.gear ?? []), found];
       state.events.push("gear");
+      drop.gear = found;
       parts.push(`${GEAR[found].name} (${GEAR[found].blurb})`);
     } else {
       xp += GEAR_DUPLICATE_XP;
     }
   }
   parts.push(`+${xp} xp`);
+  state.drops = [...(state.drops ?? []), drop];
   say(state, `${def.name} breaks: ${parts.join(", ")}`);
   gainXp(state, xp);
 }
@@ -288,7 +316,7 @@ function burnLight(state: RunState) {
   if (state.nightVision > 0 && state.light <= 0) {
     state.nightVision--;
   } else if (!chance(state.rng, state.perks.freeStepChance)) {
-    noteLight("steps", Math.min(state.light, currentStepCost(state)));
+    noteLight("steps", Math.min(state.light, currentStepCost(state)), state.depth);
     state.light = Math.max(0, state.light - currentStepCost(state));
   }
   if (state.perks.regenEvery && state.steps % state.perks.regenEvery === 0) state.light += 1;
@@ -299,7 +327,7 @@ function burnLight(state: RunState) {
 const hitBase = (state: RunState) => (2 + Math.floor(state.depth / 2)) * ENEMY_HIT_MULT;
 
 function drainLight(state: RunState, amount: number) {
-  noteLight("hits", amount);
+  noteLight("hits", amount, state.depth);
   if (state.light > 0) state.light = Math.max(0, state.light - amount);
   else if (state.nightVision > 0) state.nightVision = Math.max(0, state.nightVision - Math.ceil(amount));
 }
@@ -459,6 +487,7 @@ export function applyAction(prev: RunState, action: RunAction): RunState {
   if (prev.status !== "playing") return prev;
   const state = structuredClone(prev);
   state.events = [];
+  state.drops = [];
 
   switch (action.type) {
     case "move": {
@@ -484,18 +513,19 @@ export function applyAction(prev: RunState, action: RunAction): RunState {
           state.events.push("kill");
           const xp = killXp(state.depth);
           // A defeated creature may drop oil, likelier the lower the lantern is, like a prop does.
-          let dropped = 0;
+          let oil = 0;
           const [dropFull, dropEmpty] = tuning.killDropChance;
           if (dropFull > 0 || dropEmpty > 0) {
             const p = dropFull + (dropEmpty - dropFull) * (1 - lanternFullness(state.light, state.startLight));
             if (chance(state.rng, p)) {
-              dropped = int(state.rng, tuning.killDropLight[0], tuning.killDropLight[1]);
-              state.light += dropped;
-              noteLight("kills", dropped);
+              oil = dropped(int(state.rng, tuning.killDropLight[0], tuning.killDropLight[1]));
+              state.light += oil;
+              noteLight("kills", oil, state.depth);
               state.events.push("oil");
             }
           }
-          const extraLight = (state.perks.lightOnKill ? state.perks.lightOnKill : 0) + dropped;
+          state.drops = [...(state.drops ?? []), { x: target.x, y: target.y, gold: g, crystals: 0, light: oil, gear: null }];
+          const extraLight = (state.perks.lightOnKill ? state.perks.lightOnKill : 0) + oil;
           say(state, `${enemyName(target.species)} defeated: +${g} gold, +${xp} xp${extraLight ? `, +${extraLight} light` : ""}`);
           rollTicket(state);
           gainXp(state, xp);

@@ -6,7 +6,8 @@ import { fileURLToPath } from "node:url";
 import { it } from "vitest";
 import { BOSS_DEPTH, FLASK_LIGHT } from "../src/game/config";
 import { simulateDiveRun, simulateFogRun, type BotStyle } from "../src/game/sim";
-import { DEFAULT_TUNING, countLight, lightTally, resetLightTally, withTuning, type Tuning } from "../src/game/tuning";
+import { PROPS } from "../src/game/props";
+import { DEFAULT_TUNING, countLight, lightByFloor, lightTally, resetLightTally, withTuning, type Tuning } from "../src/game/tuning";
 
 const RUNS = 40;
 const seeds = Array.from({ length: RUNS }, (_, i) => 1_000 + i * 7_919);
@@ -16,29 +17,24 @@ const pct = (x: number) => `${Math.round(x * 100)}%`;
 type Scenario = { name: string; note: string; patch: Partial<Tuning> };
 const scenarios: Scenario[] = [
   {
-    name: "Before",
-    note: "Creatures drop nothing. Props hold 4-14 light, with a 15% to 75% chance.",
-    patch: { propOilScale: 2 / 3, propOilChance: [0.15, 0.75], killDropChance: [0, 0], killDropLight: [0, 0] },
-  },
-  {
-    name: "Creatures only",
-    note: "Creatures drop 5-10 light (35% to 80%), props as before.",
-    patch: { propOilScale: 2 / 3, propOilChance: [0.15, 0.75] },
-  },
-  {
-    name: "Props only",
-    note: "Props hold 6-21 light with a 30% to 90% chance, creatures drop nothing.",
+    name: "No creature oil",
+    note: "Creatures drop no oil; jars and props as chosen.",
     patch: { killDropChance: [0, 0], killDropLight: [0, 0] },
   },
   {
+    name: "Flat prop oil",
+    note: "Oil's weight among a prop's loot moves only from 25 to 60 as the lantern empties (the first try, 2026-10-10).",
+    patch: { propOilWeight: [25, 60] },
+  },
+  {
     name: "Chosen",
-    note: "Both: what the game uses.",
+    note: "What the game uses.",
     patch: {},
   },
   {
-    name: "Too generous",
-    note: "The chosen values, plus creatures dropping 8-14 light (50% to 90%) and half as many oil jars again.",
-    patch: { killDropChance: [0.5, 0.9], killDropLight: [8, 14], oilJarCount: 1.5 },
+    name: "+30% oil (test)",
+    note: "All oil that drops (jars, props, creatures) times 1.3: the owner's local test (VITE_DROP_OIL=1.3).",
+    patch: { dropOil: 1.3 },
   },
 ];
 
@@ -77,9 +73,15 @@ it("writes docs/light-tuning.md", { timeout: 1_800_000 }, () => {
     const collector = seeds.map(seed => simulateFogRun(seed, 2));
     const gold = collector.reduce((n, r) => n + r.banked, 0) / collector.reduce((n, r) => n + r.spent, 0);
     resetLightTally();
-    countLight(() => seeds.forEach(seed => simulateDiveRun(seed, 3)));
+    const divers = countLight(() => seeds.map(seed => simulateDiveRun(seed, 3)));
     const tally = Object.fromEntries(Object.entries(lightTally).map(([k, v]) => [k, v / RUNS])) as typeof lightTally;
-    return { sc, n1, n2, n3, n5, e3, e5, s3, gold, tally };
+    // Per floor, averaged over the descents that reached it.
+    const floors = Array.from({ length: BOSS_DEPTH }, (_, i) => {
+      const depth = i + 1, visits = divers.filter(r => r.depth >= depth).length, f = lightByFloor[depth];
+      const per = Object.fromEntries(Object.entries(f ?? {}).map(([k, v]) => [k, visits ? v / visits : 0]));
+      return { depth, visits, ...per } as { depth: number; visits: number } & Partial<typeof lightTally>;
+    });
+    return { sc, n1, n2, n3, n5, e3, e5, s3, gold, tally, floors };
   }));
 
   out.push(
@@ -108,20 +110,47 @@ it("writes docs/light-tuning.md", { timeout: 1_800_000 }, () => {
   out.push("", "### What each scenario means", "");
   for (const r of results) out.push(`- **${r.sc.name}.** ${r.sc.note}`);
 
+  const perFloor = (r: (typeof results)[number]) => {
+    const n = (x?: number) => Math.round(x ?? 0);
+    out.push(
+      "| Floor | Descents there | Oil jars | Props | Creatures | **Drops** | Levels | Steps | Blows taken | **Net** |",
+      "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+    );
+    for (const f of r.floors) {
+      if (!f.visits) continue;
+      const drops = (f.jars ?? 0) + (f.props ?? 0) + (f.kills ?? 0);
+      const net = drops + (f.levels ?? 0) - (f.steps ?? 0) - (f.hits ?? 0);
+      out.push(`| ${f.depth} | ${f.visits} of ${RUNS} | ${n(f.jars)} | ${n(f.props)} | ${n(f.kills)} | **${n(drops)}** | ${n(f.levels)} | -${n(f.steps)} | -${n(f.hits)} | **${n(net)}** |`);
+    }
+  };
   const chosen = results.find(r => r.sc.name === "Chosen")!;
-  const before = results.find(r => r.sc.name === "Before")!;
+  const test = results.find(r => r.sc.name === "+30% oil (test)")!;
+  out.push(
+    "",
+    "### Oil per floor (newcomer diver, 3 flasks)",
+    "",
+    "Light gained and spent on each floor, averaged over the descents that reached it. A floor that ends a descent is spent only partly, so the deepest rows read low.",
+    "",
+    "**Chosen:**",
+    "",
+  );
+  perFloor(chosen);
+  out.push("", "**+30% oil (test):**", "");
+  perFloor(test);
+
+  const oils = PROPS.map(p => `${p.name} ${p.oil[0]}-${p.oil[1]}`).join(", ");
+  const tick = "`";
   out.push(
     "",
     "## What was chosen, and why",
     "",
-    `- **Creatures drop ${DEFAULT_TUNING.killDropLight[0]}-${DEFAULT_TUNING.killDropLight[1]} light** with a ${pct(DEFAULT_TUNING.killDropChance[0])} chance when the lantern is full, rising to ${pct(DEFAULT_TUNING.killDropChance[1])} when it is nearly empty. This was the most efficient lever in the wider sweep of 120 combinations: it added the most floors for the least extra gold, and it rewards fighting, which costs light.`,
-    `- **Props hold more oil and give it more often:** urns 6-10, crates 9-15, barrels 12-21, with a ${pct(DEFAULT_TUNING.propOilChance[0])} to ${pct(DEFAULT_TUNING.propOilChance[1])} chance.`,
-    `- **Oil jars stay at ${DEFAULT_TUNING.oilJarLight} light and the usual number.** Adding jars was the strongest lever but inflated the gold the most (see "Too generous").`,
-    `- **Levels stay at +${DEFAULT_TUNING.levelLight} light each**, as designed.`,
+    `- **A broken prop gives one kind of loot, sometimes two** (gold, oil or crystals; a barrel always two), plus experience and, from crates, barrels and bone piles, now and then a piece of gear. Floors hold two crates instead of one and a half, and bone piles from floor 2. Oil, when it falls out: ${oils}.`,
+    `- **Oil's weight among the loot swings from ${DEFAULT_TUNING.propOilWeight[0]} to ${DEFAULT_TUNING.propOilWeight[1]}** (beside gold 45 and crystals 15) as the lantern empties. With the first try, 25 to 60 ("Flat prop oil"), a delver with a full lantern found as much oil as one running dry, so the cheap-step builds went far deeper and the best build banked 3.7x an unperked delver's gold per cent (the economy tests allow 3.5x; it was 3.0x). The wide swing puts it back to about 3x and keeps the help for whoever runs dry.`,
+    `- **Creatures drop ${DEFAULT_TUNING.killDropLight[0]}-${DEFAULT_TUNING.killDropLight[1]} light** with a ${pct(DEFAULT_TUNING.killDropChance[0])} chance when the lantern is full, rising to ${pct(DEFAULT_TUNING.killDropChance[1])} when it is nearly empty.`,
+    `- **Oil jars hold ${DEFAULT_TUNING.oilJarLight} light; levels give +${DEFAULT_TUNING.levelLight}.**`,
+    `- **${tick}dropOil${tick} multiplies all the oil that drops** (jars, props, creatures). It is ${DEFAULT_TUNING.dropOil} for everyone; the owner can try 1.3 in local play with ${tick}VITE_DROP_OIL=1.3${tick} in ${tick}.env.local${tick}.`,
     "",
-    `With the chosen values a 2-flask descent reaches floor ${chosen.n2.depth.toFixed(1)} on average (${pct(chosen.n2.p3)} reach floor 3; it was ${before.n2.depth.toFixed(1)} and ${pct(before.n2.p3)}), 3 flasks reach floor ${chosen.n3.depth.toFixed(1)}, and the most a player can carry, 5 flasks, reach floor ${chosen.n5.depth.toFixed(1)}, with ${pct(chosen.n5.p7)} of newcomers and ${pct(chosen.e5.p7)} of experts getting as far as Cerberus (before: ${pct(before.n5.p7)} and ${pct(before.e5.p7)}). The boss is reachable but not handed over, and every extra flask still carries a descent further, though less than it used to (one flask takes a newcomer to floor ${chosen.n1.depth.toFixed(1)}, five to floor ${chosen.n5.depth.toFixed(1)}; before: ${before.n1.depth.toFixed(1)} and ${before.n5.depth.toFixed(1)}), because oil now comes back to whoever is running dry.`,
-    "",
-    `The price is gold: a collector banks ${chosen.gold.toFixed(2)} gold per cent spent instead of ${before.gold.toFixed(2)}, because it stays deeper where loot is worth more. The simulated crowd is set from the bots, so this moves the crowd's rate and not anyone's share.`,
+    `With the chosen values 3 flasks take a newcomer to floor ${chosen.n3.depth.toFixed(1)} on average, and ${pct(chosen.n5.p7)} of 5-flask newcomers reach Cerberus. With +30% oil the same 3 flasks reach floor ${test.n3.depth.toFixed(1)} and ${pct(test.n5.p7)} of 5-flask newcomers reach the boss; a collector banks ${test.gold.toFixed(2)} gold per cent spent instead of ${chosen.gold.toFixed(2)}, and one flask comes close to paying as well as two, which the economy tests do not allow. So +30% stays a local test until the owner decides.`,
     "",
     "## What this does not show",
     "",

@@ -69,11 +69,13 @@ turns. Step off the rings and the blow lands on nothing, and the creature is lef
 them and the blow drinks your light. Bump into a creature to attack it; your weapon decides how many swings it
 takes. Kills drop a little gold, some experience and sometimes oil (35% with a full lantern, up to 80% when it is nearly out; 5-10 light).
 
-**Smash things.** Urns, crates and barrels stand in the rooms (about six a floor, and never where they would shut a
-route). Walk into one to hit it; it cracks and then breaks, and a blow costs a turn like any other. A break gives steady
-gold, experience, sometimes **oil** (light), and sometimes a piece of **gear**. The emptier your lantern, the likelier
-the oil: 30% with it full, up to 90% when it is nearly out (6-21 light, more from the tougher props). A Clay Urn breaks in a blow or two, a Wooden Crate takes a
-couple more, an Iron-bound Barrel is the toughest and pays the most. Gear is a Rusty Sword (+6 damage), a Hand Axe
+**Smash things.** Urns, crates, barrels and, from floor 2, bone piles stand in the rooms (about seven a floor, and never
+where they would shut a route). Walk into one to hit it; it cracks and then breaks, and a blow costs a turn like any
+other. Something always falls out and you see it hop out: **one kind of loot, sometimes two** (gold, **oil** or
+crystals), plus experience, and from crates, barrels and bone piles now and then a piece of **gear**. The emptier your
+lantern, the likelier the loot is oil. A Clay Urn breaks in a blow or two and sometimes gives two kinds, a Wooden Crate
+takes a couple more and often gives two, an Iron-bound Barrel is the toughest and always gives two, and a Bone Pile
+breaks in one blow and holds mostly gold and crystals. Gear is a Rusty Sword (+6 damage), a Hand Axe
 (+5) or a Miner's Pickaxe (+4, and it breaks any prop in one blow); each lasts for the descent, and a second copy
 turns into experience.
 

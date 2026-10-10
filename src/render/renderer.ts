@@ -679,5 +679,5 @@ export function drawRun(ctx: CanvasRenderingContext2D, state: RunState, opts: Dr
   }
 
   // Blows, numbers and puffs go over the darkness, so they read even at the edge of the light.
-  opts.fx.draw(ctx, opts.time, opts.reducedMotion);
+  opts.fx.draw(ctx, opts.time, opts.reducedMotion, item => itemSprite(item, floor.theme));
 }

@@ -3,16 +3,25 @@ const TILE = 32;
 
 /**
  * Short effects drawn over the cave, all in tile coordinates and all fading out on their own: the arc of the delver's
- * blow, numbers rising from what was hit, a puff where something broke or fell, and the burst where a creature's blow
- * landed. They only decorate what the game state already says happened.
+ * blow, numbers rising from what was hit, a puff where something broke or fell, loot hopping out of what broke, and
+ * the burst where a creature's blow landed. They only decorate what the game state already says happened.
  */
 export type Fx =
   | { kind: "slash"; x: number; y: number; dx: number; dy: number; at: number }
   | { kind: "text"; x: number; y: number; text: string; color: string; at: number }
   | { kind: "puff"; x: number; y: number; color: string; at: number }
-  | { kind: "impact"; x: number; y: number; at: number };
+  | { kind: "impact"; x: number; y: number; at: number }
+  /** Loot hopping out of a broken prop or a fallen creature: its icon hops up off the tile, with the amount beside it.
+   *  Several items from one thing settle one above another, `lift` pixels higher each. */
+  | { kind: "drop"; x: number; y: number; item: DropIcon; text: string; color: string; lift: number; at: number };
 
-const LIFE: Record<Fx["kind"], number> = { slash: 220, text: 750, puff: 340, impact: 240 };
+/** What a drop shows: an item's own sprite, or a small blade for gear. */
+export type DropIcon = "gold" | "crystal" | "oil" | "gear";
+
+/** Draws an item's sprite; the renderer supplies it, so this file need not import the renderer. */
+export type IconSource = (item: Exclude<DropIcon, "gear">) => CanvasImageSource | null;
+
+const LIFE: Record<Fx["kind"], number> = { slash: 220, text: 750, puff: 340, impact: 240, drop: 1100 };
 
 const ease = (k: number) => 1 - (1 - k) * (1 - k);
 
@@ -32,7 +41,7 @@ export class FxQueue {
    * Draws the live effects and forgets the finished ones. An effect whose `at` is still ahead waits for it. With reduced
    * motion, numbers stay put and nothing sweeps.
    */
-  draw(ctx: CanvasRenderingContext2D, time: number, still: boolean) {
+  draw(ctx: CanvasRenderingContext2D, time: number, still: boolean, icon: IconSource = () => null) {
     this.list = this.list.filter(fx => time - fx.at < LIFE[fx.kind]);
     for (const fx of this.list) {
       if (time < fx.at) continue;
@@ -78,6 +87,32 @@ export class FxQueue {
             const s = i % 2 ? 3 : 2;
             ctx.fillRect(Math.round(cx + Math.cos(a) * r - s / 2), Math.round(cy + Math.sin(a) * r - s / 2), s, s);
           }
+          break;
+        }
+        case "drop": {
+          // Hops up out of the tile and settles a little higher, then fades.
+          const hop = still ? 16 : Math.round(Math.sin(Math.min(1, k * 1.8) * Math.PI * 0.75) * 22 + ease(k) * 6);
+          const x = Math.round(cx);
+          const y = Math.round(cy - 4 - hop - fx.lift * (still ? 1 : ease(Math.min(1, k * 2))));
+          ctx.globalAlpha = k < 0.75 ? 1 : 1 - (k - 0.75) / 0.25;
+          const sprite = fx.item === "gear" ? null : icon(fx.item);
+          if (sprite) {
+            ctx.imageSmoothingEnabled = false;
+            ctx.drawImage(sprite, x - 8, y - 8, 16, 16);
+          } else if (fx.item === "gear") {
+            // A tiny blade: steel, a gold guard, a dark grip.
+            ctx.fillStyle = "#0b0912"; ctx.fillRect(x - 1, y - 8, 4, 14);
+            ctx.fillStyle = "#dfe6f2"; ctx.fillRect(x, y - 7, 2, 9);
+            ctx.fillStyle = "#e8c070"; ctx.fillRect(x - 3, y + 2, 8, 2);
+            ctx.fillStyle = "#5a3a22"; ctx.fillRect(x, y + 4, 2, 3);
+          }
+          ctx.font = "8px Silkscreen, monospace";
+          ctx.textAlign = "left";
+          ctx.lineWidth = 3;
+          ctx.strokeStyle = "#0b0912";
+          ctx.strokeText(fx.text, x + 9, y + 3);
+          ctx.fillStyle = fx.color;
+          ctx.fillText(fx.text, x + 9, y + 3);
           break;
         }
         case "impact": {

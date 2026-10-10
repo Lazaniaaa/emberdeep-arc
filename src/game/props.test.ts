@@ -3,7 +3,7 @@ import { NO_PERKS } from "./catalog";
 import { lootMultiplier } from "./config";
 import { distances, generateFloor, idx, isFloor, type Dimling, type Prop } from "./dungeon";
 import { LEVEL_DAMAGE, LEVEL_LIGHT, MAX_LEVEL, levelDamage, xpToNext } from "./levels";
-import { GEAR, GEAR_IDS, GEAR_DUPLICATE_XP, gearDamage, oilChance, propCounts, propDef, PROPS } from "./props";
+import { GEAR, GEAR_IDS, GEAR_DUPLICATE_XP, gearDamage, lootWeights, propCounts, propDef, PROPS } from "./props";
 import { createRng } from "./rng";
 import { applyAction, baseDamage, emptyBag, levelOf, startRun, xpOf, type RunState } from "./run";
 import { simulateFogRun } from "./sim";
@@ -79,7 +79,7 @@ describe("levels", () => {
     expect(levelOf(s)).toBe(MAX_LEVEL);
     expect(s.events).not.toContain("levelup");
     expect(xpOf(s)).toBe(0);
-    expect(s.light).toBeLessThanOrEqual(before + propDef("barrel").oil[1]);
+    expect(s.light).toBeLessThanOrEqual(before + Math.round(propDef("barrel").oil[1] * DEFAULT_TUNING.dropOil));
   });
 
   it("are read as level 1 from a descent saved before levels existed", () => {
@@ -141,7 +141,11 @@ describe("props on a floor", () => {
   it("scale with the size of the floor", () => {
     const counts = propCounts(1);
     expect(counts.urn).toBeGreaterThan(counts.barrel);
-    expect(PROPS.map(p => p.id)).toEqual(["urn", "crate", "barrel"]);
+    expect(counts.crate).toBeGreaterThanOrEqual(2);
+    // Bone piles start on floor 2.
+    expect(counts.bones).toBe(0);
+    expect(propCounts(2).bones).toBeGreaterThan(0);
+    expect(PROPS.map(p => p.id)).toEqual(["urn", "crate", "barrel", "bones"]);
   });
 
   it("are not walked through by creatures", () => {
@@ -173,6 +177,7 @@ describe("smashing", () => {
     expect(blows("crate", 24)).toBe(1);
     expect(blows("barrel", 16)).toBe(3);
     expect(blows("barrel", 40)).toBe(1);
+    expect(blows("bones", 8)).toBe(1);
   });
 
   it("does not move the delver, costs a turn, cracks the prop and says so", () => {
@@ -188,33 +193,67 @@ describe("smashing", () => {
     expect(s.messages[0]).toContain("cracks");
   });
 
-  it("gives steady gold, experience and a message when it breaks", () => {
-    const golds = new Set<number>();
-    for (let seed = 1; seed <= 60; seed++) {
-      let s = room({ seed });
-      s.floor.props = [prop("crate", { hp: 1 })];
-      s = right(s);
-      const def = propDef("crate");
-      expect(s.events).toContain("break");
-      expect(s.floor.props).toHaveLength(0);
-      expect(s.smashed).toBe(1);
+  it("lets one kind of loot fall out, sometimes two, and says and shows what fell out", () => {
+    const twos: Record<string, number> = {};
+    for (const kind of ["urn", "crate", "barrel", "bones"] as const) {
+      const def = propDef(kind);
       const mult = lootMultiplier(1);
-      expect(s.gold).toBeGreaterThanOrEqual(Math.round(def.gold[0] * mult));
-      expect(s.gold).toBeLessThanOrEqual(Math.round(def.gold[1] * mult));
-      golds.add(s.gold);
-      expect(s.messages[0]).toContain("Wooden Crate breaks");
-      expect(s.messages[0]).toContain("xp");
+      let two = 0;
+      for (let seed = 1; seed <= 200; seed++) {
+        let s = room({ seed });
+        s.floor.props = [prop(kind, { hp: 1 })];
+        const before = { gold: s.gold, crystals: s.crystals };
+        s = right(s);
+        expect(s.events).toContain("break");
+        expect(s.floor.props).toHaveLength(0);
+        expect(s.smashed).toBe(1);
+        const drop = s.drops![0];
+        expect([drop.x, drop.y]).toEqual([7, 6]);
+        const kinds = [drop.gold > 0, drop.crystals > 0, drop.light > 0].filter(Boolean).length;
+        expect(kinds, `${kind} ${seed}`).toBeGreaterThanOrEqual(1);
+        expect(kinds).toBeLessThanOrEqual(2);
+        if (kinds === 2) two++;
+        expect(s.gold - before.gold).toBe(drop.gold);
+        expect(s.crystals - before.crystals).toBe(drop.crystals);
+        if (drop.gold) {
+          expect(drop.gold).toBeGreaterThanOrEqual(Math.round(def.gold[0] * mult));
+          expect(drop.gold).toBeLessThanOrEqual(Math.round(def.gold[1] * mult));
+        }
+        if (drop.light) {
+          expect(drop.light).toBeGreaterThanOrEqual(Math.round(def.oil[0] * DEFAULT_TUNING.dropOil));
+          expect(drop.light).toBeLessThanOrEqual(Math.round(def.oil[1] * DEFAULT_TUNING.dropOil));
+        }
+        expect(s.messages[0]).toContain(`${def.name} breaks`);
+        expect(s.messages[0]).toContain("xp");
+      }
+      twos[kind] = two / 200;
     }
-    // Steady: only a few different amounts, all close together.
-    expect(Math.max(...golds) - Math.min(...golds)).toBeLessThanOrEqual(3);
+    // Two kinds: an urn now and then, a crate often, a barrel always.
+    expect(twos.urn).toBeGreaterThan(0.1);
+    expect(twos.urn).toBeLessThan(0.3);
+    expect(twos.crate).toBeGreaterThan(0.3);
+    expect(twos.crate).toBeLessThan(0.5);
+    expect(twos.barrel).toBe(1);
   });
 
-  it("drops oil more often the lower the lantern is", () => {
-    const [full, empty] = DEFAULT_TUNING.propOilChance;
-    expect(oilChance(0, 160)).toBeCloseTo(empty);
-    expect(oilChance(160, 160)).toBeCloseTo(full);
-    expect(oilChance(80, 160)).toBeGreaterThan(oilChance(120, 160));
-    expect(oilChance(400, 160)).toBeCloseTo(full);
+  it("forgets last turn's drops", () => {
+    let s = room();
+    s.floor.props = [prop("urn", { hp: 1 })];
+    s = right(s);
+    expect(s.drops).toHaveLength(1);
+    s = applyAction(s, { type: "wait" });
+    expect(s.drops).toEqual([]);
+  });
+
+  it("gives oil more often the lower the lantern is", () => {
+    const crate = propDef("crate");
+    const [full, empty] = DEFAULT_TUNING.propOilWeight;
+    expect(lootWeights(crate, 160, 160).oil).toBeCloseTo(full);
+    expect(lootWeights(crate, 0, 160).oil).toBeCloseTo(empty);
+    expect(lootWeights(crate, 80, 160).oil).toBeGreaterThan(lootWeights(crate, 120, 160).oil);
+    expect(lootWeights(crate, 400, 160).oil).toBeCloseTo(full);
+    // Bone piles hold less oil than the rest.
+    expect(lootWeights(propDef("bones"), 0, 160).oil).toBeLessThan(lootWeights(crate, 0, 160).oil);
     const dropRate = (light: number) => {
       let drops = 0;
       const trials = 400;
@@ -228,9 +267,9 @@ describe("smashing", () => {
       return drops / trials;
     };
     const low = dropRate(10), high = dropRate(160);
-    expect(low).toBeGreaterThan(high + 0.3);
-    expect(low).toBeGreaterThan(0.75);
-    expect(high).toBeLessThan(0.42);
+    expect(low).toBeGreaterThan(high + 0.12);
+    expect(low).toBeGreaterThan(0.55);
+    expect(high).toBeLessThan(0.55);
   });
 
   it("sometimes gives gear, never the same piece twice, and gear adds to every blow", () => {
