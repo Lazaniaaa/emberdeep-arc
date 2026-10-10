@@ -2,23 +2,28 @@
 // without pulling in viem (the code that talks to the chain is in arc.ts and loads on demand).
 
 export const ARC_CHAIN_ID = 5042;
-export const ARC_RPC = "https://rpc.mainnet.arc.io";
+/**
+ * Arc mainnet's public RPCs from Arc's docs, tried in this order. The primary one (rpc.mainnet.arc.io) refuses some
+ * regions with Cloudflare's "error code: 1009" (seen from Ukraine on 2026-10-09), so the partners' endpoints go first.
+ */
+export const ARC_RPCS = [
+  "https://rpc.blockdaemon.mainnet.arc.io",
+  "https://rpc.drpc.mainnet.arc.io",
+  "https://rpc.mainnet.arc.io",
+] as const;
 export const ARC_EXPLORER = "https://explorer.arc.io";
 
-export type HallConfig = { address: `0x${string}`; fromBlock: bigint };
+export type HallConfig = { address: `0x${string}` };
 
 /** The deployed Hall. Null until it is deployed on Arc mainnet; the game then shows nothing about Arc. */
 const DEPLOYED: HallConfig | null = null;
 
 const ADDRESS = /^0x[\da-fA-F]{40}$/;
 
-/** `VITE_ARC_HALL_ADDRESS` (and optionally `VITE_ARC_HALL_FROM_BLOCK`) override the deployed Hall, for local tests. */
+/** `VITE_ARC_HALL_ADDRESS` overrides the deployed Hall, for local tests. */
 export function hallConfig(): HallConfig | null {
   const address = import.meta.env.VITE_ARC_HALL_ADDRESS as string | undefined;
-  if (address && ADDRESS.test(address)) {
-    const from = Number(import.meta.env.VITE_ARC_HALL_FROM_BLOCK ?? 0);
-    return { address: address as `0x${string}`, fromBlock: BigInt(Number.isSafeInteger(from) && from > 0 ? from : 0) };
-  }
+  if (address && ADDRESS.test(address)) return { address: address as `0x${string}` };
   return DEPLOYED;
 }
 

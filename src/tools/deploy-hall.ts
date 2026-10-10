@@ -1,19 +1,21 @@
 // The development-only deploy page (deploy-hall.html). It deploys the compiled Hall from the browser wallet.
 import {
-  createPublicClient, createWalletClient, custom, defineChain, encodeAbiParameters, formatUnits, http, isAddress,
-  type Abi, type Address, type Hex,
+  createPublicClient, createWalletClient, custom, defineChain, encodeAbiParameters, fallback, formatUnits, http, isAddress,
+  type Abi, type Address, type Chain, type Hex,
 } from "viem";
+import { ARC_RPCS } from "@/chain/arc-config";
 import { injectedProvider, type Eip1193 } from "@/chain/wallet";
 
 const NETWORKS = {
   mainnet: defineChain({
     id: 5042, name: "Arc", nativeCurrency: { name: "USD Coin", symbol: "USDC", decimals: 18 },
-    rpcUrls: { default: { http: ["https://rpc.mainnet.arc.io"] } },
+    rpcUrls: { default: { http: [...ARC_RPCS] } },
     blockExplorers: { default: { name: "Arc Explorer", url: "https://explorer.arc.io" } },
   }),
   testnet: defineChain({
     id: 5042002, name: "Arc Testnet", nativeCurrency: { name: "USD Coin", symbol: "USDC", decimals: 18 },
-    rpcUrls: { default: { http: ["https://rpc.testnet.arc.io"] } },
+    // The primary testnet RPC refuses some regions too (see ARC_RPCS).
+    rpcUrls: { default: { http: ["https://rpc.blockdaemon.testnet.arc.io", "https://rpc.drpc.testnet.arc.io", "https://rpc.testnet.arc.io"] } },
     blockExplorers: { default: { name: "Arc Testnet Explorer", url: "https://explorer.testnet.arc.io" } },
   }),
 } as const;
@@ -30,6 +32,8 @@ let provider: Eip1193 | null = null;
 let connectedChain: number | null = null;
 
 const chain = () => NETWORKS[net.value as keyof typeof NETWORKS];
+/** Reads the chain through the first of its RPCs that answers. */
+const reader = (c: Chain) => createPublicClient({ chain: c, transport: fallback(c.rpcUrls.default.http.map(url => http(url))) });
 const say = (text: string, cls = "") => { out.className = cls; out.textContent = text; };
 
 function refreshButton() {
@@ -59,7 +63,7 @@ $("connect").addEventListener("click", async () => {
     account = accounts[0] as Address;
     await switchTo(provider);
     connectedChain = chain().id;
-    const balance = await createPublicClient({ chain: chain(), transport: http() }).getBalance({ address: account });
+    const balance = await reader(chain()).getBalance({ address: account });
     walletLine.textContent = `${account} on ${chain().name}, ${formatUnits(balance, 18)} USDC for gas`;
     walletLine.className = "mono ok";
   } catch (e) {
@@ -84,7 +88,7 @@ deployButton.addEventListener("click", async () => {
     say("Confirm the deployment in your wallet…");
     const hash = await wallet.deployContract({ abi: artifact.abi, bytecode: artifact.bytecode, args: [signer] });
     say(`Sent: ${hash}\nWaiting for Arc…`);
-    const receipt = await createPublicClient({ chain: c, transport: http() }).waitForTransactionReceipt({ hash, timeout: 120_000 });
+    const receipt = await reader(c).waitForTransactionReceipt({ hash, timeout: 120_000 });
     if (receipt.status !== "success" || !receipt.contractAddress) throw new Error(`The deployment failed (${hash}).`);
     const args = encodeAbiParameters([{ type: "address" }], [signer]).slice(2);
     say([
@@ -97,7 +101,7 @@ deployButton.addEventListener("click", async () => {
       `Explorer:       ${c.blockExplorers.default.url}/address/${receipt.contractAddress}`,
       ``,
       `Next:`,
-      `1. Give the Hall address and the block number to whoever wires them into src/chain/arc-config.ts.`,
+      `1. Give the Hall address to whoever wires it into DEPLOYED in src/chain/arc-config.ts.`,
       `2. On the server, set HALL_ADDRESS=${receipt.contractAddress} (see deploy/README.md).`,
       `3. Verify the source on the explorer: "Solidity (Standard JSON input)", compiler ${artifact.compiler.split(".Emscripten")[0]},`,
       `   file contracts/out/EmberdeepHall.standard-input.json, constructor arguments:`,

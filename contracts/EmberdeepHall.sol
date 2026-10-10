@@ -36,6 +36,19 @@ contract EmberdeepHall is EIP712 {
     /// @notice The boss floor, the deepest a descent goes.
     uint8 public constant MAX_DEPTH = 7;
 
+    /// @notice A player's standing: their best descent that came home, and how many descents they recorded.
+    /// @dev    One storage slot. "Best" is deeper first, then more gold; a tie keeps the earlier descent. A descent
+    ///         that did not come home is counted in `runs` but never becomes the best, because its gold was lost.
+    struct Standing {
+        uint8 depth;
+        uint32 gold;
+        uint16 kills;
+        bool bossSlain;
+        /// The best descent is set (the player has come home at least once).
+        bool ranked;
+        uint32 runs;
+    }
+
     address public owner;
     address public pendingOwner;
     /// @notice The game's attestation key. Never zero.
@@ -44,6 +57,11 @@ contract EmberdeepHall is EIP712 {
     uint256 public totalRecords;
     /// @notice Whether a descent has been recorded already.
     mapping(bytes32 runId => bool) public recorded;
+    /// @notice Each player's standing. The leaderboard is read from here (and `players`) with plain calls, so it
+    ///         needs no log history, which public RPCs keep only for a short while.
+    mapping(address player => Standing) public standingOf;
+    /// @notice Every player who has recorded a descent, in the order they first did.
+    address[] public players;
 
     event DescentRecorded(
         address indexed player,
@@ -63,7 +81,6 @@ contract EmberdeepHall is EIP712 {
     error NotPendingOwner();
     error ZeroAddress();
     error IsPaused();
-    error NotPlayer();
     error Expired();
     error BadDepth();
     error AlreadyRecorded();
@@ -84,11 +101,11 @@ contract EmberdeepHall is EIP712 {
 
     // ── records ────────────────────────────────────────────────────────────────────────────────────────
 
-    /// @notice Writes a signed descent into the Hall. Only the player it belongs to can submit it, so a signature
-    ///         seen in the mempool is of no use to anyone else.
+    /// @notice Writes a signed descent into the Hall. Anyone may submit it: the player's own wallet, or the game's
+    ///         server paying the gas for a player who holds no USDC. The record always goes to `d.player`, which the
+    ///         signature covers, so a signature seen in the mempool can only be submitted for that same player, once.
     function record(Descent calldata d, bytes calldata signature) external {
         if (paused) revert IsPaused();
-        if (msg.sender != d.player) revert NotPlayer();
         if (block.timestamp > d.deadline) revert Expired();
         if (d.depth == 0 || d.depth > MAX_DEPTH) revert BadDepth();
         if (recorded[d.runId]) revert AlreadyRecorded();
@@ -98,10 +115,39 @@ contract EmberdeepHall is EIP712 {
         if (recovered == address(0) || recovered != signer) revert BadSignature();
 
         recorded[d.runId] = true;
+        Standing memory s = standingOf[d.player];
+        if (s.runs == 0) players.push(d.player);
         unchecked {
             ++totalRecords;
+            ++s.runs;
         }
+        if (d.home && (!s.ranked || d.depth > s.depth || (d.depth == s.depth && d.gold > s.gold))) {
+            (s.depth, s.gold, s.kills, s.bossSlain, s.ranked) = (d.depth, d.gold, d.kills, d.bossSlain, true);
+        }
+        standingOf[d.player] = s;
         emit DescentRecorded(d.player, d.runId, d.depth, d.gold, d.kills, d.home, d.bossSlain);
+    }
+
+    /// @notice How many players have recorded a descent.
+    function playerCount() external view returns (uint256) {
+        return players.length;
+    }
+
+    /// @notice Up to `count` players from `start` (in the order they joined) with their standings, for the leaderboard.
+    function standings(uint256 start, uint256 count)
+        external
+        view
+        returns (address[] memory who, Standing[] memory what)
+    {
+        uint256 end = players.length;
+        if (start > end) start = end;
+        if (count < end - start) end = start + count;
+        who = new address[](end - start);
+        what = new Standing[](end - start);
+        for (uint256 i = start; i < end; ++i) {
+            who[i - start] = players[i];
+            what[i - start] = standingOf[players[i]];
+        }
     }
 
     /// @notice The EIP-712 digest the signer signs for a descent, for off-chain checks.

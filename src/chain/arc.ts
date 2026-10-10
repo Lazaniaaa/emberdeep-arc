@@ -1,40 +1,41 @@
 // The Hall of Descents on Arc (contracts/EmberdeepHall.sol). The game's server replays a finished descent and signs
 // it; the player's wallet then sends that signed record to the Hall. The Hall holds no funds. The leaderboard is
-// rebuilt from the contract's events and needs no wallet.
+// read from the standings the Hall keeps, with plain calls: it needs no wallet and no log history.
 import {
-  BaseError, ContractFunctionRevertedError, createPublicClient, createWalletClient, custom, defineChain, http, parseAbi,
-  parseAbiItem, type Address, type Hash,
+  BaseError, ContractFunctionRevertedError, createPublicClient, createWalletClient, custom, defineChain, fallback, http,
+  parseAbi, type Address, type Hash,
 } from "viem";
-import { ARC_CHAIN_ID, ARC_EXPLORER, ARC_RPC, hallConfig, type HallConfig } from "./arc-config";
+import { ARC_CHAIN_ID, ARC_EXPLORER, ARC_RPCS, hallConfig, type HallConfig } from "./arc-config";
 import type { Eip1193 } from "./wallet";
 import { fromWire, type Attestation } from "./hall-typed";
-import { fetchInRanges } from "./log-range";
 
 export const ARC = defineChain({
   id: ARC_CHAIN_ID,
   name: "Arc",
   // Arc's native token is USDC and it pays for gas. The protocol counts it with 18 decimals.
   nativeCurrency: { name: "USD Coin", symbol: "USDC", decimals: 18 },
-  rpcUrls: { default: { http: [ARC_RPC] } },
+  rpcUrls: { default: { http: [...ARC_RPCS] } },
   blockExplorers: { default: { name: "Arc Explorer", url: ARC_EXPLORER } },
 });
-
-const DESCENT_EVENT = "event DescentRecorded(address indexed player, bytes32 indexed runId, uint8 depth, uint32 gold, uint16 kills, bool home, bool bossSlain)";
 
 /** The part of the Hall's ABI the game uses. A test checks it against the compiled contract. */
 export const HALL_ABI = parseAbi([
   "struct Descent { address player; bytes32 runId; uint8 depth; uint32 gold; uint16 kills; bool home; bool bossSlain; uint64 deadline; }",
+  "struct Standing { uint8 depth; uint32 gold; uint16 kills; bool bossSlain; bool ranked; uint32 runs; }",
   "function record(Descent d, bytes signature)",
-  DESCENT_EVENT,
+  "function totalRecords() view returns (uint256)",
+  "function playerCount() view returns (uint256)",
+  "function standings(uint256 start, uint256 count) view returns (address[] who, Standing[] what)",
+  "event DescentRecorded(address indexed player, bytes32 indexed runId, uint8 depth, uint32 gold, uint16 kills, bool home, bool bossSlain)",
   "error IsPaused()",
-  "error NotPlayer()",
   "error Expired()",
   "error BadDepth()",
   "error AlreadyRecorded()",
   "error BadSignature()",
 ]);
 
-export const arcClient = createPublicClient({ chain: ARC, transport: http() });
+/** Reads Arc through the first RPC that answers. */
+export const arcClient = createPublicClient({ chain: ARC, transport: fallback(ARC_RPCS.map(url => http(url))) });
 
 // ── the signing server ─────────────────────────────────────────────────────────────────────────────────
 
@@ -74,7 +75,7 @@ export async function switchToArc(provider: Eip1193) {
         chainId: CHAIN_HEX,
         chainName: ARC.name,
         nativeCurrency: ARC.nativeCurrency,
-        rpcUrls: [ARC_RPC],
+        rpcUrls: [...ARC_RPCS],
         blockExplorerUrls: [ARC_EXPLORER],
       }],
     });
@@ -114,7 +115,6 @@ const REFUSALS: Record<string, string> = {
   AlreadyRecorded: "This descent is in the Hall already.",
   Expired: "The server's signature ran out. Record it again for a fresh one.",
   IsPaused: "The Hall is paused for now. Nothing was recorded.",
-  NotPlayer: "Switch the wallet back to the account that played this descent.",
   BadSignature: "The Hall did not accept the server's signature. The server may be set up for another Hall.",
   BadDepth: "The Hall refused the depth of this descent.",
 };
@@ -137,11 +137,8 @@ export function explainArcError(error: unknown): string {
 
 // ── reading the Hall ───────────────────────────────────────────────────────────────────────────────────
 
-export type DescentLog = {
-  args: { player: Address; runId: `0x${string}`; depth: number; gold: number; kills: number; home: boolean; bossSlain: boolean };
-  blockNumber?: bigint | null;
-  logIndex?: number | null;
-};
+/** A player's standing as the Hall keeps it: their best descent home, and every descent they recorded. */
+export type Standing = { depth: number; gold: number; kills: number; bossSlain: boolean; ranked: boolean; runs: number };
 
 export type HallEntry = {
   player: Address; depth: number; gold: number; kills: number; bossSlain: boolean;
@@ -151,42 +148,40 @@ export type HallEntry = {
 
 export type HallBoard = { entries: HallEntry[]; records: number; players: number };
 
-const order = (a: DescentLog, b: DescentLog) => {
-  const blocks = (a.blockNumber ?? 0n) === (b.blockNumber ?? 0n) ? 0 : (a.blockNumber ?? 0n) < (b.blockNumber ?? 0n) ? -1 : 1;
-  return blocks || (a.logIndex ?? 0) - (b.logIndex ?? 0);
-};
-
 /**
- * Each wallet's best descent that came home: deeper first, then more gold; on a tie the earlier record keeps its place.
- * A descent that did not come home is counted but never ranked, because its gold was lost.
+ * Ranks the Hall's players by their best descent that came home: deeper first, then more gold. On a tie the player
+ * who joined the Hall first keeps the place (the sort is stable over the Hall's join order). A player who never came
+ * home is counted but not ranked, because the gold of every descent they recorded was lost.
  */
-export function buildLeaderboard(logs: readonly DescentLog[], top = 10): HallBoard {
-  const best = new Map<string, HallEntry>();
-  const runs = new Map<string, number>();
-  for (const log of [...logs].sort(order)) {
-    const { player, depth, gold, kills, home, bossSlain } = log.args;
-    const key = player.toLowerCase();
-    runs.set(key, (runs.get(key) ?? 0) + 1);
-    if (!home) continue;
-    const have = best.get(key);
-    if (!have || depth > have.depth || (depth === have.depth && gold > have.gold)) {
-      best.set(key, { player, depth, gold, kills, bossSlain, runs: 0 });
-    }
-  }
-  const entries = [...best.entries()]
-    .map(([key, entry]) => ({ ...entry, runs: runs.get(key) ?? 0 }))
+export function buildLeaderboard(players: readonly Address[], standings: readonly Standing[], records: number, top = 10): HallBoard {
+  const entries = players
+    .flatMap((player, i) => {
+      const s = standings[i];
+      return s?.ranked ? [{ player, depth: s.depth, gold: s.gold, kills: s.kills, bossSlain: s.bossSlain, runs: s.runs }] : [];
+    })
     .sort((a, b) => b.depth - a.depth || b.gold - a.gold);
-  return { entries: entries.slice(0, top), records: logs.length, players: runs.size };
+  return { entries: entries.slice(0, top), records, players: players.length };
 }
 
-/** Reads every record the Hall has emitted and ranks them. Needs no wallet. */
-export async function readHall(config: HallConfig | null = hallConfig()): Promise<HallBoard> {
+/** How many players one call reads. Each is two words of return data, so a page stays far below any RPC's limits. */
+export const STANDINGS_PAGE = 500n;
+
+type HallReader = Pick<typeof arcClient, "readContract">;
+
+/** Reads every player's standing from the Hall and ranks them. Needs no wallet. */
+export async function readHall(config: HallConfig | null = hallConfig(), client: HallReader = arcClient): Promise<HallBoard> {
   if (!config) return { entries: [], records: 0, players: 0 };
-  const latest = await arcClient.getBlockNumber();
-  const event = parseAbiItem(DESCENT_EVENT);
-  const logs = await fetchInRanges(
-    (fromBlock, toBlock) => arcClient.getLogs({ address: config.address, event, strict: true, fromBlock, toBlock }),
-    config.fromBlock, latest,
-  );
-  return buildLeaderboard(logs);
+  const hall = { address: config.address, abi: HALL_ABI } as const;
+  const [count, records] = await Promise.all([
+    client.readContract({ ...hall, functionName: "playerCount" }),
+    client.readContract({ ...hall, functionName: "totalRecords" }),
+  ]);
+  const players: Address[] = [];
+  const standings: Standing[] = [];
+  for (let start = 0n; start < count; start += STANDINGS_PAGE) {
+    const [who, what] = await client.readContract({ ...hall, functionName: "standings", args: [start, STANDINGS_PAGE] });
+    players.push(...who);
+    standings.push(...what);
+  }
+  return buildLeaderboard(players, standings, Number(records));
 }

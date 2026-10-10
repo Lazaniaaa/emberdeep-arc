@@ -1,6 +1,6 @@
 # Hall of Descents on Arc
 
-Emberdeep's on-chain part. A descent that came home can be written to **Arc mainnet** (chain id 5042), where a public leaderboard is read from the contract's events. A record cannot be made up: the game's server replays every move of the descent before it signs it, and the contract takes no record without that signature.
+Emberdeep's on-chain part. A descent that came home can be written to **Arc mainnet** (chain id 5042), where the contract keeps every player's best descent and a public leaderboard is read from it with plain calls (no log history needed). A record cannot be made up: the game's server replays every move of the descent before it signs it, and the contract takes no record without that signature.
 
 ## How a record is made
 
@@ -12,20 +12,25 @@ Emberdeep's on-chain part. A descent that came home can be written to **Arc main
 
 ## The contract: `contracts/EmberdeepHall.sol`
 
-Built with Solady's `EIP712` and `ECDSA`, the same libraries Onchain Heroes' contracts use. About 3.3 KB.
+Built with Solady's `EIP712` and `ECDSA`, the same libraries Onchain Heroes' contracts use. About 5.2 KB.
 
 | It checks | so that |
 | --- | --- |
 | the signature recovers to `signer` | only descents the server replayed get in |
-| `msg.sender == player` | a signature seen in the mempool is no use to anyone else |
 | `runId` not recorded yet | a descent is recorded once |
 | `block.timestamp <= deadline` | an old signature cannot be used forever |
 | `1 <= depth <= 7` | even a wrong signature cannot write an impossible depth |
 | `!paused` | the owner can stop new records |
 
+**Anyone may submit a signed record**: the player's wallet, or later the game's server paying the gas for a player who holds no USDC (an email login, for example). The record always goes to the `player` inside the signed descent, so a signature seen in the mempool can only be submitted for that same player, once. (The first version also required `msg.sender == player`; it was dropped before deployment, 2026-10-10, to leave room for that.)
+
+**The leaderboard lives in the contract.** Each record updates the player's `Standing` (one storage slot: best depth, gold, kills and boss of a descent that came home, plus the number of records) and adds a new player to `players`. The game reads `playerCount`, `totalRecords` and `standings(start, count)` in pages of 500 and ranks them (deeper first, then more gold; a tie keeps the player who joined first). Reading the events instead does not work for long: from some regions the primary RPC refuses connections (Cloudflare 1009), and the public partner RPCs serve logs only for about the last day and a half (blockdaemon) or for ranges of about 100 blocks (drpc, free plan). A player's first record costs about 150k gas, later ones about 60k: well under a cent at Arc's 20 Gwei.
+
+**RPCs.** The game and the deploy page read Arc through viem's `fallback` over `ARC_RPCS` in `src/chain/arc-config.ts` (blockdaemon, drpc, then the primary), and ask the wallet to add Arc with the same list.
+
 **It holds no funds.** No function is payable, there is no `receive` or `fallback`, and it makes no external calls, so there is nothing to drain and no reentrancy. Solady's `Ownable` was not used because its functions are `payable`, and USDC sent there by mistake (Arc's gas token) would be stuck; the contract has its own two-step ownership instead (`transferOwnership` then `acceptOwnership`, zero cancels).
 
-**What a stolen key could do.** The signer key could sign false records until the owner calls `setSigner` with a new key (old signatures stop working at once). The owner key could pause new records or change the signer. Neither can touch records already written (they are events) or any money (there is none).
+**What a stolen key could do.** The signer key could sign false records until the owner calls `setSigner` with a new key (old signatures stop working at once). The owner key could pause new records or change the signer. Neither can change or remove records already written, or touch any money (there is none).
 
 **Admin calls** (owner only): `setSigner(address)`, `setPaused(bool)`, `transferOwnership(address)`. On Blockscout they can be made from the explorer's "Write contract" tab with the owner's wallet.
 
@@ -37,9 +42,9 @@ Built with Solady's `EIP712` and `ECDSA`, the same libraries Onchain Heroes' con
 
 ## Tests
 
-- `contracts/EmberdeepHall.test.ts` (17): the compiled contract in an in-memory EVM (ethereumjs), signatures made with viem as the server makes them. It covers accepting a good record, one record per runId, other keys, changed fields, other Hall or chain, malformed signatures, other senders, expiry (and the last valid second), depth bounds, refusing USDC on every path, pause, signer rotation, two-step ownership, deploying without a signer, and that the ABI the game calls matches the compiled contract.
+- `contracts/EmberdeepHall.test.ts` (18): the compiled contract in an in-memory EVM (ethereumjs), signatures made with viem as the server makes them. It covers accepting a good record, one record per runId, other keys, changed fields, other Hall or chain, malformed signatures, a record submitted by someone else (still the signed player's, once; naming another player breaks the signature), the standings (best descent home, run counts, ties, pages), expiry (and the last valid second), depth bounds, refusing USDC on every path, pause, signer rotation, two-step ownership, deploying without a signer, and that the ABI the game calls matches the compiled contract.
 - `server/attest.test.ts` (6): a bot plays, the server replays and signs, and the compiled Hall accepts the record; lost descents, stable runIds, tampered moves, boosted loadouts, ignored claimed numbers, bad requests, size limits and the rate limit.
-- `src/game/replay.test.ts` (10), `src/chain/arc.test.ts` (16), `src/state/hall.test.ts` (6): replay matches bot results exactly, move codes, the loadout ceiling, the wallet flow, error messages and the move log.
+- `src/game/replay.test.ts` (10), `src/chain/arc.test.ts` (17), `src/state/hall.test.ts` (6): replay matches bot results exactly, move codes, the loadout ceiling, the wallet flow, error messages and the move log.
 
 `npm run hall:compile` writes `contracts/out/EmberdeepHall.json` (ABI and bytecode for the deploy page) and `contracts/out/EmberdeepHall.standard-input.json` (for source verification). solc 0.8.28 and Solady 0.1.26 are pinned, because a different version changes the bytecode.
 
@@ -49,9 +54,9 @@ Everything that needs a key happens on your machine or your server. Nothing here
 
 1. **Signing server, first time.** `.\deploy\attest.ps1 -Server <IP>` (or `bash deploy/attest.sh <IP>`). It installs Node and the server, makes the signing key **on the server** (`/etc/emberdeep/signer.key`, readable only by the service user) and prints the **signer address**.
 2. **USDC for gas on Arc.** A few cents are enough: one deployment and your own test records. Circle's CCTP bridge moves native USDC to Arc from Ethereum, Base, Arbitrum and others.
-3. **Deploy the Hall.** `npm run dev`, open `http://localhost:5741/deploy-hall.html`, connect the wallet that will own the Hall, paste the signer address, press Deploy. Rehearse on **Arc Testnet** first if you like (free USDC at faucet.circle.com). Note the **Hall address** and the **block number** it shows.
+3. **Deploy the Hall.** `npm run dev`, open `http://localhost:5741/deploy-hall.html`, connect the wallet that will own the Hall, paste the signer address, press Deploy. Rehearse on **Arc Testnet** first if you like (free USDC at faucet.circle.com). Note the **Hall address** it shows.
 4. **Verify the source** on `explorer.arc.io`: "Solidity (Standard JSON input)", compiler `v0.8.28+commit.7893614a`, file `contracts/out/EmberdeepHall.standard-input.json`, constructor arguments as the deploy page prints them.
 5. **Start the signing server for that Hall.** `.\deploy\attest.ps1 -Server <IP> -Hall <Hall address>`. It starts the service and adds the `/api` route to Caddy; the last line is a health check.
-6. **Turn the Hall on in the game.** The Hall address and block go into `DEPLOYED` in `src/chain/arc-config.ts`; then publish the site as usual (`.\deploy\deploy.ps1 -Server <IP>`).
+6. **Turn the Hall on in the game.** The Hall address goes into `DEPLOYED` in `src/chain/arc-config.ts`; then publish the site as usual (`.\deploy\deploy.ps1 -Server <IP>`).
 
-To try it all locally first: `npm run server:build`, then `node server-dist/attest.mjs keygen ./test.key` and run `node server-dist/attest.mjs` with `HALL_ADDRESS`, `HALL_CHAIN_ID` and `SIGNER_KEY_FILE` set; `npm run dev` proxies `/api` to it, and `.env.local` with `VITE_ARC_HALL_ADDRESS` (and `VITE_ARC_HALL_FROM_BLOCK`) turns the Hall on in the dev build.
+To try it all locally first: `npm run server:build`, then `node server-dist/attest.mjs keygen ./test.key` and run `node server-dist/attest.mjs` with `HALL_ADDRESS`, `HALL_CHAIN_ID` and `SIGNER_KEY_FILE` set; `npm run dev` proxies `/api` to it, and `.env.local` with `VITE_ARC_HALL_ADDRESS` turns the Hall on in the dev build.

@@ -241,10 +241,12 @@ Armor stacks with class perks up to the shared 80% drain cap.
 ## On Arc: the Hall of Descents
 
 A descent that came home can be written to **Arc mainnet** with one signature from the player's wallet (gas is a
-fraction of a cent of USDC), and the Hall's events make a public leaderboard (the trophy in the header). A record
+fraction of a cent of USDC), and the Hall keeps each player's best descent, which makes a public leaderboard (the trophy
+in the header). A record
 cannot be made up: the game keeps every move, the game's server replays the whole descent from its seed before it
-signs the result (EIP-712), and the contract (`contracts/EmberdeepHall.sol`, Solady, about 3 KB) takes no record
-without that signature, only from the player it belongs to, once per descent and before the signature runs out. It
+signs the result (EIP-712), and the contract (`contracts/EmberdeepHall.sol`, Solady, about 5 KB) takes no record
+without that signature, credits it only to the player it was signed for, once per descent and before the signature
+runs out. It
 holds no funds and makes no external calls.
 
 **Why Arc.** A record is a micro-transaction a player makes after every good descent, so its cost must be tiny and

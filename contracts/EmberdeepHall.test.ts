@@ -49,8 +49,9 @@ describe("EmberdeepHall", () => {
     expect(String(r.logs[0]?.args.player).toLowerCase()).toBe(PLAYER);
     expect(await hall.read("recorded", [d.runId])).toBe(true);
     expect(await hall.read("totalRecords")).toBe(1n);
-    // Well under 100k gas: a fraction of a cent at Arc's minimum gas price.
-    expect(r.gas).toBeLessThan(100_000n);
+    // A player's first record also adds them to the player list: still well under 200k gas, a fraction of a cent at
+    // Arc's minimum gas price.
+    expect(r.gas).toBeLessThan(200_000n);
   });
 
   it("computes the same digest the signer signs", async () => {
@@ -92,9 +93,16 @@ describe("EmberdeepHall", () => {
     }
   });
 
-  it("only lets the player submit their own descent", async () => {
+  it("takes a descent from any sender, but always for the signed player and only once", async () => {
     const d = descent();
-    expect(await record(STRANGER, d, await sign(d))).toMatchObject({ ok: false, error: "NotPlayer" });
+    const signature = await sign(d);
+    const relayed = await record(STRANGER, d, signature);
+    if (!relayed.ok) throw new Error(relayed.error);
+    expect(String(relayed.logs[0]?.args.player).toLowerCase()).toBe(PLAYER);
+    expect(await record(PLAYER, d, signature)).toMatchObject({ ok: false, error: "AlreadyRecorded" });
+    // Naming someone else as the player breaks the server's signature.
+    const claimed = descent();
+    expect(await record(STRANGER, { ...claimed, player: STRANGER }, await sign(claimed))).toMatchObject({ ok: false, error: "BadSignature" });
   });
 
   it("refuses an expired signature and accepts one in its last second", async () => {
@@ -152,6 +160,43 @@ describe("EmberdeepHall", () => {
     expect((await hall.call(OWNER, "transferOwnership", [STRANGER])).ok).toBe(true);
     expect((await hall.call(OWNER, "transferOwnership", [ZERO])).ok).toBe(true);
     expect(await hall.call(STRANGER, "acceptOwnership")).toMatchObject({ ok: false, error: "NotPendingOwner" });
+  });
+
+  it("keeps each player's best descent home and their count of runs, for the leaderboard", async () => {
+    const board = await deployHall(OWNER, signer.address);
+    const OTHER = "0x00000000000000000000000000000000000000e4" as Hex;
+    const put = async (player: Hex, over: Partial<SignedDescent>) => {
+      const d = descent({ player, ...over });
+      const signature = await signer.signTypedData({ domain: hallDomain(EVM_CHAIN_ID, board.address!), types: DESCENT_TYPES, primaryType: "Descent", message: d });
+      const r = await board.call(player, "record", [d, signature]);
+      if (!r.ok) throw new Error(r.error);
+      return r.gas;
+    };
+    const standing = async (player: Hex) => board.read("standingOf", [player]) as Promise<readonly [number, number, number, boolean, boolean, number]>;
+
+    const first = await put(PLAYER, { depth: 6, gold: 900, home: false });
+    expect(await standing(PLAYER)).toEqual([0, 0, 0, false, false, 1]); // lost in the dark: counted, not ranked
+    await put(PLAYER, { depth: 3, gold: 100, kills: 4, home: true });
+    await put(PLAYER, { depth: 3, gold: 50, home: true }); // less gold on the same floor
+    const later = await put(PLAYER, { depth: 3, gold: 100, kills: 9, home: true }); // a tie keeps the earlier one
+    expect(await standing(PLAYER)).toEqual([3, 100, 4, false, true, 4]);
+    await put(PLAYER, { depth: 4, gold: 10, kills: 2, bossSlain: false, home: true }); // deeper beats more gold
+    await put(PLAYER, { depth: 7, gold: 5, kills: 30, bossSlain: true, home: false }); // the boss, but never came home
+    expect(await standing(PLAYER)).toEqual([4, 10, 2, false, true, 6]);
+    await put(OTHER, { depth: 7, gold: 2000, kills: 40, bossSlain: true, home: true });
+
+    expect(await board.read("playerCount")).toBe(2n);
+    expect(await board.read("totalRecords")).toBe(7n);
+    const [who, what] = await board.read("standings", [0n, 10n]) as readonly [readonly Hex[], readonly { depth: number; gold: number; runs: number; bossSlain: boolean }[]];
+    expect(who.map(a => a.toLowerCase())).toEqual([PLAYER, OTHER]);
+    expect(what.map(s => [s.depth, s.gold, s.runs, s.bossSlain])).toEqual([[4, 10, 6, false], [7, 2000, 1, true]]);
+    // Pages: a window, the tail, and past the end.
+    expect((await board.read("standings", [0n, 1n]) as readonly [readonly Hex[]])[0].map(a => a.toLowerCase())).toEqual([PLAYER]);
+    expect((await board.read("standings", [1n, 10n]) as readonly [readonly Hex[]])[0].map(a => a.toLowerCase())).toEqual([OTHER]);
+    expect((await board.read("standings", [5n, 10n]) as readonly [readonly Hex[]])[0]).toEqual([]);
+    // A returning player costs less than a new one; both stay a fraction of a cent.
+    expect(later).toBeLessThan(first);
+    expect(first).toBeLessThan(200_000n);
   });
 
   it("cannot be deployed without a signer", async () => {
