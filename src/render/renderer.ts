@@ -4,7 +4,8 @@ import { DEFAULT_SPECIES } from "@/game/enemies";
 import { ART_DOORWAYS } from "@/game/map-art";
 import { currentRadius, propsOf, type RunState } from "@/game/run";
 import { CreatureAnimator, restPose, type Pose } from "./creature-anim";
-import type { FxQueue } from "./fx";
+import type { FxArt, FxQueue } from "./fx";
+import { drawCell, lootCell, lootSheet, propCell, propSheet } from "./prop-sheets";
 import { drawHero, propCanvas, type HeroPose } from "./mob-art";
 import { MOB_CELL_H, MOB_CELL_W, MOB_FOOT_X, MOB_FOOT_Y, MOB_HEIGHT, mobFrameX, mobSheet } from "./mob-sheets";
 import { ICONS, drawMask, type Mask } from "./sprites";
@@ -583,6 +584,7 @@ export function drawRun(ctx: CanvasRenderingContext2D, state: RunState, opts: Dr
   for (const item of floor.items) {
     if (!showAt(item)) continue;
     const bob = opts.reducedMotion ? 0 : Math.round(Math.sin(opts.time / 250 + item.id) * 1.5);
+    if (drawCell(ctx, lootSheet(), lootCell(item.kind), item.x * TILE + TILE / 2, item.y * TILE + TILE - 3 + bob)) continue;
     ctx.drawImage(itemSprite(item.kind, floor.theme), item.x * TILE, item.y * TILE + bob, TILE, TILE);
   }
 
@@ -595,7 +597,10 @@ export function drawRun(ctx: CanvasRenderingContext2D, state: RunState, opts: Dr
     ctx.ellipse(left + TILE / 2, top + TILE - 3, TILE * 0.36, 3, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(propCanvas(prop.kind, prop.hp < prop.maxHp ? "b" : "a"), left, top, TILE, TILE);
+    const frame = prop.hp < prop.maxHp ? "b" : "a";
+    if (!drawCell(ctx, propSheet(prop.kind), propCell(frame), left + TILE / 2, top + TILE - 2)) {
+      ctx.drawImage(propCanvas(prop.kind, frame), left, top, TILE, TILE);
+    }
     if (prop.hp < prop.maxHp) {
       ctx.fillStyle = "#000"; ctx.fillRect(left + 5, top + TILE + 1, TILE - 10, 4);
       ctx.fillStyle = "#333"; ctx.fillRect(left + 6, top + TILE + 2, TILE - 12, 2);
@@ -679,5 +684,16 @@ export function drawRun(ctx: CanvasRenderingContext2D, state: RunState, opts: Dr
   }
 
   // Blows, numbers and puffs go over the darkness, so they read even at the edge of the light.
-  opts.fx.draw(ctx, opts.time, opts.reducedMotion, item => itemSprite(item, floor.theme));
+  const art: FxArt = {
+    // Loot that hops out: the painted loot at its own size, or the code sprite at half a tile.
+    loot: (c, item, x, y) => {
+      const sheet = lootSheet();
+      if (drawCell(c, sheet, lootCell(item), x, y + 8)) return true;
+      c.imageSmoothingEnabled = false;
+      c.drawImage(itemSprite(item, floor.theme), x - 8, y - 8, 16, 16);
+      return true;
+    },
+    shatter: (c, prop, x, baseY) => drawCell(c, propSheet(prop), propCell("c"), x, baseY),
+  };
+  opts.fx.draw(ctx, opts.time, opts.reducedMotion, art);
 }

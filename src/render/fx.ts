@@ -1,3 +1,5 @@
+import type { PropKind } from "@/game/props";
+
 /** One game tile in logical pixels, as in renderer.ts (not imported, to keep the renderer free to import this file). */
 const TILE = 32;
 
@@ -13,15 +15,24 @@ export type Fx =
   | { kind: "impact"; x: number; y: number; at: number }
   /** Loot hopping out of a broken prop or a fallen creature: its icon hops up off the tile, with the amount beside it.
    *  Several items from one thing settle one above another, `lift` pixels higher each. */
-  | { kind: "drop"; x: number; y: number; item: DropIcon; text: string; color: string; lift: number; at: number };
+  | { kind: "drop"; x: number; y: number; item: DropIcon; text: string; color: string; lift: number; at: number }
+  /** A prop's breaking-apart frame, shown for a moment where it stood (only once its art exists). */
+  | { kind: "shatter"; x: number; y: number; prop: PropKind; at: number };
 
 /** What a drop shows: an item's own sprite, or a small blade for gear. */
 export type DropIcon = "gold" | "crystal" | "oil" | "gear";
 
-/** Draws an item's sprite; the renderer supplies it, so this file need not import the renderer. */
-export type IconSource = (item: Exclude<DropIcon, "gear">) => CanvasImageSource | null;
+/**
+ * Pictures the renderer draws for the effects, so this file need not import the renderer: a loot item centred on (x, y),
+ * and a prop's breaking-apart frame on its base. Each returns false when it has nothing to draw.
+ */
+export type FxArt = {
+  loot: (ctx: CanvasRenderingContext2D, item: Exclude<DropIcon, "gear">, x: number, y: number) => boolean;
+  shatter: (ctx: CanvasRenderingContext2D, prop: PropKind, x: number, baseY: number) => boolean;
+};
+const NO_ART: FxArt = { loot: () => false, shatter: () => false };
 
-const LIFE: Record<Fx["kind"], number> = { slash: 220, text: 750, puff: 340, impact: 240, drop: 1100 };
+const LIFE: Record<Fx["kind"], number> = { slash: 220, text: 750, puff: 340, impact: 240, drop: 1100, shatter: 280 };
 
 const ease = (k: number) => 1 - (1 - k) * (1 - k);
 
@@ -41,7 +52,7 @@ export class FxQueue {
    * Draws the live effects and forgets the finished ones. An effect whose `at` is still ahead waits for it. With reduced
    * motion, numbers stay put and nothing sweeps.
    */
-  draw(ctx: CanvasRenderingContext2D, time: number, still: boolean, icon: IconSource = () => null) {
+  draw(ctx: CanvasRenderingContext2D, time: number, still: boolean, art: FxArt = NO_ART) {
     this.list = this.list.filter(fx => time - fx.at < LIFE[fx.kind]);
     for (const fx of this.list) {
       if (time < fx.at) continue;
@@ -95,11 +106,9 @@ export class FxQueue {
           const x = Math.round(cx);
           const y = Math.round(cy - 4 - hop - fx.lift * (still ? 1 : ease(Math.min(1, k * 2))));
           ctx.globalAlpha = k < 0.75 ? 1 : 1 - (k - 0.75) / 0.25;
-          const sprite = fx.item === "gear" ? null : icon(fx.item);
-          if (sprite) {
-            ctx.imageSmoothingEnabled = false;
-            ctx.drawImage(sprite, x - 8, y - 8, 16, 16);
-          } else if (fx.item === "gear") {
+          if (fx.item !== "gear") {
+            art.loot(ctx, fx.item, x, y);
+          } else {
             // A tiny blade: steel, a gold guard, a dark grip.
             ctx.fillStyle = "#0b0912"; ctx.fillRect(x - 1, y - 8, 4, 14);
             ctx.fillStyle = "#dfe6f2"; ctx.fillRect(x, y - 7, 2, 9);
@@ -113,6 +122,12 @@ export class FxQueue {
           ctx.strokeText(fx.text, x + 9, y + 3);
           ctx.fillStyle = fx.color;
           ctx.fillText(fx.text, x + 9, y + 3);
+          break;
+        }
+        case "shatter": {
+          // The pieces fly apart and fade where the prop stood.
+          ctx.globalAlpha = 1 - k;
+          art.shatter(ctx, fx.prop, cx, fx.y * TILE + TILE - 2);
           break;
         }
         case "impact": {

@@ -117,6 +117,7 @@ export function turnEffects(prev: RunState, next: RunState, at: number): TurnEff
   for (const p of propsOf(prev.floor)) {
     const now = standing.get(key(p));
     if (!now) {
+      out.fx.push({ kind: "shatter", x: p.x, y: p.y, prop: p.kind, at: land });
       out.fx.push({ kind: "puff", x: p.x, y: p.y, color: "#c89a5a", at: land });
     } else if (now.hp < p.hp) {
       out.fx.push({ kind: "text", x: p.x, y: p.y, text: `-${p.hp - now.hp}`, color: "#e8c070", at: land });

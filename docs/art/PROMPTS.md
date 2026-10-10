@@ -1,4 +1,4 @@
-# Промпти для героїв (ChatGPT / Nano Banana)
+# Промпти для героїв, мобів і предметів (ChatGPT / Nano Banana)
 
 Промпти англійською, бо так моделі розуміють точніше. Порядок роботи:
 
@@ -310,3 +310,78 @@ In side-view frames the one visible eye is drawn the same way.
 Оновлені джерела вже в `art/heroes/raw/`, ігрові PNG — у `public/heroes/`.
 Старі джерела збережені в `art/heroes/eye-edits/2026-10-07/originals/`.
 Для цих двох героїв більше не просити вертикальні зіниці: власник обрав округлий, дружній вираз.
+
+---
+
+# Предмети й лут (2026-10-10)
+
+Власник: «глечики й інші предмети, з яких падає лут, мають бути як мінімум рівня мобів і героїв, а не 2D-фігня».
+Зараз вони намальовані кодом (16×16). Гра вже вміє брати AI-арт: щойно з'являється файл, вона малює його, а поки файлу немає — старий спрайт.
+
+| Що | Файл | Розмір у грі (висота) |
+| --- | --- | --- |
+| Глек (Clay Urn) | `art/props/raw/urn.webp` | 20 px |
+| Ящик (Wooden Crate) | `art/props/raw/crate.webp` | 20 px |
+| Бочка (Iron-bound Barrel) | `art/props/raw/barrel.webp` | 24 px |
+| Купа кісток (Bone Pile) | `art/props/raw/bones.webp` | 14 px |
+| Лут і скрині одним рядком | `art/props/raw/loot.webp` | золото 12, кристал 16, олія 16, скриня 18, Sealed Vault 22, скриня Цербера 24 |
+
+Для порівняння: герой 42 px, найменший моб 20, голем 36. Предмети стоять на клітинці підлоги 32×32, вигляд **спереду й трохи згори** (як герої), не збоку.
+
+Порядок: **П1** (усі чотири разом, щоб вибрати вигляд) → **П2** для кожного затвердженого (3 кадри) → **П3** (лут і скрині).
+Готові картинки клади у `art/props/raw/` під іменами з таблиці і запускай `node scripts/sprite-sheets.mjs props`:
+скрипт прибере фон, зменшить і покладе `public/props/<ім'я>.png`. Після цього перезавантаж гру.
+
+## П1. Чотири предмети одним рядком
+
+Прикріпи `docs/art/mobs-lineup-v2.webp` і `docs/art/characters/cat-ginger-tabby.png`, щоб збіглись стиль, щільність пікселів і масштаб:
+
+```
+Pixel art game sprites for a dark dungeon crawler, the same pixel density, 1-pixel dark outline, 3-tone shading with light from the top-left and limited palette as the attached hero and monsters.
+Breakable dungeon props, NOT characters: no faces, no eyes, no legs.
+A lineup of 4 props in one row, evenly spaced, all on the same baseline, seen from the front and slightly from above (3/4 view), each with a small dark contact shadow:
+1 Clay Urn: a round terracotta urn with a narrow neck and a rolled lip, two painted ochre bands, a small chip on the rim. About half the hero's height.
+2 Wooden Crate: a square wooden crate, plank seams, darker diagonal cross-brace, iron corner brackets with nails. About half the hero's height, wider than the urn.
+3 Iron-bound Barrel: a stout oak barrel, two dark iron hoops with rivets, a bung hole on the side. About 60% of the hero's height.
+4 Bone Pile: a low heap of old bones with a cracked skull on top and a rusty coin peeking out between them. About a third of the hero's height.
+Rich materials and small details (wood grain, glaze cracks, rivets, worn edges), colours that read clearly on a dark teal stone floor. No text, no glow.
+Plain flat magenta background (#FF00FF).
+```
+
+## П2. Смужка одного предмета (3 кадри)
+
+Виріж затверджений предмет із П1 і прикріпи **тільки його**. Заміни `[ПРЕДМЕТ]`, `[УШКОДЖЕННЯ]` і `[РОЗЛАМ]` рядком із таблиці:
+
+```
+Sprite strip of the attached [ПРЕДМЕТ], same style, palette, size and pixel density.
+3 frames in one row, no gaps, no labels, the prop in the same place and on the same baseline in every frame:
+1 whole, exactly as attached.
+2 damaged: [УШКОДЖЕННЯ]. Same size and outline as frame 1.
+3 breaking apart: [РОЗЛАМ], a few pieces flying outward a little and a puff of dust, everything staying inside its own frame.
+Plain flat magenta background (#FF00FF).
+```
+
+| Предмет | [ПРЕДМЕТ] | [УШКОДЖЕННЯ] | [РОЗЛАМ] |
+| --- | --- | --- | --- |
+| Глек | clay urn | a big crack running down the body and a missing chip at the lip | the urn bursting into curved terracotta shards |
+| Ящик | wooden crate | a split plank and a loose, bent corner bracket | the planks splitting apart, splinters and a nail flying |
+| Бочка | iron-bound barrel | a dented hoop and a cracked stave | the staves falling outward, a hoop springing loose |
+| Кістки | bone pile | the skull knocked aside and cracked | the bones scattering, the skull tumbling |
+
+## П3. Лут і скрині одним рядком
+
+Прикріпи затверджений рядок П1:
+
+```
+Same style, pixel density, outline and palette as the attached props.
+Six loot items in one row, evenly spaced, same baseline, seen from the front and slightly from above, each with a small dark contact shadow, left to right:
+1 a small pile of gold coins (the smallest, about a quarter of the urn's height), bright yellow with one white glint;
+2 a cluster of three cyan crystals, faint inner glow;
+3 a small glass oil flask with a cork, lime-green oil inside;
+4 a small wooden treasure chest with brass trim and a keyhole (closed);
+5 a Sealed Vault: a heavy grey stone coffer with a purple glowing rune lock, a bit bigger than the chest;
+6 the Cerberus Hoard: a dark iron chest wrapped in chains, an orange-glowing seam under the lid and two small flames on top, the biggest of the six.
+Plain flat magenta background (#FF00FF).
+```
+
+Скрипт сам розріже рядок на шість клітинок і зменшить кожну до її висоти з таблиці вгорі, тож однаковий розмір на картинці не потрібен.

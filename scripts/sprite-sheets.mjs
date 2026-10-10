@@ -6,7 +6,7 @@
 // Usage: node scripts/sprite-sheets.mjs              (everything)
 //        node scripts/sprite-sheets.mjs heroes       (one kind)
 //        node scripts/sprite-sheets.mjs mobs sootplate
-import { mkdirSync, readdirSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync } from "node:fs";
 import sharp from "sharp";
 
 const COLS = 5, ROWS = 4;
@@ -239,14 +239,32 @@ const MOB_HEIGHT = {
   sootplate: 36, "hollow-burrower": 22, "fourfold-bell": 24, "rift-leaper": 26,
 };
 
+/**
+ * Game sizes of the things to smash and of the loot on the floor, in pixels (the hero is 42, the smallest creature 20).
+ * Each stands on one 32-pixel tile.
+ */
+export const PROP_HEIGHT = { urn: 20, crate: 20, barrel: 24, bones: 14 };
+/** The loot row, left to right, as art/props/raw/loot.webp shows it. */
+export const LOOT_ORDER = ["gold", "crystal", "oil", "chest", "vault", "hoard"];
+export const LOOT_HEIGHT = { gold: 12, crystal: 16, oil: 16, chest: 18, vault: 22, hoard: 24 };
+
 const KINDS = {
   heroes: { raw: "art/heroes/raw/", out: "public/heroes/", cols: COLS, rows: ROWS, cellW: CELL_W, cellH: CELL_H, footX: FOOT_X, footY: FOOT_Y, main: false, height: () => FIGURE_H, textureScale: HERO_TEXTURE_SCALE, fixes: FIXES },
   // A mob's cell is wide: its attack (an arrow, a web, a spark) flies ahead of it, to the right.
   mobs: { raw: "art/mobs/raw/", out: "public/mobs/", cols: 4, rows: 1, cellW: 96, cellH: 56, footX: 32, footY: 52, main: true, height: name => MOB_HEIGHT[name] ?? 24, fixes: {} },
+  // A prop: whole, cracked, breaking apart (the flying pieces stay in the cell). art/props/raw/loot.webp is the loot
+  // row instead: six things side by side, each scaled to its own height (see LOOT_ORDER).
+  props: {
+    raw: "art/props/raw/", out: "public/props/", cols: 3, rows: 1, cellW: 48, cellH: 40, footX: 24, footY: 38, main: true,
+    height: name => PROP_HEIGHT[name] ?? 20, fixes: {},
+    variant: name => (name === "loot" ? { cols: LOOT_ORDER.length, perCell: LOOT_ORDER.map(id => LOOT_HEIGHT[id]) } : null),
+  },
 };
 
 async function rasterize(name, logical, density = 1) {
-  const k = { ...logical, cellW: logical.cellW * density, cellH: logical.cellH * density,
+  // A variant (the loot row) has its own number of columns and a height for each cell.
+  const variant = logical.variant?.(name) ?? null;
+  const k = { ...logical, cols: variant?.cols ?? logical.cols, cellW: logical.cellW * density, cellH: logical.cellH * density,
     footX: logical.footX * density, footY: logical.footY * density, height: n => logical.height(n) * density };
   const { data, info } = await sharp(k.raw + name + ".webp").removeAlpha().raw().toBuffer({ resolveWithObject: true });
   const w = info.width, h = info.height;
@@ -302,7 +320,9 @@ async function rasterize(name, logical, density = 1) {
     return count ? sum / count : (c.x0 + c.x1) / 2;
   });
   // One scale for the whole sheet, from the first frame (standing, facing the viewer or to the right).
-  const s = (body[0].y1 - body[0].y0 + 1) / k.height(name);
+  const s0 = (body[0].y1 - body[0].y0 + 1) / k.height(name);
+  /** Source pixels per game pixel: one scale for the whole sheet, or each cell's own in a variant. */
+  const scaleOf = cell => (variant ? (body[cell].y1 - body[cell].y0 + 1) / (variant.perCell[cell] * density) : s0);
 
   const sheetW = k.cellW * k.cols;
   const out = Buffer.alloc(sheetW * k.cellH * k.rows * 4);
@@ -314,6 +334,7 @@ async function rasterize(name, logical, density = 1) {
    * cleanest, keeps small things like the pupils and the shine in the eyes.
    */
   const sample = (cell, tx, ty, fx, fy, inner = true) => {
+    const s = scaleOf(cell);
     const bx0 = feetX[cell] + (tx - k.footX) * s + fx, by0 = body[cell].y1 + 1 + (ty - k.footY - 1) * s + fy;
     const m = inner ? s * 0.15 : 0;
     const counts = new Map();
@@ -344,7 +365,7 @@ async function rasterize(name, logical, density = 1) {
     // The shift of the grid that gives the cleanest blocks over this frame.
     let shift = [0, 0], cleanest = -1;
     for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) {
-      const fx = (i - 1.5) * s / 4, fy = (j - 1.5) * s / 4;
+      const fx = (i - 1.5) * scaleOf(cell) / 4, fy = (j - 1.5) * scaleOf(cell) / 4;
       let sum = 0, count = 0;
       for (let ty = 0; ty < k.cellH; ty++) for (let tx = 0; tx < k.cellW; tx++) {
         const got = sample(cell, tx, ty, fx, fy);
@@ -360,7 +381,7 @@ async function rasterize(name, logical, density = 1) {
       out[o] = Math.round(got.color[0]); out[o + 1] = Math.round(got.color[1]); out[o + 2] = Math.round(got.color[2]); out[o + 3] = 255;
     }
   }
-  return { data: out, width: sheetW, height: k.cellH * k.rows, scale: s };
+  return { data: out, width: sheetW, height: k.cellH * k.rows, scale: s0 };
 }
 
 async function convert(name, k) {
@@ -395,6 +416,7 @@ async function convert(name, k) {
 const [kind, only] = process.argv.slice(2);
 for (const [id, k] of Object.entries(KINDS)) {
   if (kind && kind !== id) continue;
+  if (!existsSync(k.raw)) continue;
   for (const f of readdirSync(k.raw)) {
     const name = f.replace(/\.webp$/, "");
     if (!only || only === name) await convert(name, k);

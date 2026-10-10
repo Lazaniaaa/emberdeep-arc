@@ -6,6 +6,10 @@ import { ANIMALS } from "../src/game/animals";
 import { ENEMIES } from "../src/game/enemies";
 import { CELL_H, CELL_W, FOOT_Y, TEXTURE_SCALE } from "../src/render/animal-sprites";
 import { MOB_CELL_H, MOB_CELL_W, MOB_FOOT_Y, MOB_HEIGHT } from "../src/render/mob-sheets";
+import { LOOT_ORDER, PROP_CELL_H, PROP_CELL_W, PROP_FOOT_Y } from "../src/render/prop-sheets";
+import { PROPS } from "../src/game/props";
+// @ts-expect-error -- a plain .mjs build script without type declarations
+import { LOOT_HEIGHT, LOOT_ORDER as SCRIPT_LOOT_ORDER, PROP_HEIGHT } from "./sprite-sheets.mjs";
 
 async function frames(file: string, cols: number, rows: number, cellW: number, cellH: number) {
   expect(existsSync(file), file).toBe(true);
@@ -88,6 +92,27 @@ describe("creature strips", () => {
       // Sparks, spores or a flame tip may stand a little above the body the size is set from.
       expect(Math.abs(first.bottom - first.top + 1 - MOB_HEIGHT[e.id])).toBeLessThanOrEqual(6);
       for (const f of rest) expect(f.top).toBeGreaterThanOrEqual(0);
+    });
+  }
+});
+
+// The props and the loot have no art until the owner generates it (docs/art/PROMPTS.md, П1-П3); the game draws the code
+// sprites meanwhile. Whatever sheets exist must fit the cells the game crops.
+describe("prop and loot sheets", () => {
+  it("cover every prop and the same loot row as the game, in the script's sizes", () => {
+    expect(Object.keys(PROP_HEIGHT).sort()).toEqual(PROPS.map(p => p.id).sort());
+    expect(SCRIPT_LOOT_ORDER).toEqual(LOOT_ORDER);
+    expect(Object.keys(LOOT_HEIGHT).sort()).toEqual([...LOOT_ORDER].sort());
+  });
+
+  for (const name of [...PROPS.map(p => p.id), "loot"]) {
+    const file = `public/props/${name}.png`;
+    it.skipIf(!existsSync(file))(`${name}: frames on a clear background, standing on the line`, async () => {
+      const cols = name === "loot" ? LOOT_ORDER.length : 3;
+      for (const f of await frames(file, cols, 1, PROP_CELL_W, PROP_CELL_H)) {
+        expect(f.corner).toBe(0);
+        expect(Math.abs(f.bottom - PROP_FOOT_Y)).toBeLessThanOrEqual(1);
+      }
     });
   }
 });
