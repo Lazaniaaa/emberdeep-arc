@@ -10,6 +10,12 @@ mkdirSync(out, { recursive: true });
 // SMOKE_CHANNEL=msedge (or chrome) runs against an installed browser instead of Playwright's bundled Chromium.
 const browser = await chromium.launch({ channel: process.env.SMOKE_CHANNEL || undefined });
 const errors = [];
+/** Closes the first-descent hint so it does not cover the camp. */
+async function dismissHint(page) {
+  const got = page.getByRole("button", { name: /got it/i });
+  if (await got.count()) await got.first().click();
+}
+
 async function session(width, height, name, fn) {
   const page = await browser.newPage({ viewport: { width, height } });
   page.on("pageerror", e => errors.push(`${name}: ${e.message}`));
@@ -23,11 +29,13 @@ async function session(width, height, name, fn) {
 
 await session(1280, 900, "desktop", async page => {
   await page.getByRole("button", { name: "Open Dungeon Gate" }).waitFor();
+  await dismissHint(page);
+  await page.waitForTimeout(400);
   await page.screenshot({ path: `${out}/camp.png`, fullPage: true });
 
   // The lobby is a walkable camp; every building also has a button under the picture.
   await page.getByRole("button", { name: "Open Ember Altar" }).click();
-  await page.getByRole("button", { name: /Burn & mint/ }).first().click();
+  await page.getByRole("button", { name: /^Mint$/ }).first().click();
   await page.getByText(/Delver minted/).waitFor();
   await page.screenshot({ path: `${out}/mint.png` });
   await page.getByRole("button", { name: "Equip and return to camp" }).click();
@@ -53,6 +61,8 @@ await session(1280, 900, "desktop", async page => {
 
 await session(390, 844, "mobile", async page => {
   await page.getByRole("button", { name: "Open Dungeon Gate" }).waitFor();
+  await dismissHint(page);
+  await page.waitForTimeout(400);
   await page.screenshot({ path: `${out}/camp-mobile.png` });
   await page.getByRole("button", { name: "Open Dungeon Gate" }).click();
   await page.getByRole("button", { name: /Light it and descend/ }).click();

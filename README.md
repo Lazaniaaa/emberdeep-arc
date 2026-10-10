@@ -8,6 +8,14 @@ recorded on **[Arc](https://arc.io)**, Circle's stablecoin-native chain.
 > record in the **Hall of Descents** on Arc mainnet: the game's server replays it move by move, signs the result, and
 > your wallet sends it to the contract (gas is a fraction of a cent of USDC). See [On Arc](#on-arc-the-hall-of-descents).
 
+<p align="center">
+  <img src="docs/screenshots/descent.png" alt="A descent: a husky delver with a lantern fights a Cave Spider; the light bar, level and loot on the left, potions on the right" width="720">
+</p>
+<p align="center">
+  <img src="docs/screenshots/camp.png" alt="The camp: the fire, the buildings and other delvers walking around" width="480">
+  <img src="docs/screenshots/descent-mobile.png" alt="A descent on a phone, with the on-screen arrows" width="190">
+</p>
+
 ## The camp
 
 The lobby is a bright pixel hub that fills the whole screen; there is no website around it. Your balance, the round
