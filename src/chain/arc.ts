@@ -5,13 +5,13 @@ import {
   BaseError, ContractFunctionRevertedError, createPublicClient, createWalletClient, custom, defineChain, fallback, http,
   parseAbi, type Address, type Hash,
 } from "viem";
-import { ARC_CHAIN_ID, ARC_EXPLORER, ARC_RPCS, hallConfig, type HallConfig } from "./arc-config";
+import { ARC_CHAIN_ID, ARC_EXPLORER, ARC_NETWORK, ARC_RPCS, hallConfig, type HallConfig } from "./arc-config";
 import type { Eip1193 } from "./wallet";
 import { fromWire, type Attestation } from "./hall-typed";
 
 export const ARC = defineChain({
   id: ARC_CHAIN_ID,
-  name: "Arc",
+  name: ARC_NETWORK.name,
   // Arc's native token is USDC and it pays for gas. The protocol counts it with 18 decimals.
   nativeCurrency: { name: "USD Coin", symbol: "USDC", decimals: 18 },
   rpcUrls: { default: { http: [...ARC_RPCS] } },

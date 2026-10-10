@@ -1,17 +1,31 @@
 // Where the Hall of Descents lives on Arc. Plain values only, so the main bundle can ask "is the Hall there?"
 // without pulling in viem (the code that talks to the chain is in arc.ts and loads on demand).
 
-export const ARC_CHAIN_ID = 5042;
 /**
- * Arc mainnet's public RPCs from Arc's docs, tried in this order. The primary one (rpc.mainnet.arc.io) refuses some
- * regions with Cloudflare's "error code: 1009" (seen from Ukraine on 2026-10-09), so the partners' endpoints go first.
+ * Arc's networks. The RPCs are the public ones from Arc's docs, tried in this order. The primary ones (rpc.mainnet.arc.io,
+ * rpc.testnet.arc.io) refuse some regions with Cloudflare's "error code: 1009" (seen from Ukraine on 2026-10-09), so the
+ * partners' endpoints go first.
  */
-export const ARC_RPCS = [
-  "https://rpc.blockdaemon.mainnet.arc.io",
-  "https://rpc.drpc.mainnet.arc.io",
-  "https://rpc.mainnet.arc.io",
-] as const;
-export const ARC_EXPLORER = "https://explorer.arc.io";
+export const ARC_NETWORKS = {
+  mainnet: {
+    id: 5042,
+    name: "Arc",
+    rpcs: ["https://rpc.blockdaemon.mainnet.arc.io", "https://rpc.drpc.mainnet.arc.io", "https://rpc.mainnet.arc.io"],
+    explorer: "https://explorer.arc.io",
+  },
+  testnet: {
+    id: 5042002,
+    name: "Arc Testnet",
+    rpcs: ["https://rpc.blockdaemon.testnet.arc.io", "https://rpc.drpc.testnet.arc.io", "https://rpc.testnet.arc.io"],
+    explorer: "https://explorer.testnet.arc.io",
+  },
+} as const;
+
+/** The network the game uses: Arc mainnet, or Arc Testnet with `VITE_ARC_NETWORK=testnet` (a rehearsal with free USDC). */
+export const ARC_NETWORK = import.meta.env.VITE_ARC_NETWORK === "testnet" ? ARC_NETWORKS.testnet : ARC_NETWORKS.mainnet;
+export const ARC_CHAIN_ID = ARC_NETWORK.id;
+export const ARC_RPCS: readonly string[] = ARC_NETWORK.rpcs;
+export const ARC_EXPLORER = ARC_NETWORK.explorer;
 
 export type HallConfig = { address: `0x${string}` };
 

@@ -3,22 +3,16 @@ import {
   createPublicClient, createWalletClient, custom, defineChain, encodeAbiParameters, fallback, formatUnits, http, isAddress,
   type Abi, type Address, type Chain, type Hex,
 } from "viem";
-import { ARC_RPCS } from "@/chain/arc-config";
+import { ARC_NETWORKS } from "@/chain/arc-config";
 import { injectedProvider, type Eip1193 } from "@/chain/wallet";
 
-const NETWORKS = {
-  mainnet: defineChain({
-    id: 5042, name: "Arc", nativeCurrency: { name: "USD Coin", symbol: "USDC", decimals: 18 },
-    rpcUrls: { default: { http: [...ARC_RPCS] } },
-    blockExplorers: { default: { name: "Arc Explorer", url: "https://explorer.arc.io" } },
-  }),
-  testnet: defineChain({
-    id: 5042002, name: "Arc Testnet", nativeCurrency: { name: "USD Coin", symbol: "USDC", decimals: 18 },
-    // The primary testnet RPC refuses some regions too (see ARC_RPCS).
-    rpcUrls: { default: { http: ["https://rpc.blockdaemon.testnet.arc.io", "https://rpc.drpc.testnet.arc.io", "https://rpc.testnet.arc.io"] } },
-    blockExplorers: { default: { name: "Arc Testnet Explorer", url: "https://explorer.testnet.arc.io" } },
-  }),
-} as const;
+const network = (n: (typeof ARC_NETWORKS)[keyof typeof ARC_NETWORKS]) => defineChain({
+  id: n.id, name: n.name, nativeCurrency: { name: "USD Coin", symbol: "USDC", decimals: 18 },
+  rpcUrls: { default: { http: [...n.rpcs] } },
+  blockExplorers: { default: { name: `${n.name} Explorer`, url: n.explorer } },
+});
+
+const NETWORKS = { mainnet: network(ARC_NETWORKS.mainnet), testnet: network(ARC_NETWORKS.testnet) };
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const net = $<HTMLSelectElement>("net");

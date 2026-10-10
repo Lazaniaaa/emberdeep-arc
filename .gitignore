@@ -29,3 +29,6 @@ artifacts
 
 # The attestation server bundle (npm run server:build)
 server-dist
+
+# Signing keys (the testnet rehearsal makes one in the project folder)
+*.key

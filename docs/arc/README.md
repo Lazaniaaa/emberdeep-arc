@@ -59,4 +59,15 @@ Everything that needs a key happens on your machine or your server. Nothing here
 5. **Start the signing server for that Hall.** `.\deploy\attest.ps1 -Server <IP> -Hall <Hall address>`. It starts the service and adds the `/api` route to Caddy; the last line is a health check.
 6. **Turn the Hall on in the game.** The Hall address goes into `DEPLOYED` in `src/chain/arc-config.ts`; then publish the site as usual (`.\deploy\deploy.ps1 -Server <IP>`).
 
+### Rehearsal on Arc Testnet (free USDC)
+
+Everything runs on your own machine; only the wallet steps are yours. In PowerShell, from the project folder:
+
+1. Testnet USDC for the wallet that will deploy and play: https://faucet.circle.com (Arc Testnet).
+2. A throwaway signing key and the server: `npm run server:build`, then `node server-dist/attest.mjs keygen .ehearsal.key`. It prints the **signer address**. (`*.key` files must never be committed; this one is only for the testnet.)
+3. `npm run dev`, open `http://localhost:5741/deploy-hall.html`, pick **Arc Testnet**, connect, paste the signer address, Deploy. Note the **Hall address**.
+4. Start the server for that Hall (a second window): `$env:HALL_ADDRESS='<Hall address>'; $env:HALL_CHAIN_ID='5042002'; $env:SIGNER_KEY_FILE='.ehearsal.key'; node server-dist/attest.mjs`.
+5. Point the game at it: a file `.env.local` with `VITE_ARC_NETWORK=testnet` and `VITE_ARC_HALL_ADDRESS=<Hall address>`, then restart `npm run dev`.
+6. Play a descent, come home, press **Record on Arc**, then open the Hall (the trophy in the header): the record should be in the table. Delete `.env.local` afterwards.
+
 To try it all locally first: `npm run server:build`, then `node server-dist/attest.mjs keygen ./test.key` and run `node server-dist/attest.mjs` with `HALL_ADDRESS`, `HALL_CHAIN_ID` and `SIGNER_KEY_FILE` set; `npm run dev` proxies `/api` to it, and `.env.local` with `VITE_ARC_HALL_ADDRESS` turns the Hall on in the dev build.
