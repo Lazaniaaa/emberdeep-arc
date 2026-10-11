@@ -65,7 +65,8 @@ describe("run settlement", () => {
     // A defeated creature may also drop oil; switch that off to count only what the blade gives.
     const after = withTuning({ killDropChance: [0, 0] }, () => applyAction(started, { type: "move", dx: 1, dy: 0 }));
     expect(after.kills).toBe(1);
-    expect(after.light).toBe(started.light + 4 - 1);
+    // A blow burns no light (only steps do), so the light grows by exactly the blade's gain.
+    expect(after.light).toBe(started.light + 4);
     useGame.getState().reset();
   });
 

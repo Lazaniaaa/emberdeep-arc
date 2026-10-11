@@ -162,7 +162,7 @@ describe("props on a floor", () => {
 });
 
 describe("smashing", () => {
-  it("takes as many blows as the prop has hit points for the delver's damage", () => {
+  it("breaks an urn or a sack at the first blow and a crate or a barrel at the second, whatever the weapon", () => {
     const blows = (kind: Prop["kind"], damage: number, gear: typeof GEAR_IDS = []) => {
       let s = room({ weaponDamage: damage });
       s.gear = [...gear];
@@ -171,26 +171,41 @@ describe("smashing", () => {
       while (s.floor.props.length && n < 20) { s = right(s); n++; }
       return n;
     };
-    expect(blows("urn", 16)).toBe(1);
-    expect(blows("urn", 8)).toBe(2);
-    expect(blows("crate", 16)).toBe(2);
-    expect(blows("crate", 24)).toBe(1);
-    expect(blows("barrel", 16)).toBe(3);
-    expect(blows("barrel", 40)).toBe(1);
-    expect(blows("sack", 8)).toBe(1);
+    for (const damage of [4, 16, 60]) {
+      expect(blows("urn", damage)).toBe(1);
+      expect(blows("sack", damage)).toBe(1);
+      expect(blows("crate", damage)).toBe(2);
+      expect(blows("barrel", damage)).toBe(2);
+    }
+    expect(blows("barrel", 4, ["pickaxe"])).toBe(1);
   });
 
-  it("does not move the delver, costs a turn, cracks the prop and says so", () => {
+  it("does not move the delver or burn light, cracks the prop and says so", () => {
     let s = room();
     s.floor.props = [prop("barrel")];
-    const before = s.light;
+    const before = { light: s.light, steps: s.steps };
     s = right(s);
     expect(s.player.x).toBe(6);
     expect(s.events).toContain("smash");
     expect(s.events).not.toContain("break");
-    expect(s.floor.props[0].hp).toBeLessThan(propDef("barrel").hp);
-    expect(before - s.light).toBeGreaterThan(0);
+    expect(s.floor.props[0].hp).toBe(propDef("barrel").hp - 1);
+    // Only steps burn light (the owner, 2026-10-11); a blow is not a step.
+    expect(s.light).toBe(before.light);
+    expect(s.steps).toBe(before.steps);
     expect(s.messages[0]).toContain("cracks");
+  });
+
+  it("does not burn light for a blow at a creature either", () => {
+    let s = room();
+    s.floor.dimlings = [{ id: 1, x: 7, y: 6, hp: 99, maxHp: 99, awake: false, species: "sootplate", phase: "idle", windupLeft: 0, cooldown: 0, aim: null }];
+    const before = s.light;
+    s = right(s);
+    expect(s.events).toContain("hit");
+    expect(s.light).toBe(before);
+    // A step still does.
+    s.floor.dimlings = [];
+    const walked = applyAction(s, { type: "move", dx: 0, dy: 1 });
+    expect(walked.light).toBeLessThan(before);
   });
 
   it("lets one kind of loot fall out, sometimes two, and says and shows what fell out", () => {

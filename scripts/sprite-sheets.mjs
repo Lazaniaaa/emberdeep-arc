@@ -244,6 +244,11 @@ const MOB_HEIGHT = {
  * Each stands on one 32-pixel tile.
  */
 export const PROP_HEIGHT = { urn: 20, crate: 20, barrel: 24, sack: 18 };
+/**
+ * Frames in each prop's picture when it is not one per square (the AI drew the 6-frame urn on a 3:1 canvas). Without an
+ * entry the count is the picture's width over its height, rounded.
+ */
+export const PROP_FRAMES = { urn: 6 };
 /** The loot row, left to right, as art/props/raw/loot.webp shows it. */
 export const LOOT_ORDER = ["gold", "crystal", "oil", "chest", "vault", "hoard"];
 export const LOOT_HEIGHT = { gold: 12, crystal: 16, oil: 16, chest: 18, vault: 22, hoard: 24 };
@@ -264,7 +269,7 @@ const KINDS = {
     // and shrinking it to 1x smeared rims, hoops and holes.
     height: name => PROP_HEIGHT[name] ?? 20, fixes: {}, textureScale: 2,
     isBg: (r, g, b) => Math.min(r, b) > 40 && g < 0.45 * Math.min(r, b) && Math.abs(r - b) < 0.35 * Math.max(r, b),
-    variant: (name, w, h) => (name === "loot" ? { cols: LOOT_ORDER.length, perCell: LOOT_ORDER.map(id => LOOT_HEIGHT[id]) } : { cols: Math.max(1, Math.round(w / h)) }),
+    variant: (name, w, h) => (name === "loot" ? { cols: LOOT_ORDER.length, perCell: LOOT_ORDER.map(id => LOOT_HEIGHT[id]) } : { cols: PROP_FRAMES[name] ?? Math.max(1, Math.round(w / h)) }),
   },
 };
 

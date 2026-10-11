@@ -32,19 +32,24 @@ export function stagesOf(n: number) {
   return { cracks, breaks: Math.max(0, n - 1 - cracks) };
 }
 
-/** The frame a standing prop shows: whole until it is hit, then the stage of cracks for how much it has lost. */
+/** The frame a standing prop shows: whole until it is hit, then the stage of cracks for how many blows it has taken. */
 export function standingFrame(sheet: Sheet, hp: number, maxHp: number): number {
   const { cracks } = stagesOf(framesOf(sheet));
   if (hp >= maxHp || cracks === 0) return 0;
-  // With two stages, the deeper cracks show once half is gone.
-  return cracks === 1 || hp > maxHp / 2 ? 1 : 2;
+  // With two stages, the deeper cracks show once more than half the blows are taken.
+  return cracks === 1 || hp * 2 >= maxHp ? 1 : 2;
 }
 
-/** The frame of the breaking-apart animation at k (0 to 1 of it), or null when the strip has no such frames. */
-export function breakingFrame(sheet: Sheet, k: number): number | null {
-  const n = framesOf(sheet), { cracks, breaks } = stagesOf(n);
-  if (!breaks) return null;
-  return 1 + cracks + Math.min(breaks - 1, Math.floor(k * breaks));
+/**
+ * The frame of the breaking-apart animation at k (0 to 1 of it): it runs from the frame after the one the prop stood
+ * at (hp and maxHp before the last blow) to the last, so a prop broken at one blow goes through every crack too.
+ * Null when there is nothing left to play.
+ */
+export function breakingFrame(sheet: Sheet, k: number, hp = 1, maxHp = 1): number | null {
+  const n = framesOf(sheet);
+  const from = standingFrame(sheet, hp, maxHp) + 1;
+  if (from >= n) return null;
+  return from + Math.min(n - 1 - from, Math.floor(k * (n - from)));
 }
 
 /** Where a loot item sits in the loot row. */

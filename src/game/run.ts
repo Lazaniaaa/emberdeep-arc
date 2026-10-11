@@ -245,15 +245,11 @@ function gainXp(state: RunState, amount: number) {
  */
 function smash(state: RunState, prop: Prop) {
   const def = propDef(prop.kind);
-  const raging = (state.rage ?? 0) > 0;
-  let dmg = Math.round(baseDamage(state) * (raging ? RAGE_MULT : 1));
-  if (raging) state.rage = (state.rage ?? 0) - 1;
-  // A pickaxe splits anything in one blow.
-  if ((state.gear ?? []).includes("pickaxe")) dmg = Math.max(dmg, prop.hp);
-  prop.hp -= dmg;
+  // Every blow counts one, whatever the weapon; a pickaxe splits anything at once.
+  prop.hp = (state.gear ?? []).includes("pickaxe") ? 0 : prop.hp - 1;
   if (prop.hp > 0) {
     state.events.push("smash");
-    say(state, `You hit the ${def.name} for ${dmg}; it cracks (${prop.hp}/${prop.maxHp} left)`);
+    say(state, `You hit the ${def.name}; it cracks (${prop.hp} more blow${prop.hp === 1 ? "" : "s"})`);
     return;
   }
   state.floor.props = propsOf(state.floor).filter(p => p !== prop);
@@ -311,7 +307,12 @@ function rollTicket(state: RunState) {
   say(state, "A raffle ticket was folded into the find. It only counts if you get home.");
 }
 
-function burnLight(state: RunState) {
+/** A turn spent walking or waiting burns light; a blow (at a creature or a prop) does not, so only regeneration ticks. */
+function burnLight(state: RunState, walking = true) {
+  if (!walking) {
+    if ((state.regen ?? 0) > 0) { state.light += 1; state.regen = (state.regen ?? 0) - 1; }
+    return;
+  }
   state.steps++;
   if (state.nightVision > 0 && state.light <= 0) {
     state.nightVision--;
@@ -475,8 +476,8 @@ function slayBoss(state: RunState, boss: Dimling) {
   gainXp(state, BOSS_XP);
 }
 
-function endTurn(state: RunState) {
-  burnLight(state);
+function endTurn(state: RunState, walking = true) {
+  burnLight(state, walking);
   dimlingsAct(state);
   if (state.ward > 0) state.ward--;
   checkDarkness(state);
@@ -533,13 +534,13 @@ export function applyAction(prev: RunState, action: RunAction): RunState {
           state.events.push("hit");
           say(state, `You hit ${target.boss ? "Cerberus" : enemyName(target.species)} for ${dmg} (${target.hp}/${target.maxHp} left)`);
         }
-        endTurn(state);
+        endTurn(state, false);
         break;
       }
       const prop = propsOf(state.floor).find(pr => pr.x === tx && pr.y === ty);
       if (prop) {
         smash(state, prop);
-        endTurn(state);
+        endTurn(state, false);
         break;
       }
       if (!isFloor(state.floor, tx, ty)) {

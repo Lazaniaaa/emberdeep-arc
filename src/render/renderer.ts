@@ -693,9 +693,9 @@ export function drawRun(ctx: CanvasRenderingContext2D, state: RunState, opts: Dr
       c.drawImage(itemSprite(item, floor.theme), x - 8, y - 8, 16, 16);
       return true;
     },
-    shatter: (c, prop, x, baseY, k) => {
+    shatter: (c, prop, x, baseY, k, hp, maxHp) => {
       const sheet = propSheet(prop);
-      return drawCell(c, sheet, sheet && breakingFrame(sheet, k), x, baseY);
+      return drawCell(c, sheet, sheet && breakingFrame(sheet, k, hp, maxHp), x, baseY);
     },
   };
   opts.fx.draw(ctx, opts.time, opts.reducedMotion, art);

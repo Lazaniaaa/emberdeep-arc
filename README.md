@@ -70,12 +70,11 @@ them and the blow drinks your light. Bump into a creature to attack it; your wea
 takes. Kills drop a little gold, some experience and sometimes oil (35% with a full lantern, up to 80% when it is nearly out; 5-10 light).
 
 **Smash things.** Urns, crates, barrels and, from floor 2, old sacks stand in the rooms (about seven a floor, and never
-where they would shut a route). Walk into one to hit it; it cracks and then breaks, and a blow costs a turn like any
-other. Something always falls out and you see it hop out: **one kind of loot, sometimes two** (gold, **oil** or
+where they would shut a route). Walk into one to hit it: an urn or a sack breaks at the first blow, a crate or a barrel cracks and breaks
+at the second, whatever your weapon. A blow (at a prop or a creature) costs a turn but no light; only steps burn it. Something always falls out and you see it hop out: **one kind of loot, sometimes two** (gold, **oil** or
 crystals), plus experience, and from crates, barrels and sacks now and then a piece of **gear**. The emptier your
-lantern, the likelier the loot is oil. A Clay Urn breaks in a blow or two and sometimes gives two kinds, a Wooden Crate
-takes a couple more and often gives two, an Iron-bound Barrel is the toughest and always gives two, and an Old Sack
-breaks in one blow and holds mostly gold and crystals. Gear is a Rusty Sword (+6 damage), a Hand Axe
+lantern, the likelier the loot is oil. A Clay Urn sometimes gives two kinds, a Wooden Crate often
+gives two, an Iron-bound Barrel always gives two, and an Old Sack holds mostly gold and crystals. Gear is a Rusty Sword (+6 damage), a Hand Axe
 (+5) or a Miner's Pickaxe (+4, and it breaks any prop in one blow); each lasts for the descent, and a second copy
 turns into experience.
 

@@ -81,19 +81,24 @@ describe("turnEffects", () => {
 
   it("shows a prop cracking and breaking", () => {
     const s = room();
-    s.floor.props = [{ id: 9, x: 7, y: 6, kind: "barrel", hp: 30, maxHp: 30 }];
+    s.floor.props = [{ id: 9, x: 7, y: 6, kind: "barrel", hp: 2, maxHp: 2 }];
     const cracked = applyAction(s, { type: "move", dx: 1, dy: 0 });
     expect(cracked.events).toContain("smash");
     const first = turnEffects(s, cracked, 0);
     expect(first.attack).toBe(true);
-    expect(of(first.fx, "text")).toHaveLength(1);
+    // A crack is shown by the prop's own picture; no number, nothing breaks yet.
+    expect(of(first.fx, "text")).toHaveLength(0);
     expect(of(first.fx, "puff")).toHaveLength(0);
+    expect(of(first.fx, "shatter")).toHaveLength(0);
 
     const weak = room();
     weak.floor.props = [{ id: 9, x: 7, y: 6, kind: "urn", hp: 1, maxHp: 1 }];
     const broken = applyAction(weak, { type: "move", dx: 1, dy: 0 });
     expect(broken.events).toContain("break");
-    expect(of(turnEffects(weak, broken, 0).fx, "puff")).toMatchObject([{ x: 7, y: 6 }]);
+    const effects = turnEffects(weak, broken, 0).fx;
+    expect(of(effects, "puff")).toMatchObject([{ x: 7, y: 6 }]);
+    // It breaks apart from where it stood: whole, at its only blow.
+    expect(of(effects, "shatter")).toMatchObject([{ x: 7, y: 6, prop: "urn", hp: 1, maxHp: 1 }]);
   });
 
   it("bursts on every tile a creature's blow lands on, and marks the delver hurt", () => {

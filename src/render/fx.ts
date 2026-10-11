@@ -17,7 +17,7 @@ export type Fx =
    *  Several items from one thing settle one above another, `lift` pixels higher each. */
   | { kind: "drop"; x: number; y: number; item: DropIcon; text: string; color: string; lift: number; at: number }
   /** A prop breaking apart where it stood, frame by frame (only once its art exists). */
-  | { kind: "shatter"; x: number; y: number; prop: PropKind; at: number };
+  | { kind: "shatter"; x: number; y: number; prop: PropKind; hp: number; maxHp: number; at: number };
 
 /** What a drop shows: an item's own sprite, or a small blade for gear. */
 export type DropIcon = "gold" | "crystal" | "oil" | "gear";
@@ -29,11 +29,11 @@ export type DropIcon = "gold" | "crystal" | "oil" | "gear";
 export type FxArt = {
   loot: (ctx: CanvasRenderingContext2D, item: Exclude<DropIcon, "gear">, x: number, y: number) => boolean;
   /** `k` runs from 0 to 1 over the effect, to pick the stage of breaking apart. */
-  shatter: (ctx: CanvasRenderingContext2D, prop: PropKind, x: number, baseY: number, k: number) => boolean;
+  shatter: (ctx: CanvasRenderingContext2D, prop: PropKind, x: number, baseY: number, k: number, hp: number, maxHp: number) => boolean;
 };
 const NO_ART: FxArt = { loot: () => false, shatter: () => false };
 
-const LIFE: Record<Fx["kind"], number> = { slash: 220, text: 750, puff: 340, impact: 240, drop: 1100, shatter: 420 };
+const LIFE: Record<Fx["kind"], number> = { slash: 220, text: 750, puff: 340, impact: 240, drop: 1100, shatter: 560 };
 
 const ease = (k: number) => 1 - (1 - k) * (1 - k);
 
@@ -126,9 +126,9 @@ export class FxQueue {
           break;
         }
         case "shatter": {
-          // The pieces fly apart stage by stage and fade out over the last third.
-          ctx.globalAlpha = k < 0.66 ? 1 : 1 - (k - 0.66) / 0.34;
-          art.shatter(ctx, fx.prop, cx, fx.y * TILE + TILE - 2, still ? 0.99 : k);
+          // The prop cracks and flies apart stage by stage; the pieces fade out over the last fifth.
+          ctx.globalAlpha = k < 0.8 ? 1 : 1 - (k - 0.8) / 0.2;
+          art.shatter(ctx, fx.prop, cx, fx.y * TILE + TILE - 2, still ? 0.99 : k, fx.hp, fx.maxHp);
           break;
         }
         case "impact": {

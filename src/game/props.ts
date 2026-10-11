@@ -1,11 +1,11 @@
-import { HP_SCALE } from "./config";
 import { tuning } from "./tuning";
 
 /**
  * Things to smash. They stand in the way like a creature: walk into one to hit it, and when it breaks something falls
  * out: one kind of loot (gold, oil or crystals), sometimes two, plus a little experience and, from crates and barrels,
  * now and then a piece of gear. They never move or hit back, and they never block the way for good.
- * Hit points use the same units as creatures (see HP_SCALE): a dagger hits for 16, so a crate takes two blows.
+ * A prop's hit points count blows, whatever the weapon: an urn or a sack breaks at the first, a crate or a barrel at
+ * the second (2026-10-11, the owner: "one blow, two at most"). A blow costs no light; only steps do.
  */
 export type PropKind = "urn" | "crate" | "barrel" | "sack";
 
@@ -15,6 +15,7 @@ export type LootKind = "gold" | "oil" | "crystal";
 export type PropDef = {
   id: PropKind;
   name: string;
+  /** Blows it takes to break. */
   hp: number;
   /** Chance a second kind of loot falls out with the first. 1 is always two. */
   second: number;
@@ -34,22 +35,22 @@ export type PropDef = {
 
 export const PROPS: readonly PropDef[] = [
   {
-    id: "urn", name: "Clay Urn", hp: Math.round(1.5 * HP_SCALE), second: 0.2,
+    id: "urn", name: "Clay Urn", hp: 1, second: 0.2,
     gold: [4, 6], oil: [7, 11], crystals: [1, 1], weights: { gold: 45, crystal: 15, oil: 1 }, xp: [1, 2], gear: 0,
     blurb: "Brittle. Gold, oil or a crystal.",
   },
   {
-    id: "crate", name: "Wooden Crate", hp: 3 * HP_SCALE, second: 0.4,
+    id: "crate", name: "Wooden Crate", hp: 2, second: 0.4,
     gold: [7, 10], oil: [10, 16], crystals: [1, 2], weights: { gold: 45, crystal: 15, oil: 1 }, xp: [3, 4], gear: 0.06,
-    blurb: "Takes a couple of blows. Often two kinds of loot, and it might hide a tool.",
+    blurb: "Takes two blows. Often two kinds of loot, and it might hide a tool.",
   },
   {
-    id: "barrel", name: "Iron-bound Barrel", hp: 5 * HP_SCALE, second: 1,
+    id: "barrel", name: "Iron-bound Barrel", hp: 2, second: 1,
     gold: [10, 14], oil: [14, 22], crystals: [2, 3], weights: { gold: 45, crystal: 15, oil: 1 }, xp: [5, 7], gear: 0.16,
-    blurb: "Tough, and the best of them: always two kinds of loot.",
+    blurb: "Takes two blows, and the best of them: always two kinds of loot.",
   },
   {
-    id: "sack", name: "Old Sack", hp: HP_SCALE, second: 0.15,
+    id: "sack", name: "Old Sack", hp: 1, second: 0.15,
     gold: [3, 5], oil: [5, 8], crystals: [1, 2], weights: { gold: 45, crystal: 35, oil: 0.5 }, xp: [1, 2], gear: 0.03,
     blurb: "A sack a lost delver left behind. One blow; mostly gold and crystals.",
   },
