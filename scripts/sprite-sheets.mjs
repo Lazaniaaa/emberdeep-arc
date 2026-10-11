@@ -251,7 +251,7 @@ export const PROP_HEIGHT = { urn: 20, crate: 20, barrel: 24, sack: 18 };
 export const PROP_FRAMES = { urn: 6, crate: 6, barrel: 6, sack: 6 };
 /** The loot row, left to right, as art/props/raw/loot.webp shows it. */
 export const LOOT_ORDER = ["gold", "crystal", "oil", "chest", "vault", "hoard"];
-export const LOOT_HEIGHT = { gold: 12, crystal: 16, oil: 16, chest: 18, vault: 22, hoard: 24 };
+export const LOOT_HEIGHT = { gold: 12, crystal: 16, oil: 16, chest: 18, vault: 19, hoard: 26 };
 
 const KINDS = {
   heroes: { raw: "art/heroes/raw/", out: "public/heroes/", cols: COLS, rows: ROWS, cellW: CELL_W, cellH: CELL_H, footX: FOOT_X, footY: FOOT_Y, main: false, height: () => FIGURE_H, textureScale: HERO_TEXTURE_SCALE, fixes: FIXES },
@@ -268,9 +268,13 @@ const KINDS = {
     // Twice the creatures' density, like the heroes: the AI draws a prop about 1.4x taller than it stands in the game,
     // and shrinking it to 1x smeared rims, hoops and holes.
     height: name => PROP_HEIGHT[name] ?? 20, fixes: {}, textureScale: 2,
-    // Dust and smoke the AI tinted with the magenta background turn grey; wood, metal and clay are never pink.
-    untint: true,
-    isBg: (r, g, b) => Math.min(r, b) > 40 && g < 0.45 * Math.min(r, b) && Math.abs(r - b) < 0.35 * Math.max(r, b),
+    // Dust, smoke and edges the AI tinted with the magenta background turn grey; wood, metal, clay and crystal are never
+    // pink. Which columns of the sheet: all but the Sealed Vault's, whose rune is purple.
+    untint: name => (x => name !== "loot" || Math.floor(x / 96) !== LOOT_ORDER.indexOf("vault")),
+    // The background's blue and red stay within about 12 of each other; the vault's purple rune has 30 more blue, so the
+    // loot row takes only that as background.
+    isBg: (r, g, b, name) => Math.min(r, b) > 40 && g < 0.45 * Math.min(r, b) && Math.abs(r - b) < 0.35 * Math.max(r, b)
+      && (name !== "loot" || b - r < 20),
     variant: (name, w, h) => (name === "loot" ? { cols: LOOT_ORDER.length, perCell: LOOT_ORDER.map(id => LOOT_HEIGHT[id]) } : { cols: PROP_FRAMES[name] ?? Math.max(1, Math.round(w / h)) }),
   },
 };
@@ -284,7 +288,7 @@ async function rasterize(name, logical, density = 1) {
     footX: logical.footX * density, footY: logical.footY * density, height: n => logical.height(n) * density };
   const background = k.isBg ?? isBg;
   const bg = new Uint8Array(w * h);
-  for (let p = 0; p < w * h; p++) bg[p] = background(data[p * 3], data[p * 3 + 1], data[p * 3 + 2]) ? 1 : 0;
+  for (let p = 0; p < w * h; p++) bg[p] = background(data[p * 3], data[p * 3 + 1], data[p * 3 + 2], name) ? 1 : 0;
 
   // 8-connected blobs of figure pixels; each blob belongs to the grid cell its centre falls in.
   const label = new Int32Array(w * h).fill(-1);
@@ -309,6 +313,22 @@ async function rasterize(name, logical, density = 1) {
     const col = Math.min(k.cols - 1, Math.floor((sx / size) / (w / k.cols)));
     const row = Math.min(k.rows - 1, Math.floor((sy / size) / (h / k.rows)));
     blobs.push({ size, x0, x1, y0, y1, cell: row * k.cols + col });
+  }
+
+  // A row of things of different widths (the loot) is not evenly spaced: when the gaps between the big blobs split it
+  // into exactly as many groups as cells, each blob goes to the group it stands over, or the nearest one.
+  if (variant?.perCell && k.rows === 1) {
+    const groups = [];
+    for (const b of blobs.filter(b => b.size >= 30).sort((a, b) => a.x0 - b.x0)) {
+      const last = groups[groups.length - 1];
+      if (last && b.x0 <= last.x1 + 2) last.x1 = Math.max(last.x1, b.x1);
+      else groups.push({ x0: b.x0, x1: b.x1 });
+    }
+    if (groups.length === k.cols) for (const b of blobs) {
+      const mid = (b.x0 + b.x1) / 2;
+      const away = g => (mid < g.x0 ? g.x0 - mid : mid > g.x1 ? mid - g.x1 : 0);
+      b.cell = groups.reduce((best, g, i) => (away(g) < away(groups[best]) ? i : best), 0);
+    }
   }
 
   // Per cell: the box of its blobs (specks under 30 pixels are noise). For a mob, the feet are those of its biggest
@@ -404,11 +424,12 @@ async function rasterize(name, logical, density = 1) {
 async function convert(name, k) {
   const density = k.textureScale ?? 1;
   const sheet = await rasterize(name, k, density);
-  if (k.untint) {
+  const untinted = k.untint?.(name);
+  if (untinted) {
     const d = sheet.data;
     for (let i = 0; i < d.length; i += 4) {
       const [r, g, b] = [d[i], d[i + 1], d[i + 2]];
-      if (!d[i + 3] || Math.min(r, b) - g < 24) continue;
+      if (!d[i + 3] || Math.min(r, b) - g < 24 || !untinted((i / 4) % sheet.width)) continue;
       const grey = Math.round(0.6 * g + 0.2 * (r + b));
       d[i] = grey + 6; d[i + 1] = grey + 2; d[i + 2] = grey;
     }
