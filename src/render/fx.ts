@@ -16,7 +16,7 @@ export type Fx =
   /** Loot hopping out of a broken prop or a fallen creature: its icon hops up off the tile, with the amount beside it.
    *  Several items from one thing settle one above another, `lift` pixels higher each. */
   | { kind: "drop"; x: number; y: number; item: DropIcon; text: string; color: string; lift: number; at: number }
-  /** A prop's breaking-apart frame, shown for a moment where it stood (only once its art exists). */
+  /** A prop breaking apart where it stood, frame by frame (only once its art exists). */
   | { kind: "shatter"; x: number; y: number; prop: PropKind; at: number };
 
 /** What a drop shows: an item's own sprite, or a small blade for gear. */
@@ -28,11 +28,12 @@ export type DropIcon = "gold" | "crystal" | "oil" | "gear";
  */
 export type FxArt = {
   loot: (ctx: CanvasRenderingContext2D, item: Exclude<DropIcon, "gear">, x: number, y: number) => boolean;
-  shatter: (ctx: CanvasRenderingContext2D, prop: PropKind, x: number, baseY: number) => boolean;
+  /** `k` runs from 0 to 1 over the effect, to pick the stage of breaking apart. */
+  shatter: (ctx: CanvasRenderingContext2D, prop: PropKind, x: number, baseY: number, k: number) => boolean;
 };
 const NO_ART: FxArt = { loot: () => false, shatter: () => false };
 
-const LIFE: Record<Fx["kind"], number> = { slash: 220, text: 750, puff: 340, impact: 240, drop: 1100, shatter: 280 };
+const LIFE: Record<Fx["kind"], number> = { slash: 220, text: 750, puff: 340, impact: 240, drop: 1100, shatter: 420 };
 
 const ease = (k: number) => 1 - (1 - k) * (1 - k);
 
@@ -125,9 +126,9 @@ export class FxQueue {
           break;
         }
         case "shatter": {
-          // The pieces fly apart and fade where the prop stood.
-          ctx.globalAlpha = 1 - k;
-          art.shatter(ctx, fx.prop, cx, fx.y * TILE + TILE - 2);
+          // The pieces fly apart stage by stage and fade out over the last third.
+          ctx.globalAlpha = k < 0.66 ? 1 : 1 - (k - 0.66) / 0.34;
+          art.shatter(ctx, fx.prop, cx, fx.y * TILE + TILE - 2, still ? 0.99 : k);
           break;
         }
         case "impact": {

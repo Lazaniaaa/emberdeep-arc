@@ -108,12 +108,12 @@ describe("prop and loot sheets", () => {
   for (const name of [...PROPS.map(p => p.id), "loot"]) {
     const file = `public/props/${name}.png`;
     it.skipIf(!existsSync(file))(`${name}: frames on a clear background, standing on the line`, async () => {
-      // Twice the game's density; a prop is 3 frames, or 1 while only the whole one is drawn.
+      // Twice the game's density; a prop is 1 frame (only whole), 3 or up to 6 (see stagesOf).
       const { width, height } = await sharp(file).metadata();
       const d = height! / PROP_CELL_H;
       expect(d).toBe(2);
       const cols = width! / (PROP_CELL_W * d);
-      expect(name === "loot" ? [LOOT_ORDER.length] : [1, 3]).toContain(cols);
+      expect(name === "loot" ? [LOOT_ORDER.length] : [1, 3, 5, 6]).toContain(cols);
       for (const f of await frames(file, cols, 1, PROP_CELL_W * d, PROP_CELL_H * d)) {
         expect(f.corner).toBe(0);
         expect(Math.abs(f.bottom - PROP_FOOT_Y * d)).toBeLessThanOrEqual(d);

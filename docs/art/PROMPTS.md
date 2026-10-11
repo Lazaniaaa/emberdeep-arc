@@ -388,3 +388,20 @@ Plain flat magenta background (#FF00FF).
 ```
 
 Скрипт сам розріже рядок на шість клітинок і зменшить кожну до її висоти з таблиці вгорі, тож однаковий розмір на картинці не потрібен.
+
+## П2б. Довша анімація: 6 етапів (2026-10-11)
+
+Власник: «ахірена анімація вийде, можна навіть розбити на 5-6 етапів». Гра й скрипт розуміють смужку з 1, 3 або 6 кадрів:
+**6 = ціле, 2 стадії тріщин, 3 стадії розламу.** Тріщини гра показує за тим, скільки міцності лишилось (друга — коли менше половини), розлам програється за ~0,4 с.
+Прикріпи готову 3-кадрову смужку цього предмета (`art/props/raw/<предмет>.webp`):
+
+```
+Make a longer version of the attached 3-frame sprite strip of a [ПРЕДМЕТ]: 6 frames in one row, the same style, palette, size, pixel density and baseline; no gaps, no labels:
+1 whole: the same as frame 1 of the attached strip.
+2 a small crack: between frame 1 and frame 2 of the attached strip.
+3 badly damaged: the same as frame 2 of the attached strip.
+4 starting to break: the cracks open up, the first chips flying off, the [ПРЕДМЕТ] still mostly standing.
+5 bursting apart: the same as frame 3 of the attached strip.
+6 the pieces lying low on the floor, a fading puff of dust.
+Everything stays inside its own frame. Plain flat magenta background (#FF00FF).
+```

@@ -252,17 +252,19 @@ const KINDS = {
   heroes: { raw: "art/heroes/raw/", out: "public/heroes/", cols: COLS, rows: ROWS, cellW: CELL_W, cellH: CELL_H, footX: FOOT_X, footY: FOOT_Y, main: false, height: () => FIGURE_H, textureScale: HERO_TEXTURE_SCALE, fixes: FIXES },
   // A mob's cell is wide: its attack (an arrow, a web, a spark) flies ahead of it, to the right.
   mobs: { raw: "art/mobs/raw/", out: "public/mobs/", cols: 4, rows: 1, cellW: 96, cellH: 56, footX: 32, footY: 52, main: true, height: name => MOB_HEIGHT[name] ?? 24, fixes: {} },
-  // A prop: whole, cracked, breaking apart (the flying pieces stay in the cell), or only the whole one while those
-  // frames are not drawn yet (a picture about as wide as it is tall). art/props/raw/loot.webp is the loot row instead:
+  // A prop: a strip of square-ish frames, as many as the picture is times wider than tall: 1 (only whole), 3 (whole,
+  // cracked, breaking apart) or 6 (whole, two stages of cracks, three of breaking apart); see src/render/prop-sheets.ts.
+  // Every frame is placed by its whole picture on the first frame's baseline, so flying pieces keep their places.
+  // art/props/raw/loot.webp is the loot row instead:
   // six things side by side, each scaled to its own height (see LOOT_ORDER). The AI draws a dark magenta contact shadow
   // under each; the game draws its own, so every shade of magenta is background here.
   props: {
-    raw: "art/props/raw/", out: "public/props/", cols: 3, rows: 1, cellW: 48, cellH: 40, footX: 24, footY: 38, main: true,
+    raw: "art/props/raw/", out: "public/props/", cols: 3, rows: 1, cellW: 48, cellH: 40, footX: 24, footY: 38, main: false, sameBaseline: true,
     // Twice the creatures' density, like the heroes: the AI draws a prop about 1.4x taller than it stands in the game,
     // and shrinking it to 1x smeared rims, hoops and holes.
     height: name => PROP_HEIGHT[name] ?? 20, fixes: {}, textureScale: 2,
     isBg: (r, g, b) => Math.min(r, b) > 40 && g < 0.45 * Math.min(r, b) && Math.abs(r - b) < 0.35 * Math.max(r, b),
-    variant: (name, w, h) => (name === "loot" ? { cols: LOOT_ORDER.length, perCell: LOOT_ORDER.map(id => LOOT_HEIGHT[id]) } : w < 1.6 * h ? { cols: 1 } : null),
+    variant: (name, w, h) => (name === "loot" ? { cols: LOOT_ORDER.length, perCell: LOOT_ORDER.map(id => LOOT_HEIGHT[id]) } : { cols: Math.max(1, Math.round(w / h)) }),
   },
 };
 
@@ -315,6 +317,8 @@ async function rasterize(name, logical, density = 1) {
     if (c.main < 0 || b.size > blobs[c.main].size) c.main = i;
   });
   const body = cells.map(c => (k.main && c.main >= 0 ? blobs[c.main] : c));
+  // Frames drawn on one baseline (a prop breaking apart: its pieces fly up, the floor stays) keep the first one's.
+  const bottom = cell => (k.sameBaseline && !variant?.perCell ? body[0].y1 : body[cell].y1);
   const mine = (p, cell) => !bg[p] && keep[label[p]] && blobs[label[p]].cell === cell;
   const feetX = body.map((c, cell) => {
     // The middle of the figure in its lowest eighth: the boots.
@@ -341,7 +345,7 @@ async function rasterize(name, logical, density = 1) {
    */
   const sample = (cell, tx, ty, fx, fy, inner = true) => {
     const s = scaleOf(cell);
-    const bx0 = feetX[cell] + (tx - k.footX) * s + fx, by0 = body[cell].y1 + 1 + (ty - k.footY - 1) * s + fy;
+    const bx0 = feetX[cell] + (tx - k.footX) * s + fx, by0 = bottom(cell) + 1 + (ty - k.footY - 1) * s + fy;
     const m = inner ? s * 0.15 : 0;
     const counts = new Map();
     let total = 0, figure = 0, dark = 0, dr = 0, dg = 0, db = 0;
