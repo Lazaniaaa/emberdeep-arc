@@ -248,7 +248,7 @@ export const PROP_HEIGHT = { urn: 20, crate: 20, barrel: 24, sack: 18 };
  * Frames in each prop's picture when it is not one per square (the AI drew the 6-frame urn on a 3:1 canvas). Without an
  * entry the count is the picture's width over its height, rounded.
  */
-export const PROP_FRAMES = { urn: 6 };
+export const PROP_FRAMES = { urn: 6, crate: 6 };
 /** The loot row, left to right, as art/props/raw/loot.webp shows it. */
 export const LOOT_ORDER = ["gold", "crystal", "oil", "chest", "vault", "hoard"];
 export const LOOT_HEIGHT = { gold: 12, crystal: 16, oil: 16, chest: 18, vault: 22, hoard: 24 };
@@ -264,10 +264,12 @@ const KINDS = {
   // six things side by side, each scaled to its own height (see LOOT_ORDER). The AI draws a dark magenta contact shadow
   // under each; the game draws its own, so every shade of magenta is background here.
   props: {
-    raw: "art/props/raw/", out: "public/props/", cols: 3, rows: 1, cellW: 48, cellH: 40, footX: 24, footY: 38, main: false, sameBaseline: true,
+    raw: "art/props/raw/", out: "public/props/", cols: 3, rows: 1, cellW: 48, cellH: 40, footX: 24, footY: 35, main: false, sameBaseline: true,
     // Twice the creatures' density, like the heroes: the AI draws a prop about 1.4x taller than it stands in the game,
     // and shrinking it to 1x smeared rims, hoops and holes.
     height: name => PROP_HEIGHT[name] ?? 20, fixes: {}, textureScale: 2,
+    // Dust and smoke the AI tinted with the magenta background turn grey; wood, metal and clay are never pink.
+    untint: true,
     isBg: (r, g, b) => Math.min(r, b) > 40 && g < 0.45 * Math.min(r, b) && Math.abs(r - b) < 0.35 * Math.max(r, b),
     variant: (name, w, h) => (name === "loot" ? { cols: LOOT_ORDER.length, perCell: LOOT_ORDER.map(id => LOOT_HEIGHT[id]) } : { cols: PROP_FRAMES[name] ?? Math.max(1, Math.round(w / h)) }),
   },
@@ -402,6 +404,15 @@ async function rasterize(name, logical, density = 1) {
 async function convert(name, k) {
   const density = k.textureScale ?? 1;
   const sheet = await rasterize(name, k, density);
+  if (k.untint) {
+    const d = sheet.data;
+    for (let i = 0; i < d.length; i += 4) {
+      const [r, g, b] = [d[i], d[i + 1], d[i + 2]];
+      if (!d[i + 3] || Math.min(r, b) - g < 24) continue;
+      const grey = Math.round(0.6 * g + 0.2 * (r + b));
+      d[i] = grey + 6; d[i + 1] = grey + 2; d[i + 2] = grey;
+    }
+  }
   if (k.fixes[name]) {
     if (density === 1) k.fixes[name](sheet.data);
     else {

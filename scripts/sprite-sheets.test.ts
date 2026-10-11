@@ -6,7 +6,7 @@ import { ANIMALS } from "../src/game/animals";
 import { ENEMIES } from "../src/game/enemies";
 import { CELL_H, CELL_W, FOOT_Y, TEXTURE_SCALE } from "../src/render/animal-sprites";
 import { MOB_CELL_H, MOB_CELL_W, MOB_FOOT_Y, MOB_HEIGHT } from "../src/render/mob-sheets";
-import { LOOT_ORDER, PROP_CELL_H, PROP_CELL_W, PROP_FOOT_Y } from "../src/render/prop-sheets";
+import { LOOT_ORDER, PROP_CELL_H, PROP_CELL_W, PROP_FOOT_Y, stagesOf } from "../src/render/prop-sheets";
 import { PROPS } from "../src/game/props";
 // @ts-expect-error -- a plain .mjs build script without type declarations
 import { LOOT_HEIGHT, LOOT_ORDER as SCRIPT_LOOT_ORDER, PROP_HEIGHT } from "./sprite-sheets.mjs";
@@ -114,9 +114,12 @@ describe("prop and loot sheets", () => {
       expect(d).toBe(2);
       const cols = width! / (PROP_CELL_W * d);
       expect(name === "loot" ? [LOOT_ORDER.length] : [1, 3, 5, 6]).toContain(cols);
-      for (const f of await frames(file, cols, 1, PROP_CELL_W * d, PROP_CELL_H * d)) {
+      // Whole and cracked it stands on the line; breaking apart, the pieces may spill lower but stay inside the cell.
+      const standing = name === "loot" ? cols : 1 + stagesOf(cols).cracks;
+      for (const [i, f] of (await frames(file, cols, 1, PROP_CELL_W * d, PROP_CELL_H * d)).entries()) {
         expect(f.corner).toBe(0);
-        expect(Math.abs(f.bottom - PROP_FOOT_Y * d)).toBeLessThanOrEqual(d);
+        if (i < standing) expect(Math.abs(f.bottom - PROP_FOOT_Y * d), `frame ${i}`).toBeLessThanOrEqual(d);
+        else expect(f.bottom, `frame ${i}`).toBeLessThan(PROP_CELL_H * d - 1);
       }
     });
   }

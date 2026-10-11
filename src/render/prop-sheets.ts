@@ -10,7 +10,7 @@ import { loadSheet, type Sheet } from "./sheets";
  * (see stagesOf). Until a sheet exists (or while it loads) the game draws the code sprites.
  */
 export const PROP_CELL_W = 48, PROP_CELL_H = 40;
-export const PROP_FOOT_X = 24, PROP_FOOT_Y = 38;
+export const PROP_FOOT_X = 24, PROP_FOOT_Y = 35;
 
 /** The loot row's order, the same as LOOT_ORDER in scripts/sprite-sheets.mjs. */
 export const LOOT_ORDER: readonly ItemKind[] = ["gold", "crystal", "oil", "chest", "vault", "hoard"];
@@ -36,8 +36,8 @@ export function stagesOf(n: number) {
 export function standingFrame(sheet: Sheet, hp: number, maxHp: number): number {
   const { cracks } = stagesOf(framesOf(sheet));
   if (hp >= maxHp || cracks === 0) return 0;
-  // With two stages, the deeper cracks show once more than half the blows are taken.
-  return cracks === 1 || hp * 2 >= maxHp ? 1 : 2;
+  // With two stages, the deeper cracks show once half the blows or more are taken: a two-blow prop looks badly hit after one.
+  return cracks === 1 || hp * 2 > maxHp ? 1 : 2;
 }
 
 /**

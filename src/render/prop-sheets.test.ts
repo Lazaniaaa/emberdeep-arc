@@ -17,7 +17,7 @@ describe("a prop's frames", () => {
     expect(standingFrame(strip(3), 2, 2)).toBe(0);
     expect(standingFrame(strip(3), 1, 2)).toBe(1);
     expect(standingFrame(strip(6), 2, 2)).toBe(0);
-    expect(standingFrame(strip(6), 1, 2)).toBe(1);
+    expect(standingFrame(strip(6), 1, 2)).toBe(2);
     expect(standingFrame(strip(6), 1, 4)).toBe(2);
   });
 
@@ -26,7 +26,7 @@ describe("a prop's frames", () => {
     // Broken at one blow: every crack and every stage of breaking.
     expect([0, 0.2, 0.4, 0.6, 0.8, 0.99].map(k => breakingFrame(strip(6), k, 1, 1))).toEqual([1, 2, 3, 4, 5, 5]);
     expect([0, 0.5, 0.99].map(k => breakingFrame(strip(3), k, 1, 1))).toEqual([1, 2, 2]);
-    // Broken at the second blow: it stood cracked, so the rest plays.
-    expect([0, 0.5, 0.99].map(k => breakingFrame(strip(6), k, 1, 2))).toEqual([2, 4, 5]);
+    // Broken at the second blow: it stood badly cracked, so only the breaking plays.
+    expect([0, 0.5, 0.99].map(k => breakingFrame(strip(6), k, 1, 2))).toEqual([3, 4, 5]);
   });
 });
