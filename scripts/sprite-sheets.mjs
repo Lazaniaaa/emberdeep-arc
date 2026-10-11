@@ -248,7 +248,7 @@ export const PROP_HEIGHT = { urn: 20, crate: 20, barrel: 24, sack: 18 };
  * Frames in each prop's picture when it is not one per square (the AI drew the 6-frame urn on a 3:1 canvas). Without an
  * entry the count is the picture's width over its height, rounded.
  */
-export const PROP_FRAMES = { urn: 6, crate: 6 };
+export const PROP_FRAMES = { urn: 6, crate: 6, barrel: 6 };
 /** The loot row, left to right, as art/props/raw/loot.webp shows it. */
 export const LOOT_ORDER = ["gold", "crystal", "oil", "chest", "vault", "hoard"];
 export const LOOT_HEIGHT = { gold: 12, crystal: 16, oil: 16, chest: 18, vault: 22, hoard: 24 };

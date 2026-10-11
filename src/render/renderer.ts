@@ -1,4 +1,4 @@
-import { footprint, idx, visibleSet, type Dimling, type FloorTheme, type Point } from "@/game/dungeon";
+import { footprint, hasFloorDecor, idx, tileHash, visibleSet, type Dimling, type FloorTheme, type Point } from "@/game/dungeon";
 import { attackTiles, windupProgress } from "@/game/enemy-ai";
 import { DEFAULT_SPECIES } from "@/game/enemies";
 import { ART_DOORWAYS } from "@/game/map-art";
@@ -115,11 +115,7 @@ export function cameraFor(focus: Point, mapW: number, mapH: number, viewW: numbe
   return { x: axis(focus.x, mapW, viewW), y: axis(focus.y, mapH, viewH), w: viewW, h: viewH };
 }
 
-function hash(x: number, y: number) {
-  let h = (x * 374761393 + y * 668265263) >>> 0;
-  h = Math.imul(h ^ (h >>> 13), 1274126177);
-  return (h ^ (h >>> 16)) >>> 0;
-}
+const hash = tileHash;
 
 const ATLAS_VARIANTS = 8;
 const TILE_ATLASES = new Map<string, HTMLCanvasElement>();
@@ -549,7 +545,7 @@ export function drawRun(ctx: CanvasRenderingContext2D, state: RunState, opts: Dr
         }
       } else if (floor.tiles[k] === 1) {
         ctx.drawImage(atlas, variant * TILE, 0, TILE, TILE, px, py, TILE, TILE);
-        if (lit && !occupied.has(k) && hash(x + 41, y + 73) % 12 === 0) {
+        if (lit && !occupied.has(k) && hasFloorDecor(x, y)) {
           const prop = hash(x + 41, y + 73) % ATLAS_VARIANTS;
           ctx.drawImage(litAtlas, prop * TILE, TILE * 2, TILE, TILE, px, py, TILE, TILE);
         }

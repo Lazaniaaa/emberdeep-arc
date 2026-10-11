@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { NO_PERKS } from "./catalog";
 import { lootMultiplier } from "./config";
-import { distances, generateFloor, idx, isFloor, type Dimling, type Prop } from "./dungeon";
+import { distances, generateFloor, hasFloorDecor, idx, isFloor, type Dimling, type Prop } from "./dungeon";
 import { LEVEL_DAMAGE, LEVEL_LIGHT, MAX_LEVEL, levelDamage, xpToNext } from "./levels";
 import { GEAR, GEAR_IDS, GEAR_DUPLICATE_XP, gearDamage, lootWeights, propCounts, propDef, PROPS } from "./props";
 import { createRng } from "./rng";
@@ -112,6 +112,18 @@ describe("props on a floor", () => {
         expect(new Set(floor.props.map(p => p.id)).size).toBe(floor.props.length);
       }
     }
+  });
+
+  it("never stand on a stone or bones drawn into the floor, so nothing is left where one broke", () => {
+    let props = 0;
+    for (let depth = 1; depth <= 7; depth++) {
+      for (let seed = 1; seed <= 10; seed++) {
+        const floor = generateFloor(createRng(seed * 53 + depth), depth, { findPct: 0 });
+        for (const p of floor.props) expect(hasFloorDecor(p.x, p.y), `${depth}/${seed} ${p.kind}`).toBe(false);
+        props += floor.props.length;
+      }
+    }
+    expect(props).toBeGreaterThan(200);
   });
 
   it("never shut a route: every open tile stays reachable without breaking anything", () => {

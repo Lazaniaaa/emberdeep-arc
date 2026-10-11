@@ -9,6 +9,19 @@ export const FLOOR = 1;
 
 export type Point = { x: number; y: number };
 
+/** A fixed pseudo-random number for a tile: the renderer picks tile variants and decorations with it. */
+export function tileHash(x: number, y: number) {
+  let h = (x * 374761393 + y * 668265263) >>> 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return (h ^ (h >>> 16)) >>> 0;
+}
+
+/**
+ * Whether a floor tile carries a stone or bones drawn into the floor. Props never stand on one: once a prop broke, the
+ * decoration would show where it stood and look like its remains.
+ */
+export const hasFloorDecor = (x: number, y: number) => tileHash(x + 41, y + 73) % 12 === 0;
+
 export type ItemKind = "gold" | "crystal" | "oil" | "chest" | "vault" | "hoard";
 export type Item = Point & { id: number; kind: ItemKind };
 
@@ -431,7 +444,7 @@ export function generateFloor(rng: Rng, depth: number, options: FloorOptions): F
       const k = at(c.x, c.y);
       const nearExit = manhattan(c, spawn) < 2 || manhattan(c, stairs) < 2;
       const blocked = new Set(propTiles).add(k);
-      if (nearExit || reachable(blocked) !== cells.length - blocked.size) { taken.delete(k); continue; }
+      if (nearExit || hasFloorDecor(c.x, c.y) || reachable(blocked) !== cells.length - blocked.size) { taken.delete(k); continue; }
       propTiles.add(k);
       const hp = propDef(kind).hp;
       floor.props.push({ ...c, id: nextId++, kind, hp, maxHp: hp });
