@@ -7,7 +7,7 @@ import { tuning } from "./tuning";
  * now and then a piece of gear. They never move or hit back, and they never block the way for good.
  * Hit points use the same units as creatures (see HP_SCALE): a dagger hits for 16, so a crate takes two blows.
  */
-export type PropKind = "urn" | "crate" | "barrel" | "bones";
+export type PropKind = "urn" | "crate" | "barrel" | "sack";
 
 /** What a broken prop can give. */
 export type LootKind = "gold" | "oil" | "crystal";
@@ -49,9 +49,9 @@ export const PROPS: readonly PropDef[] = [
     blurb: "Tough, and the best of them: always two kinds of loot.",
   },
   {
-    id: "bones", name: "Bone Pile", hp: HP_SCALE, second: 0.15,
+    id: "sack", name: "Old Sack", hp: HP_SCALE, second: 0.15,
     gold: [3, 5], oil: [5, 8], crystals: [1, 2], weights: { gold: 45, crystal: 35, oil: 0.5 }, xp: [1, 2], gear: 0.03,
-    blurb: "What a lost delver left behind. One blow; mostly gold and crystals.",
+    blurb: "A sack a lost delver left behind. One blow; mostly gold and crystals.",
   },
 ];
 
@@ -59,12 +59,12 @@ export const propDef = (kind: PropKind): PropDef => PROPS.find(p => p.id === kin
 
 export const isPropKind = (value: unknown): value is PropKind => PROPS.some(p => p.id === value);
 
-/** How many of each a floor holds before the bigger floors' scale. Bone piles start on floor 2. */
+/** How many of each a floor holds before the bigger floors' scale. Old sacks start on floor 2. */
 export const propCounts = (depth: number): Record<PropKind, number> => ({
   urn: 2 + Math.floor(depth / 3),
   crate: 2 + (depth >= 3 ? 0.5 : 0),
   barrel: 0.5 + (depth >= 4 ? 0.5 : 0),
-  bones: depth >= 2 ? 1 + (depth >= 5 ? 1 : 0) : 0,
+  sack: depth >= 2 ? 1 + (depth >= 5 ? 1 : 0) : 0,
 });
 
 /**

@@ -143,9 +143,9 @@ describe("props on a floor", () => {
     expect(counts.urn).toBeGreaterThan(counts.barrel);
     expect(counts.crate).toBeGreaterThanOrEqual(2);
     // Bone piles start on floor 2.
-    expect(counts.bones).toBe(0);
-    expect(propCounts(2).bones).toBeGreaterThan(0);
-    expect(PROPS.map(p => p.id)).toEqual(["urn", "crate", "barrel", "bones"]);
+    expect(counts.sack).toBe(0);
+    expect(propCounts(2).sack).toBeGreaterThan(0);
+    expect(PROPS.map(p => p.id)).toEqual(["urn", "crate", "barrel", "sack"]);
   });
 
   it("are not walked through by creatures", () => {
@@ -177,7 +177,7 @@ describe("smashing", () => {
     expect(blows("crate", 24)).toBe(1);
     expect(blows("barrel", 16)).toBe(3);
     expect(blows("barrel", 40)).toBe(1);
-    expect(blows("bones", 8)).toBe(1);
+    expect(blows("sack", 8)).toBe(1);
   });
 
   it("does not move the delver, costs a turn, cracks the prop and says so", () => {
@@ -195,7 +195,7 @@ describe("smashing", () => {
 
   it("lets one kind of loot fall out, sometimes two, and says and shows what fell out", () => {
     const twos: Record<string, number> = {};
-    for (const kind of ["urn", "crate", "barrel", "bones"] as const) {
+    for (const kind of ["urn", "crate", "barrel", "sack"] as const) {
       const def = propDef(kind);
       const mult = lootMultiplier(1);
       let two = 0;
@@ -252,8 +252,8 @@ describe("smashing", () => {
     expect(lootWeights(crate, 0, 160).oil).toBeCloseTo(empty);
     expect(lootWeights(crate, 80, 160).oil).toBeGreaterThan(lootWeights(crate, 120, 160).oil);
     expect(lootWeights(crate, 400, 160).oil).toBeCloseTo(full);
-    // Bone piles hold less oil than the rest.
-    expect(lootWeights(propDef("bones"), 0, 160).oil).toBeLessThan(lootWeights(crate, 0, 160).oil);
+    // Old sacks hold less oil than the rest.
+    expect(lootWeights(propDef("sack"), 0, 160).oil).toBeLessThan(lootWeights(crate, 0, 160).oil);
     const dropRate = (light: number) => {
       let drops = 0;
       const trials = 400;

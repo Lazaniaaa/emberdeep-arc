@@ -323,10 +323,13 @@ In side-view frames the one visible eye is drawn the same way.
 | Глек (Clay Urn) | `art/props/raw/urn.webp` | 20 px |
 | Ящик (Wooden Crate) | `art/props/raw/crate.webp` | 20 px |
 | Бочка (Iron-bound Barrel) | `art/props/raw/barrel.webp` | 24 px |
-| Купа кісток (Bone Pile) | `art/props/raw/bones.webp` | 14 px |
+| Старий мішок (Old Sack) | `art/props/raw/sack.webp` | 18 px |
 | Лут і скрині одним рядком | `art/props/raw/loot.webp` | золото 12, кристал 16, олія 16, скриня 18, Sealed Vault 22, скриня Цербера 24 |
 
 Для порівняння: герой 42 px, найменший моб 20, голем 36. Предмети стоять на клітинці підлоги 32×32, вигляд **спереду й трохи згори** (як герої), не збоку.
+
+**Затверджено (2026-10-11):** глек, ящик і бочка з `docs/art/props-lineup-v2.webp`, мішок з `props-lineup-v1.webp` (замість купи кісток: власник — «кістки дивно виглядають, хай будуть просто інтер'єром»).
+Вирізані з них кадри «ціле» вже в `art/props/raw/` і в грі (щільність 2×, як у героїв). Для П2 прикріплюй саме їх.
 
 Порядок: **П1** (усі чотири разом, щоб вибрати вигляд) → **П2** для кожного затвердженого (3 кадри) → **П3** (лут і скрині).
 Готові картинки клади у `art/props/raw/` під іменами з таблиці і запускай `node scripts/sprite-sheets.mjs props`:
@@ -366,7 +369,7 @@ Plain flat magenta background (#FF00FF).
 | Глек | clay urn | a big crack running down the body and a missing chip at the lip | the urn bursting into curved terracotta shards |
 | Ящик | wooden crate | a split plank and a loose, bent corner bracket | the planks splitting apart, splinters and a nail flying |
 | Бочка | iron-bound barrel | a dented hoop and a cracked stave | the staves falling outward, a hoop springing loose |
-| Кістки | bone pile | the skull knocked aside and cracked | the bones scattering, the skull tumbling |
+| Мішок | burlap sack | a rip in the side with a few coins peeking out | the sack tearing open, coins and scraps of cloth flying |
 
 ## П3. Лут і скрині одним рядком
 

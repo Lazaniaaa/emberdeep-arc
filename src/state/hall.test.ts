@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Attestation } from "@/chain/hall-typed";
 import type { RunReport } from "./store";
 
@@ -10,7 +10,7 @@ const arc = vi.hoisted(() => ({
 vi.mock("@/chain/arc", async importOriginal => ({ ...await importOriginal<typeof import("@/chain/arc")>(), ...arc }));
 vi.mock("@/chain/arc-config", async importOriginal => ({
   ...await importOriginal<typeof import("@/chain/arc-config")>(),
-  hallConfig: () => ({ address: "0x0000000000000000000000000000000000000ee1", fromBlock: 0n }),
+  hallConfig: () => ({ address: "0x0000000000000000000000000000000000000ee1" }),
 }));
 vi.mock("@/chain/wallet", async importOriginal => ({
   ...await importOriginal<typeof import("@/chain/wallet")>(),
@@ -30,6 +30,12 @@ const signed = (over: Partial<Attestation["descent"]> = {}): Attestation => ({
   descent: { player: PLAYER, runId: `0x${"12".repeat(32)}`, depth: 4, gold: 300, kills: 5, home: true, bossSlain: false, deadline: "1", ...over },
   signature: "0x00",
 });
+
+// The Hall loads the chain code (viem) on demand. Load it once up front: under a full parallel test run the first load
+// could take longer than one test's 5 seconds, which made the first two tests fail now and then.
+beforeAll(async () => {
+  await import("@/chain/arc");
+}, 60_000);
 
 beforeEach(() => {
   arc.requestAttestation.mockReset();

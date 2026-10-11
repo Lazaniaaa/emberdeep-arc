@@ -51,19 +51,16 @@ const DEFS: Record<PropKind, Def> = {
       return g;
     },
   },
-  bones: {
-    // W is the dark of the eye sockets here: it is not shaded, so it stays flat.
-    palette: { B: "#d9cfb2", L: "#f2ead2", D: "#8d8268", S: "#b8ad92", P: "#e0b070", W: "#241a2a", A: "#e8c070", E: "#ffd23f" },
+  sack: {
+    palette: { B: "#c9a77a", L: "#e6cfa2", D: "#8e6f48", S: "#b5582a", P: "#e0b070", W: "#f1e3c0", A: "#e8c070", E: "#ffd23f" },
     draw: f => {
-      // A skull on two crossed bones.
+      // A tied burlap sack: a round body, a gathered neck and a red cord.
       const g = new Grid();
-      g.line(2, 14, 12, 9, "S").line(2, 9, 12, 14, "S");
-      g.rect(1, 13, 2, 2, "S").rect(1, 8, 2, 2, "S").rect(12, 8, 2, 2, "S").rect(12, 13, 2, 2, "S");
-      g.ell(7.5, 6.6, 3.8, 3.4, "B").rect(5, 9, 5, 2, "B").px(6, 4, "L").px(7, 4, "L").px(5, 5, "L");
-      g.px(6, 7, "W").px(9, 7, "W").px(6, 6, "W").px(9, 6, "W").px(7, 9, "W");
-      g.px(6, 11, "D").px(8, 11, "D");
+      g.ell(8, 10.2, 5.4, 4.6, "B").rect(6, 4, 4, 3, "B").ell(8, 3.2, 2.6, 1.6, "L");
+      g.rect(6, 6, 4, 1, "S").px(10, 7, "S").px(11, 8, "S").px(11, 9, "S");
+      g.px(5, 9, "L").px(6, 8, "L").px(4, 11, "L").rect(5, 14, 6, 1, "D");
       if (f === "b") {
-        g.line(8, 3, 9, 6, "D").line(9, 6, 8, 8, "D").px(4, 4, ".").px(11, 9, ".");
+        g.line(9, 8, 7, 11, "D").line(7, 11, 9, 13, "D").px(12, 12, ".");
       }
       return g;
     },

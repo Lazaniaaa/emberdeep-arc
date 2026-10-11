@@ -243,7 +243,7 @@ const MOB_HEIGHT = {
  * Game sizes of the things to smash and of the loot on the floor, in pixels (the hero is 42, the smallest creature 20).
  * Each stands on one 32-pixel tile.
  */
-export const PROP_HEIGHT = { urn: 20, crate: 20, barrel: 24, bones: 14 };
+export const PROP_HEIGHT = { urn: 20, crate: 20, barrel: 24, sack: 18 };
 /** The loot row, left to right, as art/props/raw/loot.webp shows it. */
 export const LOOT_ORDER = ["gold", "crystal", "oil", "chest", "vault", "hoard"];
 export const LOOT_HEIGHT = { gold: 12, crystal: 16, oil: 16, chest: 18, vault: 22, hoard: 24 };
@@ -252,24 +252,30 @@ const KINDS = {
   heroes: { raw: "art/heroes/raw/", out: "public/heroes/", cols: COLS, rows: ROWS, cellW: CELL_W, cellH: CELL_H, footX: FOOT_X, footY: FOOT_Y, main: false, height: () => FIGURE_H, textureScale: HERO_TEXTURE_SCALE, fixes: FIXES },
   // A mob's cell is wide: its attack (an arrow, a web, a spark) flies ahead of it, to the right.
   mobs: { raw: "art/mobs/raw/", out: "public/mobs/", cols: 4, rows: 1, cellW: 96, cellH: 56, footX: 32, footY: 52, main: true, height: name => MOB_HEIGHT[name] ?? 24, fixes: {} },
-  // A prop: whole, cracked, breaking apart (the flying pieces stay in the cell). art/props/raw/loot.webp is the loot
-  // row instead: six things side by side, each scaled to its own height (see LOOT_ORDER).
+  // A prop: whole, cracked, breaking apart (the flying pieces stay in the cell), or only the whole one while those
+  // frames are not drawn yet (a picture about as wide as it is tall). art/props/raw/loot.webp is the loot row instead:
+  // six things side by side, each scaled to its own height (see LOOT_ORDER). The AI draws a dark magenta contact shadow
+  // under each; the game draws its own, so every shade of magenta is background here.
   props: {
     raw: "art/props/raw/", out: "public/props/", cols: 3, rows: 1, cellW: 48, cellH: 40, footX: 24, footY: 38, main: true,
-    height: name => PROP_HEIGHT[name] ?? 20, fixes: {},
-    variant: name => (name === "loot" ? { cols: LOOT_ORDER.length, perCell: LOOT_ORDER.map(id => LOOT_HEIGHT[id]) } : null),
+    // Twice the creatures' density, like the heroes: the AI draws a prop about 1.4x taller than it stands in the game,
+    // and shrinking it to 1x smeared rims, hoops and holes.
+    height: name => PROP_HEIGHT[name] ?? 20, fixes: {}, textureScale: 2,
+    isBg: (r, g, b) => Math.min(r, b) > 40 && g < 0.45 * Math.min(r, b) && Math.abs(r - b) < 0.35 * Math.max(r, b),
+    variant: (name, w, h) => (name === "loot" ? { cols: LOOT_ORDER.length, perCell: LOOT_ORDER.map(id => LOOT_HEIGHT[id]) } : w < 1.6 * h ? { cols: 1 } : null),
   },
 };
 
 async function rasterize(name, logical, density = 1) {
-  // A variant (the loot row) has its own number of columns and a height for each cell.
-  const variant = logical.variant?.(name) ?? null;
+  const { data, info } = await sharp(logical.raw + name + ".webp").removeAlpha().raw().toBuffer({ resolveWithObject: true });
+  const w = info.width, h = info.height;
+  // A variant (the loot row, a single-frame prop) has its own number of columns and maybe a height for each cell.
+  const variant = logical.variant?.(name, w, h) ?? null;
   const k = { ...logical, cols: variant?.cols ?? logical.cols, cellW: logical.cellW * density, cellH: logical.cellH * density,
     footX: logical.footX * density, footY: logical.footY * density, height: n => logical.height(n) * density };
-  const { data, info } = await sharp(k.raw + name + ".webp").removeAlpha().raw().toBuffer({ resolveWithObject: true });
-  const w = info.width, h = info.height;
+  const background = k.isBg ?? isBg;
   const bg = new Uint8Array(w * h);
-  for (let p = 0; p < w * h; p++) bg[p] = isBg(data[p * 3], data[p * 3 + 1], data[p * 3 + 2]) ? 1 : 0;
+  for (let p = 0; p < w * h; p++) bg[p] = background(data[p * 3], data[p * 3 + 1], data[p * 3 + 2]) ? 1 : 0;
 
   // 8-connected blobs of figure pixels; each blob belongs to the grid cell its centre falls in.
   const label = new Int32Array(w * h).fill(-1);
@@ -322,7 +328,7 @@ async function rasterize(name, logical, density = 1) {
   // One scale for the whole sheet, from the first frame (standing, facing the viewer or to the right).
   const s0 = (body[0].y1 - body[0].y0 + 1) / k.height(name);
   /** Source pixels per game pixel: one scale for the whole sheet, or each cell's own in a variant. */
-  const scaleOf = cell => (variant ? (body[cell].y1 - body[cell].y0 + 1) / (variant.perCell[cell] * density) : s0);
+  const scaleOf = cell => (variant?.perCell ? (body[cell].y1 - body[cell].y0 + 1) / (variant.perCell[cell] * density) : s0);
 
   const sheetW = k.cellW * k.cols;
   const out = Buffer.alloc(sheetW * k.cellH * k.rows * 4);

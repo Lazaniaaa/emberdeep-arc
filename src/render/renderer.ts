@@ -598,7 +598,8 @@ export function drawRun(ctx: CanvasRenderingContext2D, state: RunState, opts: Dr
     ctx.fill();
     ctx.imageSmoothingEnabled = false;
     const frame = prop.hp < prop.maxHp ? "b" : "a";
-    if (!drawCell(ctx, propSheet(prop.kind), propCell(frame), left + TILE / 2, top + TILE - 2)) {
+    const painted = propSheet(prop.kind);
+    if (!drawCell(ctx, painted, propCell(painted, frame), left + TILE / 2, top + TILE - 2)) {
       ctx.drawImage(propCanvas(prop.kind, frame), left, top, TILE, TILE);
     }
     if (prop.hp < prop.maxHp) {
@@ -693,7 +694,10 @@ export function drawRun(ctx: CanvasRenderingContext2D, state: RunState, opts: Dr
       c.drawImage(itemSprite(item, floor.theme), x - 8, y - 8, 16, 16);
       return true;
     },
-    shatter: (c, prop, x, baseY) => drawCell(c, propSheet(prop), propCell("c"), x, baseY),
+    shatter: (c, prop, x, baseY) => {
+      const sheet = propSheet(prop);
+      return drawCell(c, sheet, propCell(sheet, "c"), x, baseY);
+    },
   };
   opts.fx.draw(ctx, opts.time, opts.reducedMotion, art);
 }
