@@ -409,3 +409,27 @@ Make a longer version of the attached 3-frame sprite strip of a [ПРЕДМЕТ]
 6 the pieces lying low on the floor, a fading puff of dust.
 Everything stays inside its own frame. Plain flat magenta background (#FF00FF).
 ```
+
+## Л1. Лоббі як підземний табір (2026-10-13)
+
+Власник: лоббі має виглядати «+- як печера», усі локації (Dungeon Gate і будиночки) лишаються, але в темі; стару схему
+тримати не обов'язково, «можна трохи логічніше розкидати». Тож розкладка нова, за змістом: зайшов знизу з поверхні → табличка
+з поясненнями → вогнище посередині → ворота вниз у глибині. Гра візьме картинку фоном, як карти поверхів
+(`public/maps/depth-0X.webp`), а клітинки будівель, стіни й вода підганяються під неї. Теперішнє лоббі для порівняння:
+`docs/art/lobby-layout-now.png`.
+
+Прикріпи `public/maps/depth-01.webp` (стиль печери):
+
+```
+Top-down pixel-art game map (seen from above at a slight angle), the same style, palette and pixel density as the attached cave floor. Wide 3:2 landscape, the whole map in frame, no text, no labels, no UI, no characters.
+
+The place: Emberdeep Camp, a lit camp inside a huge underground cavern, the last safe place before the descent. Dark rough rock walls all around, glowing cyan crystal clusters, a dark underground pool or two, patches of glowing moss and pink mushrooms, worn stone-slab paths linking everything.
+
+Layout, from the bottom to the top, the way a visitor walks:
+- bottom centre: a narrow tunnel coming in from the surface, with daylight-blue light at its mouth; right beside it, Welcome Board: a wooden signpost with a glowing cyan question-mark sign;
+- centre: a round stone plaza with a big campfire, the heart of the camp, with room to walk around it;
+- left side, the quiet mystic corner among crystals: Ember Altar (a stone altar with a floating magenta ember crystal) and, near it, Hall of Delvers (a small stone shrine with a crowned statue and trophy plaques, lavender glow);
+- right side, the trade corner: Armory (a small blacksmith's stall with an anvil, a weapon rack and a glowing forge), and near it Vault (a heavy round gold-trimmed vault door set into a boulder) and Draw Board (a wooden notice board with pinned tickets and a small prize wheel);
+- top centre, at the back of the cavern, the deepest point: Dungeon Gate, a big stone arch carved into the rock wall, stairs going down into darkness, a lime-green glow inside, a torch on each side, a wide path leading up to it from the plaza.
+Each building is about two map squares wide, faces the viewer, stands in its own small open space and is easy to tell apart by its own colour of glow. Warm firelight in the middle, the edges of the cavern darker.
+```
