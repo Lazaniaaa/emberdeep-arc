@@ -7,6 +7,17 @@ set -euo pipefail
 HALL_ADDRESS="${1:-}"
 export DEBIAN_FRONTEND=noninteractive
 
+# A fresh server is still running server-setup.sh (cloud-init) for a few minutes: wait for it, so apt is free and
+# Caddy is installed before the /api route is added.
+if command -v cloud-init >/dev/null 2>&1; then
+	echo "Waiting for the server's first-boot setup to finish..."
+	cloud-init status --wait >/dev/null 2>&1 || true
+fi
+if [ ! -f /etc/caddy/Caddyfile ]; then
+	echo "Caddy is not installed: run deploy/server-setup.sh on this server first." >&2
+	exit 1
+fi
+
 # Node 18 or newer. Ubuntu 24.04's own package is 18.
 if ! command -v node >/dev/null 2>&1 || [ "$(node -p 'process.versions.node.split(".")[0]')" -lt 18 ]; then
 	apt-get update
