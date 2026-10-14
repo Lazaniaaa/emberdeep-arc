@@ -25,3 +25,18 @@ export const ART_DOORWAYS: Record<number, DoorwayPatch[]> = {
     { x: 17, y: 7, w: 3, h: 2, sample: { x: 15, y: 10 } },
   ],
 };
+
+/**
+ * Painted details the delver would walk straight through, covered with floor copied from a clear spot: a rectangle in the
+ * painting's own pixels and where to copy it from. Floors are drawn on a 32 px grid, so a copy one tile away keeps the
+ * pattern of the slabs.
+ */
+export type ArtPatch = { x: number; y: number; w: number; h: number; from: Point };
+
+export const ART_PATCHES: Record<number, ArtPatch[]> = {
+  // Floor 1: the thin stone door frames across both ends of the corridor (owner, 2026-10-14: "better remove the arch").
+  1: [
+    { x: 336, y: 303, w: 27, h: 73, from: { x: 368, y: 303 } },
+    { x: 654, y: 303, w: 25, h: 73, from: { x: 622, y: 303 } },
+  ],
+};

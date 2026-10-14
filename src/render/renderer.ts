@@ -1,7 +1,7 @@
 import { footprint, hasFloorDecor, idx, tileHash, visibleSet, type Dimling, type FloorTheme, type Point } from "@/game/dungeon";
 import { attackTiles, windupProgress } from "@/game/enemy-ai";
 import { DEFAULT_SPECIES } from "@/game/enemies";
-import { ART_DOORWAYS } from "@/game/map-art";
+import { ART_DOORWAYS, ART_PATCHES } from "@/game/map-art";
 import { currentRadius, propsOf, type RunState } from "@/game/run";
 import { CreatureAnimator, restPose, type Pose } from "./creature-anim";
 import type { FxArt, FxQueue } from "./fx";
@@ -147,6 +147,11 @@ function mapArtwork(depth: number, width: number, height: number) {
   const drawW = Math.round(image.naturalWidth * scale);
   const drawH = Math.round(image.naturalHeight * scale);
   ctx.drawImage(image, Math.floor((canvas.width - drawW) / 2), Math.floor((canvas.height - drawH) / 2), drawW, drawH);
+  const ox = Math.floor((canvas.width - drawW) / 2), oy = Math.floor((canvas.height - drawH) / 2);
+  for (const p of ART_PATCHES[depth] ?? []) {
+    const at = (v: number) => Math.round(v * scale);
+    ctx.drawImage(canvas, ox + at(p.from.x), oy + at(p.from.y), at(p.w), at(p.h), ox + at(p.x), oy + at(p.y), at(p.w), at(p.h));
+  }
 
   for (const door of ART_DOORWAYS[depth] ?? []) {
     for (let y = door.y; y < door.y + door.h; y++) {

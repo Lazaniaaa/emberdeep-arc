@@ -114,12 +114,16 @@ describe("props on a floor", () => {
     }
   });
 
-  it("never stand on a stone or bones drawn into the floor, so nothing is left where one broke", () => {
+  it("never stand on a stone or bones drawn into the floor, nor beside the stairs or the rift", () => {
     let props = 0;
     for (let depth = 1; depth <= 7; depth++) {
       for (let seed = 1; seed <= 10; seed++) {
         const floor = generateFloor(createRng(seed * 53 + depth), depth, { findPct: 0 });
         for (const p of floor.props) expect(hasFloorDecor(p.x, p.y), `${depth}/${seed} ${p.kind}`).toBe(false);
+        // Nor beside the stairs or the rift: two tiles clear, diagonals included.
+        for (const p of floor.props) for (const exit of [floor.stairs, floor.spawn]) {
+          expect(Math.max(Math.abs(p.x - exit.x), Math.abs(p.y - exit.y)), `${depth}/${seed} ${p.kind} by an exit`).toBeGreaterThan(2);
+        }
         props += floor.props.length;
       }
     }

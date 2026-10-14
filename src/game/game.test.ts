@@ -156,16 +156,21 @@ describe("dungeon", () => {
     expect(arena.tiles[idx(arena, 13, 15)]).toBe(0);
   });
 
-  it("keeps the existing guaranteed pickups and enemies placeable on every layout", () => {
+  it("hides every guaranteed pile of gold, crystals and oil in a prop, and keeps the enemies placeable on every layout", () => {
     for (let depth = 1; depth <= 12; depth++) {
       // A bigger floor holds proportionally more of everything.
       const scaled = (n: number) => Math.round(n * floorScale(depth));
-      const guaranteedItems = scaled(6 + depth) + scaled(3 + Math.floor(depth / 2))
-        + scaled(Math.max(1, 3 - Math.floor(depth / 3))) + 1;
+      const piles = { gold: scaled(6 + depth), crystals: scaled(3 + Math.floor(depth / 2)), oil: scaled(Math.max(1, 3 - Math.floor(depth / 3))) };
       for (let seed = 1; seed <= 20; seed++) {
         const floor = generateFloor(createRng(seed * 101 + depth), depth, { findPct: 0 });
         const cells = floor.tiles.filter(t => t === 1).length;
-        expect(floor.items.length).toBeGreaterThanOrEqual(guaranteedItems);
+        // Nothing of the kind lies on the floor (there are props to hold it), and the props hold all of it.
+        expect(floor.props.length).toBeGreaterThan(0);
+        expect(floor.items.filter(i => i.kind === "gold" || i.kind === "crystal" || i.kind === "oil")).toEqual([]);
+        for (const kind of ["gold", "crystals", "oil"] as const) {
+          expect(floor.props.reduce((n, p) => n + (p.stash?.[kind] ?? 0), 0), `${depth}/${seed} ${kind}`).toBe(piles[kind]);
+        }
+        expect(floor.items.some(i => i.kind === "chest")).toBe(true);
         expect(floor.dimlings).toHaveLength(Math.min(enemyCount(depth), Math.floor(cells / 12)));
       }
     }
@@ -453,6 +458,7 @@ describe("cerberus", () => {
     const turnsToReach = (isBoss: boolean, seed: number) => {
       const s0 = bossFight({ seed, weaponDamage: 8 });
       s0.light = 5_000;
+      s0.floor.props = [];
       s0.floor.dimlings = [{ id: 1, x: s0.floor.stairs.x, y: s0.floor.stairs.y + 6, hp: 40, maxHp: 40, awake: true, boss: isBoss || undefined }];
       let s = s0;
       let turns = 0;
@@ -588,8 +594,9 @@ describe("balance", () => {
   it("keeps the two bots close, so the fog bot is a fair stand-in for the perfect one", { timeout: 60_000 }, () => {
     const omni = simulateMany(40, 2).goldPerCent;
     const fog = simulateFogMany(40, 2).goldPerCent;
-    // The fog bot sees less, so it is a little behind the perfect one; 40 runs each leave a few points of noise.
-    expect(Math.abs(omni - fog) / omni).toBeLessThan(0.18);
+    // The fog bot sees less, so it is behind the perfect one; 40 runs each leave a few points of noise. Since the floor's
+    // gold, crystals and oil are hidden in props (2026-10-14), knowing where every prop stands is worth more: about 27%.
+    expect(Math.abs(omni - fog) / omni).toBeLessThan(0.33);
   });
 
   it("sets the simulated crowd's rate a little below what the mixed crowd of bots banks, since people make mistakes", { timeout: 120_000 }, () => {

@@ -74,7 +74,8 @@ them and the blow drinks your light. Bump into a creature to attack it; your wea
 takes. Kills drop a little gold, some experience and sometimes oil (35% with a full lantern, up to 80% when it is nearly out; 5-10 light).
 
 **Smash things.** Urns, crates, barrels and, from floor 2, old sacks stand in the rooms (about seven a floor, and never
-where they would shut a route). Walk into one to hit it: an urn or a sack breaks at the first blow, a crate or a barrel cracks and breaks
+where they would shut a route, nor beside the stairs or the rift). Gold, crystals and oil never just lie on the floor:
+a floor's piles are hidden in its props, mostly one kind to a prop, and creatures drop the rest. Walk into one to hit it: an urn or a sack breaks at the first blow, a crate or a barrel cracks and breaks
 at the second, whatever your weapon. A blow (at a prop or a creature) costs a turn but no light; only steps burn it. Something always falls out and you see it hop out: **one kind of loot, sometimes two** (gold, **oil** or
 crystals), plus experience, and from crates, barrels and sacks now and then a piece of **gear**. The emptier your
 lantern, the likelier the loot is oil. A Clay Urn sometimes gives two kinds, a Wooden Crate often

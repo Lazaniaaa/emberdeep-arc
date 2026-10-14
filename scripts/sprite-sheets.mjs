@@ -243,7 +243,7 @@ const MOB_HEIGHT = {
  * Game sizes of the things to smash and of the loot on the floor, in pixels (the hero is 42, the smallest creature 20).
  * Each stands on one 32-pixel tile.
  */
-export const PROP_HEIGHT = { urn: 20, crate: 20, barrel: 24, sack: 18 };
+export const PROP_HEIGHT = { urn: 28, crate: 27, barrel: 30, sack: 26 };
 /**
  * Frames in each prop's picture when it is not one per square (the AI drew the 6-frame urn on a 3:1 canvas). Without an
  * entry the count is the picture's width over its height, rounded.
@@ -264,13 +264,13 @@ const KINDS = {
   // six things side by side, each scaled to its own height (see LOOT_ORDER). The AI draws a dark magenta contact shadow
   // under each; the game draws its own, so every shade of magenta is background here.
   props: {
-    raw: "art/props/raw/", out: "public/props/", cols: 3, rows: 1, cellW: 48, cellH: 40, footX: 24, footY: 35, main: false, sameBaseline: true,
+    raw: "art/props/raw/", out: "public/props/", cols: 3, rows: 1, cellW: 56, cellH: 48, footX: 28, footY: 43, main: false, sameBaseline: true,
     // Twice the creatures' density, like the heroes: the AI draws a prop about 1.4x taller than it stands in the game,
     // and shrinking it to 1x smeared rims, hoops and holes.
     height: name => PROP_HEIGHT[name] ?? 20, fixes: {}, textureScale: 2,
     // Dust, smoke and edges the AI tinted with the magenta background turn grey; wood, metal, clay and crystal are never
     // pink. Which columns of the sheet: all but the Sealed Vault's, whose rune is purple.
-    untint: name => (x => name !== "loot" || Math.floor(x / 96) !== LOOT_ORDER.indexOf("vault")),
+    untint: name => (x => name !== "loot" || Math.floor(x / (56 * 2)) !== LOOT_ORDER.indexOf("vault")),
     // The background's blue and red stay within about 12 of each other; the vault's purple rune has 30 more blue, so the
     // loot row takes only that as background.
     isBg: (r, g, b, name) => Math.min(r, b) > 40 && g < 0.45 * Math.min(r, b) && Math.abs(r - b) < 0.35 * Math.max(r, b)

@@ -26,7 +26,12 @@ export type ItemKind = "gold" | "crystal" | "oil" | "chest" | "vault" | "hoard";
 export type Item = Point & { id: number; kind: ItemKind };
 
 /** Something to smash (see props.ts). It fills its tile until it breaks. */
-export type Prop = Point & { id: number; kind: PropKind; hp: number; maxHp: number };
+/**
+ * What a floor used to leave lying about, hidden in a prop instead (owner, 2026-10-14: "resources should not just lie
+ * around"): piles of gold, crystals and oil jars, each worth what one on the floor was worth.
+ */
+export type Stash = { gold: number; crystals: number; oil: number };
+export type Prop = Point & { id: number; kind: PropKind; hp: number; maxHp: number; stash?: Stash };
 
 export type DimlingPhase = "idle" | "windup" | "recovery";
 
@@ -380,9 +385,12 @@ export function generateFloor(rng: Rng, depth: number, options: FloorOptions): F
   const find = 1 + options.findPct / 100;
   const scale = floorScale(depth);
   const count = (base: number) => Math.round(base * scale);
-  for (let i = 0; i < count(6 + depth); i++) addItem("gold");
-  for (let i = 0; i < count(3 + Math.floor(depth / 2)); i++) addItem("crystal");
-  for (let i = 0; i < Math.round(count(Math.max(1, 3 - Math.floor(depth / 3))) * tuning.oilJarCount); i++) addItem("oil");
+  // Gold, crystals and oil no longer lie on the floor: the same piles are hidden in the props (see the end).
+  const piles: Stash = {
+    gold: count(6 + depth),
+    crystals: count(3 + Math.floor(depth / 2)),
+    oil: Math.round(count(Math.max(1, 3 - Math.floor(depth / 3))) * tuning.oilJarCount),
+  };
   addItem("chest", 6);
   if (chance(rng, Math.min(0.9, 0.4 * find))) addItem("chest", 6);
   if (scale > 1 && chance(rng, Math.min(0.9, 0.4 * find))) addItem("chest", 6);
@@ -442,7 +450,9 @@ export function generateFloor(rng: Rng, depth: number, options: FloorOptions): F
       const c = place(2);
       if (!c) return;
       const k = at(c.x, c.y);
-      const nearExit = manhattan(c, spawn) < 2 || manhattan(c, stairs) < 2;
+      // The painted stairwell and rift are about two tiles across: keep props two tiles clear of them, diagonals included.
+      const near = (p: Point) => Math.max(Math.abs(c.x - p.x), Math.abs(c.y - p.y)) <= 2;
+      const nearExit = near(spawn) || near(stairs);
       const blocked = new Set(propTiles).add(k);
       if (nearExit || hasFloorDecor(c.x, c.y) || reachable(blocked) !== cells.length - blocked.size) { taken.delete(k); continue; }
       propTiles.add(k);
@@ -454,7 +464,41 @@ export function generateFloor(rng: Rng, depth: number, options: FloorOptions): F
   for (const def of PROPS) {
     for (let i = 0; i < count(counts[def.id]); i++) placeProp(def.id);
   }
+  hidePiles(rng, floor.props, piles, kind => addItem(kind));
   return floor;
+}
+
+/**
+ * Hides each pile in a prop. Every prop is given one kind first, in proportion to how many piles of each kind there are
+ * (each kind with piles gets at least one prop while props last), then the piles are dealt round its props. With fewer
+ * props than kinds the rest share; with no prop at all the piles lie on the floor as before.
+ */
+function hidePiles(rng: Rng, props: Prop[], piles: Stash, onFloor: (kind: "gold" | "crystal" | "oil") => void) {
+  const kinds = (["gold", "crystals", "oil"] as const).filter(k => piles[k] > 0);
+  if (!props.length) {
+    for (const k of kinds) for (let n = 0; n < piles[k]; n++) onFloor(k === "crystals" ? "crystal" : k);
+    return;
+  }
+  const order = [...props];
+  for (let i = order.length - 1; i > 0; i--) {
+    const j = int(rng, 0, i);
+    [order[i], order[j]] = [order[j], order[i]];
+  }
+  const total = kinds.reduce((n, k) => n + piles[k], 0);
+  // How many props each kind gets: at least one, then by share, the largest share taking what rounding leaves.
+  const share = Object.fromEntries(kinds.map(k => [k, Math.max(1, Math.round(order.length * piles[k] / total))])) as Record<(typeof kinds)[number], number>;
+  const biggest = kinds.reduce((a, b) => (piles[b] > piles[a] ? b : a), kinds[0]);
+  share[biggest] = Math.max(1, share[biggest] + order.length - kinds.reduce((n, k) => n + share[k], 0));
+  let next = 0;
+  for (const k of kinds) {
+    const mine = [];
+    for (let n = 0; n < share[k]; n++) mine.push(order[(next++) % order.length]);
+    for (let n = 0; n < piles[k]; n++) {
+      const prop = mine[n % mine.length];
+      prop.stash ??= { gold: 0, crystals: 0, oil: 0 };
+      prop.stash[k]++;
+    }
+  }
 }
 
 /** Bresenham line of sight; walls block, the endpoint itself may be a wall. */

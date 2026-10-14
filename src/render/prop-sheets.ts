@@ -9,8 +9,8 @@ import { loadSheet, type Sheet } from "./sheets";
  * at twice the game's pixel density (like the heroes), so a PNG cell is 96 x 80. A prop's strip holds 1, 3 or 6 frames
  * (see stagesOf). Until a sheet exists (or while it loads) the game draws the code sprites.
  */
-export const PROP_CELL_W = 48, PROP_CELL_H = 40;
-export const PROP_FOOT_X = 24, PROP_FOOT_Y = 35;
+export const PROP_CELL_W = 56, PROP_CELL_H = 48;
+export const PROP_FOOT_X = 28, PROP_FOOT_Y = 43;
 
 /** The loot row's order, the same as LOOT_ORDER in scripts/sprite-sheets.mjs. */
 export const LOOT_ORDER: readonly ItemKind[] = ["gold", "crystal", "oil", "chest", "vault", "hoard"];

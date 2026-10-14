@@ -243,6 +243,12 @@ function gainXp(state: RunState, amount: number) {
  * One blow at a prop. When it breaks, one kind of loot falls out (gold, oil or crystals; oil likelier the lower the
  * lantern), sometimes two, with a little experience and, from crates and barrels, now and then a piece of gear.
  */
+/**
+ * Gold in one pile of a prop's stash. A pile on the floor held 3-8; packed into props it is reached in fewer steps, so a
+ * pile holds a little less to keep the gold a descent earns per cent where it was (`npm test`, the crowd rate).
+ */
+export const STASH_GOLD: readonly [number, number] = [2, 6];
+
 function smash(state: RunState, prop: Prop) {
   const def = propDef(prop.kind);
   // Every blow counts one, whatever the weapon; a pickaxe splits anything at once.
@@ -261,24 +267,28 @@ function smash(state: RunState, prop: Prop) {
 
   const weights = lootWeights(def, state.light, state.startLight);
   const kinds: LootKind[] = [weighted(rng, weights)];
-  if (chance(rng, def.second)) kinds.push(weighted(rng, { ...weights, [kinds[0]]: 0 }));
+  // A prop with a stash already gives a second kind often enough; only an empty one may roll another.
+  if (!prop.stash && chance(rng, def.second)) kinds.push(weighted(rng, { ...weights, [kinds[0]]: 0 }));
   for (const kind of kinds) {
-    if (kind === "gold") {
-      drop.gold = loot(state, int(rng, def.gold[0], def.gold[1]), "gold");
-      state.gold += drop.gold;
-      parts.push(`+${drop.gold} gold`);
-    } else if (kind === "crystal") {
-      drop.crystals = loot(state, int(rng, def.crystals[0], def.crystals[1]), "crystal");
-      state.crystals += drop.crystals;
-      state.events.push("crystal");
-      parts.push(`+${drop.crystals} crystal${drop.crystals === 1 ? "" : "s"}`);
-    } else {
-      drop.light = dropped(int(rng, def.oil[0], def.oil[1]));
-      state.light += drop.light;
-      noteLight("props", drop.light, state.depth);
-      state.events.push("oil");
-      parts.push(`+${drop.light} light`);
-    }
+    if (kind === "gold") drop.gold += loot(state, int(rng, def.gold[0], def.gold[1]), "gold");
+    else if (kind === "crystal") drop.crystals += loot(state, int(rng, def.crystals[0], def.crystals[1]), "crystal");
+    else drop.light += dropped(int(rng, def.oil[0], def.oil[1]));
+  }
+  // The piles hidden in it, each worth what one lying on the floor was, with its chance of a ticket.
+  const stash = prop.stash;
+  if (stash) {
+    for (let i = 0; i < stash.gold; i++) { drop.gold += loot(state, int(rng, STASH_GOLD[0], STASH_GOLD[1]), "gold"); rollTicket(state); }
+    for (let i = 0; i < stash.crystals; i++) { drop.crystals += loot(state, int(rng, 1, 3), "crystal"); rollTicket(state); }
+    for (let i = 0; i < stash.oil; i++) drop.light += dropped(tuning.oilJarLight);
+  }
+  if (drop.gold) { state.gold += drop.gold; parts.push(`+${drop.gold} gold`); }
+  if (drop.crystals) {
+    state.crystals += drop.crystals; state.events.push("crystal");
+    parts.push(`+${drop.crystals} crystal${drop.crystals === 1 ? "" : "s"}`);
+  }
+  if (drop.light) {
+    state.light += drop.light; noteLight("props", drop.light, state.depth); state.events.push("oil");
+    parts.push(`+${drop.light} light`);
   }
 
   let xp = int(rng, def.xp[0], def.xp[1]);
