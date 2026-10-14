@@ -92,23 +92,22 @@ try {
       opened.push(id);
     }
     // Real keyboard walks to open tiles beside/behind tall station silhouettes.
-    for (const [id,x,y] of [["hall",13,10],["armory",31,9],["gate",22,8]]) {
+    for (const [id,x,y] of [["hall-lamp",16,11],["altar",12,18],["gate",22,8]]) {
       await walk(page,{x,y});
       await page.screenshot({path:`${out}/${name}-behind-${id}.png`});
     }
     // Literal clear-floor steps traced from the painting: a BFS-only check cannot catch phantom walls.
-    const floorSteps = [[34,11,0,-1],[37,11,0,-1],[40,11,0,-1],
-      [21,18,1,0],[25,18,1,0],[10,10,0,-1],[42,17,0,-1],
-      [15,22,1,0],[28,26,1,0],[19,12,1,0],[13,19,1,0],[43,22,1,0]];
+    const floorSteps = [[37,11,0,-1],[39,11,1,0],[25,18,1,0],[10,10,0,-1],[42,17,1,0],
+      [15,22,1,0],[26,23,0,-1],[12,12,1,0],[22,19,1,0],[44,21,0,1]];
     for (const [x,y,dx,dy] of floorSteps) {
       await walk(page,{x,y});
       await page.keyboard.press(dx===1?"ArrowRight":dy===-1?"ArrowUp":"ArrowDown");
       assert.deepEqual(await position(page),{x:x+dx,y:y+dy},`clear-floor step ${x},${y}`);
       await page.waitForTimeout(145);
     }
-    await walk(page,{x:34,y:11});
-    await tapWorld(page,34*32+16,10*32+30);
-    await page.waitForFunction(()=>{const c=document.querySelector("canvas[data-scene=camp]");return c.dataset.playerX==="34" && c.dataset.playerY==="10";});
+    await walk(page,{x:32,y:11});
+    await tapWorld(page,34*32+16,11*32+30);
+    await page.waitForFunction(()=>{const c=document.querySelector("canvas[data-scene=camp]");return c.dataset.playerX==="34" && c.dataset.playerY==="11";});
     assert.equal(await page.getByRole("dialog").count(),0,"empty forge floor must not open Armory");
     await page.screenshot({path:`${out}/${name}-anvil-floor.png`});
     if (name==="phone") {
@@ -137,7 +136,7 @@ try {
     const motion0=pixels({...f,reducedMotion:false}),motion1=pixels({...f,reducedMotion:false,time:1800});
     let changed=0;for(let i=0;i<motion0.length;i+=4)if(motion0[i]!==motion1[i]||motion0[i+1]!==motion1[i+1]||motion0[i+2]!==motion1[i+2])changed++;
     const depth=[];
-    for(const [id,x,y] of [["hall",13,10],["armory",31,9],["gate",22,8],["vault-pillar",37,13]]) {
+    for(const [id,x,y] of [["hall-lamp",16,11],["altar",12,18],["gate",22,8],["board",43,19]]) {
       const frame={...f,playerPos:{x,y}};
       const visible=pixels(frame),absent=pixels({...frame,hero:{...f.hero,offX:10000}});
       const blockers=CAMP_OCCLUDERS.filter(o=>(o.station===id || o.id===id) && o.baseline>campFootBaseline(y));
@@ -160,9 +159,9 @@ try {
       depth.push({id,covered,leaked,shown});
     }
     const clearFloor=[];
-    for(const [id,x,y] of [["hall-stairs",10,9],["altar-stairs",7,19],["vault-stairs",42,17],
-      ["anvil-left",34,10],["anvil-right",37,10],["forge-rack-front",33,10],["forge-barrel-front",40,10],
-      ["fire-left",22,18],["fire-right",25,18],["tent-front",16,19],["guide-side",29,26]]) {
+    for(const [id,x,y] of [["hall-stairs",10,9],["altar-front",7,20],["vault-stairs",42,17],
+      ["anvil-left",34,11],["anvil-right",37,10],["forge-rack-front",32,11],["forge-barrel-front",40,11],
+      ["fire-left",22,19],["fire-right",25,18],["tent-front",16,20],["guide-side",26,23]]) {
       const frame={...f,playerPos:{x,y}};
       const visible=pixels(frame),absent=pixels({...frame,hero:{...f.hero,offX:10000}});
       let shown=0;

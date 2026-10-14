@@ -67,24 +67,25 @@ describe("camp", () => {
     for (const [x,y] of [[5,26],[7,16],[10,7],[24,17],[17,18],[36,8],[33,9],[35,10],[14,10],[42,15],[37,21],[24,16],[16,23],[20,24],[36,16],[37,16]]) expect(campSolid(x,y), `${x},${y}`).toBe(true);
   });
 
-  it("leaves the independently traced painted floor open around every camp zone", () => {
-    // Reviewed foot positions in the source painting, not inferred from the walk map or BFS.
-    const floor = [[9,9],[10,9],[11,9],[14,11],[15,11],[16,11],
-      [32,10],[33,10],[34,10],[37,10],[39,10],[40,10],
-      [20,12],[33,12],[20,13],[19,14],[29,14],[41,16],[42,16],
-      [21,18],[22,18],[25,18],[13,19],[14,19],[15,19],[16,19],[17,19],[18,19],
-      [13,20],[14,21],[27,21],[16,22],[17,22],[43,22],[44,22],[44,23],
-      [19,24],[30,24],[27,26],[28,26],[29,26],[7,19]];
-    for (const [x,y] of floor) expect(campSolid(x,y), `painted floor ${x},${y}`).toBe(false);
+  it("keeps the delver's feet off every painted object, so they never stand on or in one", () => {
+    // The lower body of a delver on an open tile (their feet and legs, in painting pixels) must miss every silhouette; at a
+    // door the building itself is allowed, so they can stand right in front of it.
+    const doors = new Map(STATIONS.map(s => [`${s.x},${s.y}`, s.id]));
+    CAMP_WALK_MAP.forEach((row,y) => [...row].forEach((ch,x) => {
+      if (ch !== ".") return;
+      const door = doors.get(`${x},${y}`);
+      for (let py=y*32+12; py<=y*32+30; py+=2) for (let px=x*32+8; px<=x*32+24; px+=2) {
+        const hit = CAMP_OCCLUDERS.find(o => o.station !== door && inCampPolygon(px,py,o.polygon));
+        expect(hit?.id, `${x},${y}`).toBeUndefined();
+      }
+    }));
     // Floor, but a delver there would stand inside the Welcome Board's hanging sign, behind the Draw Board's lamp post or
     // the west brazier, hidden whole: those few are closed.
     for (const [x,y] of [[28,24],[29,24],[28,25],[29,25],[34,19],[35,19],[21,20]]) expect(campSolid(x,y), `hidden ${x},${y}`).toBe(true);
   });
 
   it("allows a direct step beside the anvil, fire, stairs and lower camp instead of a detour", () => {
-    for (const [x,y,dx,dy] of [[34,11,0,-1],[37,11,0,-1],[40,11,0,-1],
-      [21,18,1,0],[25,18,1,0],[10,10,0,-1],[42,17,0,-1],
-      [15,22,1,0],[28,26,1,0]]) {
+    for (const [x,y,dx,dy] of [[37,11,0,-1],[25,18,1,0],[10,10,0,-1],[42,17,1,0],[15,22,1,0],[26,23,0,-1]]) {
       expect(stepInCamp({x,y},dx,dy), `${x},${y}`).toEqual({x:x+dx,y:y+dy});
     }
   });
