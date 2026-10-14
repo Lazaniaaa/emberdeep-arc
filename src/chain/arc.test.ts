@@ -4,7 +4,7 @@ import {
   buildLeaderboard, explainArcError, HALL_ABI, readHall, recordOnArc, requestAttestation, STANDINGS_PAGE, switchToArc,
   type Standing,
 } from "./arc";
-import { ARC_RPCS, hallConfig } from "./arc-config";
+import { ARC_CHAIN_ID, ARC_RPCS, hallConfig } from "./arc-config";
 import type { Eip1193 } from "./wallet";
 import { fromWire, type Attestation } from "./hall-typed";
 
@@ -211,7 +211,8 @@ describe("explainArcError", () => {
 });
 
 describe("hallConfig", () => {
-  it("is off until the Hall is deployed", () => {
-    expect(hallConfig()).toBeNull();
+  it("points at the Hall deployed on Arc mainnet", () => {
+    expect(ARC_CHAIN_ID).toBe(5042);
+    expect(hallConfig()).toEqual({ address: "0x0b03e2c77fee4edac4c51a5be04df7175d7b423a" });
   });
 });

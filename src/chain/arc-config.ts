@@ -29,8 +29,11 @@ export const ARC_EXPLORER = ARC_NETWORK.explorer;
 
 export type HallConfig = { address: `0x${string}` };
 
-/** The deployed Hall. Null until it is deployed on Arc mainnet; the game then shows nothing about Arc. */
-const DEPLOYED: HallConfig | null = null;
+/**
+ * The deployed Hall on Arc mainnet: deployed 2026-10-14 at block 25966250, signer 0x8973…55Cd (the key lives on the
+ * game's server). A testnet rehearsal has no deployed Hall; it sets `VITE_ARC_HALL_ADDRESS`.
+ */
+const DEPLOYED: HallConfig | null = ARC_NETWORK === ARC_NETWORKS.mainnet ? { address: "0x0b03e2c77fee4edac4c51a5be04df7175d7b423a" } : null;
 
 const ADDRESS = /^0x[\da-fA-F]{40}$/;
 
