@@ -255,7 +255,7 @@ export const LOOT_HEIGHT = { gold: 12, crystal: 16, oil: 16, chest: 18, vault: 1
 
 /** The camp's buildings, left to right as art/lobby/sprites/buildings.webp shows them, and each one's height in the game. */
 export const BUILDING_ORDER = ["gate", "hall", "altar", "armory", "ledger", "board", "guide"];
-export const BUILDING_HEIGHT = { gate: 186, hall: 150, altar: 150, armory: 156, ledger: 156, board: 128, guide: 74 };
+export const BUILDING_HEIGHT = { gate: 168, hall: 151, altar: 143, armory: 151, ledger: 159, board: 129, guide: 84 };
 /** The camp's furniture, as art/lobby/sprites/furniture.webp shows it, and each piece's height in the game. */
 export const FURNITURE_ORDER = ["fire", "bench", "crate", "crates", "barrel", "chair", "tent"];
 export const FURNITURE_HEIGHT = { fire: 90, bench: 34, crate: 30, crates: 46, barrel: 34, chair: 38, tent: 104 };

@@ -61,7 +61,7 @@ export type CampSprite = (typeof CAMP_SHEETS)[CampSheet][number];
 export const CAMP_CELL_W = 224, CAMP_CELL_H = 208, CAMP_FOOT_X = 112, CAMP_FOOT_Y = 200;
 /** How tall each sprite stands, in pixels (the script's BUILDING_HEIGHT, FURNITURE_HEIGHT, DECOR_HEIGHT). */
 export const CAMP_SPRITE_HEIGHT: Record<CampSprite, number> = {
-  gate: 186, hall: 150, altar: 150, armory: 156, ledger: 156, board: 128, guide: 74,
+  gate: 168, hall: 151, altar: 143, armory: 151, ledger: 159, board: 129, guide: 84,
   fire: 90, bench: 34, crate: 30, crates: 46, barrel: 34, chair: 38, tent: 104,
   banner: 64, lamp: 72, brazier: 46, crystal: 42, mushrooms: 24, boulder: 38, stalagmite: 60,
 };
@@ -72,21 +72,23 @@ export const cellOf = (sprite: CampSprite) => (CAMP_SHEETS[sheetOf(sprite)] as r
 
 /**
  * Something standing in the camp: a sprite on solid tiles (x, y, w, h). It is drawn with its foot at the middle of the
- * footprint's bottom edge, or at `footX` (pixels) when the painted pad is not centred on whole tiles.
+ * footprint's bottom edge, or at `footX`, `footY` (pixels): a building stands on the bottom edge of its painted pad,
+ * which is not on whole tiles.
  */
-export type CampObject = { id: string; sprite: CampSprite; x: number; y: number; w: number; h: number; footX?: number; station?: StationId };
+export type CampObject = { id: string; sprite: CampSprite; x: number; y: number; w: number; h: number; footX?: number; footY?: number; station?: StationId };
 
 const one = (id: string, sprite: CampSprite, x: number, y: number): CampObject => ({ id, sprite, x, y, w: 1, h: 1 });
 
 export const CAMP_OBJECTS: readonly CampObject[] = [
-  // The seven buildings, each on its paved square (see art/lobby/ground-v2-grid.png).
-  { id: "gate", sprite: "gate", x: 21, y: 3, w: 6, h: 4, footX: 768, station: "gate" },
-  { id: "hall", sprite: "hall", x: 9, y: 7, w: 5, h: 4, footX: 354, station: "hall" },
-  { id: "altar", sprite: "altar", x: 4, y: 13, w: 5, h: 5, footX: 192, station: "altar" },
-  { id: "armory", sprite: "armory", x: 34, y: 7, w: 6, h: 4, footX: 1181, station: "armory" },
-  { id: "ledger", sprite: "ledger", x: 40, y: 13, w: 5, h: 5, footX: 1344, station: "ledger" },
-  { id: "board", sprite: "board", x: 34, y: 20, w: 6, h: 4, footX: 1183, station: "board" },
-  { id: "guide", sprite: "guide", x: 26, y: 22, w: 2, h: 2, footX: 848, station: "guide" },
+  // The seven buildings, each covering its paved square: as wide as it, standing on its bottom edge (pixels measured on
+  // art/lobby/ground-v2-grid.png). Drawn from the front, so their bases line up with the square grid.
+  { id: "gate", sprite: "gate", x: 21, y: 3, w: 6, h: 4, footX: 768, footY: 212, station: "gate" },
+  { id: "hall", sprite: "hall", x: 9, y: 7, w: 5, h: 4, footX: 354, footY: 340, station: "hall" },
+  { id: "altar", sprite: "altar", x: 4, y: 13, w: 5, h: 5, footX: 192, footY: 566, station: "altar" },
+  { id: "armory", sprite: "armory", x: 34, y: 7, w: 6, h: 4, footX: 1180, footY: 340, station: "armory" },
+  { id: "ledger", sprite: "ledger", x: 40, y: 13, w: 5, h: 5, footX: 1344, footY: 566, station: "ledger" },
+  { id: "board", sprite: "board", x: 34, y: 20, w: 6, h: 4, footX: 1182, footY: 756, station: "board" },
+  { id: "guide", sprite: "guide", x: 26, y: 22, w: 2, h: 2, footX: 852, footY: 768, station: "guide" },
   // The plaza: the fire in the middle, benches in its four corners, lamps at the paths' corners.
   { id: "fire", sprite: "fire", x: 23, y: 14, w: 3, h: 2 },
   one("bench-nw", "bench", 21, 13), one("bench-ne", "bench", 27, 13), one("bench-sw", "bench", 21, 17), one("bench-se", "bench", 27, 17),
@@ -107,7 +109,7 @@ export const CAMP_OBJECTS: readonly CampObject[] = [
 ];
 
 /** Where an object's foot stands, in ground pixels: the middle of its footprint's bottom edge, a pixel above the line. */
-export const footOf = (o: CampObject) => ({ x: o.footX ?? (o.x + o.w / 2) * 32, y: (o.y + o.h) * 32 - 2 });
+export const footOf = (o: CampObject) => ({ x: o.footX ?? (o.x + o.w / 2) * 32, y: o.footY ?? (o.y + o.h) * 32 - 2 });
 
 /** The box an object's picture covers, in ground pixels (its width as wide as its footprint, at least a tile). */
 export function objectBox(o: CampObject) {
