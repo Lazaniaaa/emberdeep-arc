@@ -3,6 +3,10 @@
 A pixel dungeon crawl with a **simulated USDC economy**, where the descents you bring home are replayed, signed and
 recorded on **[Arc](https://arc.io)**, Circle's stablecoin-native chain.
 
+**Play:** https://64-176-72-12.sslip.io &nbsp;·&nbsp; **Hall of Descents on Arc mainnet:**
+[`0x0b03e2c77fee4edac4c51a5be04df7175d7b423a`](https://explorer.arc.io/address/0x0b03e2c77fee4edac4c51a5be04df7175d7b423a?tab=contract)
+(source verified on the Arc explorer)
+
 > **What is on chain, and what is not.** Balances, payouts and character mints are simulated USDC kept in your
 > browser's `localStorage`; nothing there moves real money. The one thing written on chain is a descent you choose to
 > record in the **Hall of Descents** on Arc mainnet: the game's server replays it move by move, signs the result, and
@@ -248,6 +252,10 @@ Every item has its own picture in the Armory, the gate and the potion bar.
 Armor stacks with class perks up to the shared 80% drain cap.
 
 ## On Arc: the Hall of Descents
+
+**Live on Arc mainnet** (chain 5042) since 2026-10-14: the Hall is
+[`0x0b03e2c77fee4edac4c51a5be04df7175d7b423a`](https://explorer.arc.io/address/0x0b03e2c77fee4edac4c51a5be04df7175d7b423a?tab=contract),
+its source verified on explorer.arc.io (exact match), with the game's signing server running beside the site.
 
 A descent that came home can be written to **Arc mainnet** with one signature from the player's wallet (gas is a
 fraction of a cent of USDC), and the Hall keeps each player's best descent, which makes a public leaderboard (the trophy
