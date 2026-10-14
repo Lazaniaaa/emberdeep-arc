@@ -15,7 +15,7 @@ import { paintedStationAt } from "@/game/camp-art";
 import { roundShare } from "@/game/economy";
 import type { Animal } from "@/game/animals";
 import { DRAW_MINTS } from "@/game/config";
-import { MOVE_KEYS, MOVE_MS } from "@/lib/controls";
+import { MOVE_MS, isActKey, moveOf } from "@/lib/controls";
 import { percent, usd } from "@/lib/format";
 import { CAMP_TILE, campCamera, drawCamp, paintedCampReady, type View } from "@/render/camp-renderer";
 import { useGame } from "@/state/store";
@@ -120,9 +120,9 @@ export function CampScene() {
     const onKey = (e: KeyboardEvent) => {
       if (document.querySelector("[role=dialog]")) return;
       const onControl = e.target instanceof HTMLElement && !!e.target.closest("button, a, input, textarea, select, [role=button]");
-      const dir = MOVE_KEYS[e.key];
+      const dir = moveOf(e);
       // A focused button keeps Enter and Space, so keyboard users can press PLAY and the building buttons.
-      const act = (e.key === "e" || e.key === "E" || ((e.key === "Enter" || e.key === " ") && !onControl));
+      const act = (isActKey(e) || ((e.key === "Enter" || e.key === " ") && !onControl));
       if (dir || act) e.preventDefault();
       const now = performance.now();
       if (e.repeat && now - lastKey.current < MOVE_MS) return;
