@@ -247,6 +247,12 @@ describe("run settlement", () => {
     expect(old.round).toBe(1);
     expect(old.balance).toBe(500);
   });
+
+  it("tops an older save up to a hundred keys, and keeps more if it has them", () => {
+    expect(START_KEYS).toBe(100);
+    expect((migrateSavedState({ balance: 500, keys: 0 }, 7) as Record<string, unknown>).keys).toBe(100);
+    expect((migrateSavedState({ balance: 500, keys: 140 }, 7) as Record<string, unknown>).keys).toBe(140);
+  });
 });
 
 describe("weekly draw", () => {

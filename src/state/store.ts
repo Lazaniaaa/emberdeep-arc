@@ -410,6 +410,8 @@ export function migrateSavedState(persisted: unknown, version: number) {
   // v7 added expeditions.
   if (version < 7) Object.assign(saved, { expeditions: [], returns: [] });
   if (version < 6) Object.assign(saved, { roundSpent: typeof saved.roundGold === "number" && saved.roundGold > 0 ? saved.roundGold : 0 });
+  // v8 starts everyone with a hundred keys; older saves are topped up to that.
+  if (version < 8) Object.assign(saved, { keys: Math.max(typeof saved.keys === "number" ? saved.keys : 0, START_KEYS) });
   return saved;
 }
 
@@ -807,7 +809,7 @@ export const useGame = create<State & Actions>()(
     }),
     {
       name: "emberdeep-arc-save-v1",
-      version: 7,
+      version: 8,
       merge: mergeSavedState,
       migrate: migrateSavedState,
     },

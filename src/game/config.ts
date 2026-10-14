@@ -29,9 +29,9 @@ export const MAX_FLASKS = 5;
  * Its price goes through the same 25/8/67 split as every other spend.
  */
 export const KEY_PRICE = 50;
-/** New saves start with a few keys so a first-time player can descend immediately. */
-export const START_KEYS = 3;
-export const MAX_KEYS = 30;
+/** New saves start with a hundred keys (owner, 2026-10-14): judges and players try the game without buying any first. */
+export const START_KEYS = 100;
+export const MAX_KEYS = 999;
 
 // Rewards are a share of the round's pool, never a fixed rate per gold. The pool is 60% of every cent
 // spent in the round (ACTIVE_SHARE; another 7% feeds the lock pool). Gold is only earned by extracting
