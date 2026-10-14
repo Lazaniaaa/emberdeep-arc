@@ -11,12 +11,13 @@ import {
   type Facing, type Station, type StationId,
 } from "@/game/camp";
 import { advanceCrowd, createCrowd, npcPosition, type Crowd } from "@/game/camp-crowd";
+import { paintedStationAt } from "@/game/camp-art";
 import { roundShare } from "@/game/economy";
 import type { Animal } from "@/game/animals";
 import { DRAW_MINTS } from "@/game/config";
 import { MOVE_KEYS, MOVE_MS } from "@/lib/controls";
 import { percent, usd } from "@/lib/format";
-import { CAMP_TILE, campCamera, drawCamp, type View } from "@/render/camp-renderer";
+import { CAMP_TILE, campCamera, drawCamp, paintedCampReady, type View } from "@/render/camp-renderer";
 import { useGame } from "@/state/store";
 import { useUi } from "@/state/ui";
 import { HeroAvatar, type Portrait } from "./art";
@@ -343,12 +344,12 @@ function CampCanvas({ walker, tween, camera, hero, animal, reducedMotion, near, 
 
   const onPointer = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
-    const scale = view.w / rect.width;
-    const wx = camera.current.x + (e.clientX - rect.left) * scale;
-    const wy = camera.current.y + (e.clientY - rect.top) * scale;
+    const wx = camera.current.x + (e.clientX - rect.left) * view.w / rect.width;
+    const wy = camera.current.y + (e.clientY - rect.top) * view.h / rect.height;
     const tx = Math.floor(wx / CAMP_TILE), ty = Math.floor(wy / CAMP_TILE);
-    // A building is drawn one tile taller than the tile it stands on, so the tile above counts too.
-    const hit = stationAt(tx, ty) ?? stationAt(tx, ty + 1);
+    const id = paintedCampReady() ? paintedStationAt(wx, wy) : null;
+    // Painting uses its traced silhouette; the old code building extends one tile above its door.
+    const hit = id ? STATIONS.find(s => s.id === id) : stationAt(tx, ty) ?? (!paintedCampReady() ? stationAt(tx, ty + 1) : null);
     if (hit) onTapStation(hit);
     else onTapGround(tx, ty);
   };
@@ -356,13 +357,18 @@ function CampCanvas({ walker, tween, camera, hero, animal, reducedMotion, near, 
   return (
     <canvas
       ref={ref}
+      data-scene="camp"
+      data-player-x={walker.x}
+      data-player-y={walker.y}
+      data-facing={walker.facing}
+      data-zoom={zoom}
       width={view.w * zoom}
       height={view.h * zoom}
       onPointerDown={onPointer}
       style={{ width: view.w * zoom, height: view.h * zoom }}
       className="pixelated absolute top-0 left-0 block touch-none select-none"
       role="img"
-      aria-label="Camp. Walk with the arrow keys, tap to walk, or use the building buttons on the left."
+      aria-label="Cave camp. Walk with the arrow keys, tap to walk, or use the building buttons on the left."
     />
   );
 }

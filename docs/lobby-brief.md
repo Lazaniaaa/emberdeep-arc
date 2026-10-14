@@ -83,3 +83,39 @@ the vault and the board, down to the tunnel) and the dirt around each building. 
 - Don't deploy anything, don't ask for or handle any keys or seed phrases, don't push. Commit only when the owner asks.
 - Update `HANDOFF.md` (section 5, the state; section 7, where things are) when done.
 - Talk to the owner in Ukrainian, briefly, one concrete step at a time (see HANDOFF section 2).
+
+## Implemented — 2026-10-13
+
+The painting is now `public/maps/camp.webp`, byte-identical to its approved source, at native world size.
+`CAMP_WALK_MAP` is a literal 48 x 32 map; all open ground and every station door are reachable from (24,24).
+The traced doors are gate (24,9), hall (10,11), altar (7,20), armory (36,11), ledger (42,18), board (37,23), guide (27,25).
+These slightly refine the approximate coordinates above to stand in front of the painted bases.
+
+`src/game/camp-art.ts` holds the occlusion silhouettes, baseline depths, label positions, lights and water outlines.
+The gate arch has three separate cuts, leaving the portal and stairs open; its interaction outline still includes the portal.
+Cutouts and static lighting are cached. The code camp remains a fallback using the same map and doors.
+
+Browser QA (dev server required):
+
+```powershell
+$env:SMOKE_CHANNEL = 'msedge'
+node scripts/camp-smoke.mjs http://127.0.0.1:5741/ artifacts/camp
+```
+
+It uses isolated contexts and checks desktop 1280 x 800, phone 375 x 812, every panel via buttons/E/painted taps,
+ground tapping, keyboard/D-pad movement, actual sprite occlusion, frozen reduced-motion effects, animation changes,
+zero-sized canvases and a missing-image fallback. No wallet connection or simulated purchase is performed.
+Results are saved in `docs/lobby-qa.json`; current screenshots are `docs/screenshots/camp.png` and `camp-mobile.png`.
+Render timings in that report measure desktop canvas command submission, not physical-phone GPU or battery use.
+
+### Collision corrections — 2026-10-13
+
+The initial reachability tests missed floor tiles incorrectly marked solid. The owner found these beside the fire and
+anvil. The whole walk map was reviewed against the painting using the foot anchor (tile x + 16, tile y + 30): 43 floor
+tiles were opened, and 14 actual object-base tiles were blocked. The painting itself is unchanged.
+Hall has separate upright cuts; Armory excludes its floor and keeps the anvil/rack/crates separate. Altar and Vault
+steps no longer paint over a standing delver. The tall pillar and adjacent crate/rock west of Vault also have depth cuts.
+
+Tests now include independent painted-floor fixtures and literal direct moves. Browser QA checks 12 direct floor steps
+at each viewport, a forge-floor tap that must move rather than open Armory, and visible sprite pixels in 11 clear-floor
+positions. `CAMP_QA_RENDER_ONLY=1` reruns just rendering/fallback fixtures after a cutout adjustment; it does not test UI.

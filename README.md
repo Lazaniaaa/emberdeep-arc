@@ -18,9 +18,9 @@ recorded on **[Arc](https://arc.io)**, Circle's stablecoin-native chain.
 
 ## The camp
 
-The lobby is a bright pixel hub that fills the whole screen; there is no website around it. Your balance, the round
-pool and your wallet sit in a HUD along the top. Your character walks around a camp with a fire, flagstone plaza, ponds
-and lanterns, and seven buildings. Press **E** next to one, tap it, or use the icon rail on the left:
+The lobby is a painted underground camp that fills the whole screen; there is no website around it. Your balance, the round
+pool and your wallet sit in a HUD along the top. Your character walks around a fire-lit stone plaza, waterfalls, crystals and seven buildings. The painting uses a
+48 x 32 grid of 32 px tiles, with traced collision and depth-sorted silhouettes; delvers pass behind tall scenery. Press **E** next to one, tap it, or use the icon rail on the left:
 
 | Building | What it does |
 | --- | --- |
@@ -312,7 +312,7 @@ server (`deploy/attest.ps1`); see [docs/arc/README.md](docs/arc/README.md).
 
 Vite, React 19, TypeScript, Tailwind CSS v4, shadcn/ui (Base UI), zustand, viem and Vitest. The Hall of Descents
 contract is Solidity 0.8.28 on Solady, tested in an in-memory EVM (ethereumjs); its signing server is plain Node.
-The game is rendered on a canvas. The camp, items, portraits and the nine creatures are pixel art drawn in code; the seven dungeon floors use painted WebP art.
+The game is rendered on Canvas 2D. The camp and seven dungeon floors use painted WebP art; delvers, creatures and loot use pixel sprite sheets. Portraits and UI icons are drawn in code. The camp has animated fire, light, crystals and water, with a code-drawn fallback if its painting cannot load.
 
 ## Integration notes for the next on-chain steps
 

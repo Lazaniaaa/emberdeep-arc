@@ -40,12 +40,12 @@ const CHATTER = [
 ];
 
 /** The camp elder stands by the gate and hands out tips. */
-export const ELDER_HOME = { x: 18, y: 8 };
+export const ELDER_HOME = { x: 22, y: 11 };
 
 export type Crowd = { npcs: Npc[]; rng: Rng };
 
 const HOMES: [number, number][] = [
-  [20, 16], [16, 15], [24, 15], [18, 12], [23, 12], [12, 14], [28, 14], [20, 10], [11, 11], [29, 11], [12, 18], [28, 18],
+  [24, 22], [20, 19], [28, 17], [23, 12], [26, 12], [12, 12], [32, 14], [24, 10], [11, 11], [36, 12], [12, 18], [31, 23],
 ];
 
 export function createCrowd(seed = 7, now = 0): Crowd {

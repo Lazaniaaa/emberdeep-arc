@@ -2,6 +2,10 @@ import {
   CAMP_H, CAMP_PROPS, CAMP_W, STATIONS, campHash, terrainAt, type Station, type StationId, type Terrain,
 } from "@/game/camp";
 import { ANIMALS } from "@/game/animals";
+import {
+  CAMP_ART_HEIGHT, CAMP_ART_URL, CAMP_ART_WIDTH, CAMP_LABELS, CAMP_LIGHTS, CAMP_OCCLUDERS, CAMP_WATER,
+  type CampOccluder, type CampPoint,
+} from "@/game/camp-art";
 import type { Npc } from "@/game/camp-crowd";
 import { drawHero, type HeroPose } from "./mob-art";
 import { PALETTE } from "./pixel-art";
@@ -459,8 +463,215 @@ function drawNpc(ctx: CanvasRenderingContext2D, n: CampNpc, time: number) {
 /** Names float above a delver's head, which rises half a tile over the tile it stands on. */
 const NAME_ABOVE = 22;
 
-/** Draws the whole camp for one frame. Everything is pixel art built from rectangles. */
+type ArtCut = { object: CampOccluder; canvas: HTMLCanvasElement; x: number; y: number; w: number; h: number };
+type PaintedCamp = { image: HTMLImageElement; cuts: ArtCut[]; darkness: HTMLCanvasElement };
+let campImage: HTMLImageElement | null = null;
+let painted: PaintedCamp | null = null;
+let lightFrame: HTMLCanvasElement | null = null;
+
+function polygonPath(polygon: readonly CampPoint[], ox = 0, oy = 0) {
+  const path = new Path2D();
+  polygon.forEach(([x,y],i) => i ? path.lineTo(x-ox,y-oy) : path.moveTo(x-ox,y-oy));
+  path.closePath();
+  return path;
+}
+
+/** Also used by pointer handling, so a loading/failed painting has the same hit test as its fallback. */
+export function paintedCampReady() {
+  return campImage !== null && campImage.complete && campImage.naturalWidth === CAMP_ART_WIDTH && campImage.naturalHeight === CAMP_ART_HEIGHT;
+}
+
+function paintedCamp(): PaintedCamp | null {
+  if (painted) return painted;
+  if (!campImage) {
+    campImage = new Image();
+    campImage.src = `${import.meta.env.BASE_URL}${CAMP_ART_URL}`;
+  }
+  if (!paintedCampReady()) return null;
+  const image = campImage;
+  // Clip from the original painting ONCE, into small transparent canvases. No full-map clipping per animation frame.
+  const cuts = CAMP_OCCLUDERS.map(object => {
+    const xs = object.polygon.map(p => p[0]), ys = object.polygon.map(p => p[1]);
+    const x = Math.min(...xs), y = Math.min(...ys), w = Math.max(...xs)-x+1, h = Math.max(...ys)-y+1;
+    const canvas = document.createElement("canvas");
+    canvas.width = w; canvas.height = h;
+    const cut = canvas.getContext("2d")!;
+    cut.imageSmoothingEnabled = false;
+    cut.clip(polygonPath(object.polygon,x,y),"evenodd");
+    cut.drawImage(image,-x,-y);
+    return {object,canvas,x,y,w,h};
+  });
+  const darkness = document.createElement("canvas");
+  darkness.width = CAMP_ART_WIDTH; darkness.height = CAMP_ART_HEIGHT;
+  const dark = darkness.getContext("2d")!;
+  dark.fillStyle = "rgba(5,8,23,0.12)";
+  dark.fillRect(0,0,darkness.width,darkness.height);
+  const edge = dark.createRadialGradient(768,512,300,768,512,880);
+  edge.addColorStop(0,"rgba(3,6,20,0)"); edge.addColorStop(1,"rgba(3,6,20,0.37)");
+  dark.fillStyle = edge; dark.fillRect(0,0,darkness.width,darkness.height);
+  dark.globalCompositeOperation = "destination-out";
+  for (const light of CAMP_LIGHTS) glow(dark,light.x,light.y,light.radius*1.3,"255,255,255",0.8);
+  painted = {image,cuts,darkness};
+  return painted;
+}
+
+/** Feet and physical object bases use exactly the same world-pixel depth unit. */
+export function campFootBaseline(tileY: number) { return tileY*CAMP_TILE+CAMP_TILE-2; }
+
+function inView(x: number,y: number,w: number,h: number,f: CampFrame) {
+  return x+w >= f.camera.x && y+h >= f.camera.y && x <= f.camera.x+f.view.w && y <= f.camera.y+f.view.h;
+}
+
+function paintedWater(ctx: CanvasRenderingContext2D, time: number) {
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  for (const [i,water] of CAMP_WATER.entries()) {
+    ctx.save(); ctx.clip(polygonPath(water.polygon));
+    const xs = water.polygon.map(p=>p[0]), ys = water.polygon.map(p=>p[1]);
+    const x0 = Math.min(...xs), y0 = Math.min(...ys), w = Math.max(...xs)-x0, h = Math.max(...ys)-y0;
+    for (let k = 0; k < 18; k++) {
+      const phase = time/1700+k*1.73+i;
+      ctx.fillStyle = `rgba(98,213,255,${0.07+0.08*(1+Math.sin(phase))/2})`;
+      const x = Math.round(x0+campHash(k,i)*w+Math.sin(phase)*3);
+      const y = Math.round(y0+campHash(i,k+3)*h);
+      ctx.fillRect(x,y,5+Math.round(campHash(k,11)*10),1);
+    }
+    ctx.restore();
+    // Narrow falling highlights stay within the painted streams, not across adjacent rocks.
+    for (const [x,y,w,h] of water.falls) {
+      ctx.fillStyle = "rgba(104,225,255,0.13)";
+      for (let k = 0; k < 5; k++) {
+        const drop = (time/12+k*29)%h;
+        ctx.fillRect(Math.round(x+3+(k/5)*(w-6)),Math.round(y+drop),1,Math.max(1,Math.min(7,Math.floor(h-drop))));
+      }
+    }
+  }
+  ctx.restore();
+}
+
+function paintedFlame(ctx: CanvasRenderingContext2D, x: number,y: number,time: number, fire: boolean,rgb: string) {
+  const sway = Math.sin(time/165+x)*2;
+  ctx.save(); ctx.globalCompositeOperation = "lighter";
+  const pink = rgb.startsWith("244");
+  for (let k = 0; k < (fire ? 5 : 1); k++) {
+    const off = fire ? (k-2)*5 : 0;
+    const h = (fire ? 10 : 5)+Math.round((1+Math.sin(time/110+k+x))*(fire?4:2));
+    ctx.fillStyle = pink ? "rgba(248,87,255,0.22)" : "rgba(255,139,35,0.32)";
+    for (let j = 0; j < h; j+=2) ctx.fillRect(Math.round(x+off+sway*j/h)-2,Math.round(y+4-j),j>h/2?2:4,2);
+  }
+  if (fire) {
+    for (let i=0;i<8;i++) {
+      const age = (time/1700+i/8)%1;
+      ctx.fillStyle = `rgba(255,198,84,${(1-age)*0.55})`;
+      ctx.fillRect(Math.round(x+(i-3.5)*4+Math.sin(time/600+i)*5),Math.round(y-age*65),1,2);
+    }
+  }
+  ctx.restore();
+}
+
+function paintedLights(ctx: CanvasRenderingContext2D, f: CampFrame) {
+  ctx.save(); ctx.globalCompositeOperation = "lighter";
+  for (const [i,light] of CAMP_LIGHTS.entries()) {
+    if (!inView(light.x-light.radius,light.y-light.radius,light.radius*2,light.radius*2,f)) continue;
+    const slow = light.kind === "crystal" || light.kind === "gate" || light.kind === "tunnel";
+    const pulse = f.reducedMotion ? 0 : Math.sin(f.time/(slow?1150:147)+i)*0.03+(slow?0:Math.sin(f.time/53+i)*0.012);
+    const alpha = (light.kind === "fire" ? 0.14 : light.kind === "water" ? 0.04 : 0.075)+pulse;
+    glow(ctx,light.x,light.y,light.radius*(1+pulse),light.rgb,Math.max(0.025,alpha));
+    if (!f.reducedMotion && (light.kind === "fire" || light.kind === "torch")) paintedFlame(ctx,light.x,light.y,f.time,light.kind === "fire",light.rgb);
+    if (!f.reducedMotion && light.kind === "tunnel") {
+      for (let k=0;k<6;k++) {
+        const age = (f.time/3700+k/6)%1;
+        ctx.fillStyle = `rgba(120,229,255,${Math.sin(age*Math.PI)*0.25})`;
+        ctx.fillRect(Math.round(light.x+Math.sin(k*2.1)*29),Math.round(light.y+22-age*68),1,2);
+      }
+    }
+  }
+  ctx.restore();
+}
+
+function paintedLightMask(ctx: CanvasRenderingContext2D, art: PaintedCamp, f: CampFrame) {
+  if (!lightFrame || lightFrame.width !== f.view.w || lightFrame.height !== f.view.h) {
+    lightFrame = document.createElement("canvas");
+    lightFrame.width = f.view.w; lightFrame.height = f.view.h;
+  }
+  const mask = lightFrame.getContext("2d")!;
+  mask.globalCompositeOperation = "source-over";
+  mask.clearRect(0,0,lightFrame.width,lightFrame.height);
+  mask.drawImage(art.darkness,-f.camera.x,-f.camera.y);
+  mask.globalCompositeOperation = "destination-out";
+  glow(mask,center(f.playerPos.x)-f.camera.x,center(f.playerPos.y)-f.camera.y,105,"255,255,255",0.8);
+  ctx.drawImage(lightFrame,0,0);
+}
+
+function campNames(ctx: CanvasRenderingContext2D, f: CampFrame) {
+  for (const station of STATIONS) {
+    const isNear = f.near === station.id;
+    // Nearby names stay above the DOOR, so a tall roof cannot move the interaction hint off screen.
+    const [x,y] = isNear ? [center(station.x),station.y*CAMP_TILE-47] : CAMP_LABELS[station.id];
+    const text = isNear ? `E  ${station.name.toUpperCase()}` : station.name.toUpperCase();
+    ctx.font = FONT(8);
+    const w = Math.ceil(ctx.measureText(text).width+12);
+    ctx.fillStyle = isNear ? "#ccff00" : "rgba(11,15,28,0.72)";
+    ctx.fillRect(Math.round(x-w/2),y-8,w,16);
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillStyle = isNear ? "#150c2b" : "#e7efff";
+    ctx.fillText(text,x,y+1);
+  }
+  if (f.firstVisit && f.near !== "gate") {
+    const bob = f.reducedMotion ? 0 : Math.round(Math.sin(f.time/250)*2);
+    outlined(ctx,"START HERE",768,248+bob,"#ccff00",8);
+  }
+  for (const n of f.crowd) {
+    const top = n.y*CAMP_TILE-NAME_ABOVE;
+    outlined(ctx,n.npc.name,center(n.x),top,n.npc.kind === "elder" ? "#c9bcff" : "#ffffff",8);
+    if (n.npc.say) bubble(ctx,n.npc.say,center(n.x),top-10);
+  }
+  outlined(ctx,f.playerName,center(f.playerPos.x),f.playerPos.y*CAMP_TILE-NAME_ABOVE,f.playerColor,8);
+}
+
+/** Painted ground at 1:1, then silhouettes and delvers at their physical depth; old code camp on load failure. */
 export function drawCamp(ctx: CanvasRenderingContext2D, f: CampFrame) {
+  // ResizeObserver can report a zero-sized viewport while mounting, hiding or removing a scene.
+  if (f.view.w < 1 || f.view.h < 1 || f.zoom < 1) return;
+  const art = paintedCamp();
+  if (!art) { drawCodeCamp(ctx,f); return; }
+  ctx.setTransform(f.zoom,0,0,f.zoom,0,0);
+  ctx.imageSmoothingEnabled = false;
+  ctx.fillStyle = "#070b18"; ctx.fillRect(0,0,f.view.w,f.view.h);
+  ctx.save(); ctx.translate(-f.camera.x,-f.camera.y);
+  ctx.drawImage(art.image,0,0); // Native 1536 x 1024 pixels: never stretched to a different tile grid.
+  if (!f.reducedMotion) paintedWater(ctx,f.time);
+  const things: {baseline:number;draw:()=>void}[] = [];
+  for (const cut of art.cuts) {
+    if (!inView(cut.x,cut.y,cut.w,cut.h,f)) continue;
+    things.push({baseline:cut.object.baseline,draw:()=>{
+      ctx.drawImage(cut.canvas,cut.x,cut.y);
+      if (cut.object.station && f.near === cut.object.station) {
+        ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha = 0.09;
+        ctx.drawImage(cut.canvas,cut.x,cut.y); ctx.restore();
+      }
+    }});
+  }
+  for (const n of f.crowd) things.push({baseline:campFootBaseline(n.y)+0.01,draw:()=>drawNpc(ctx,n,f.time)});
+  const heroBaseline = campFootBaseline(f.playerPos.y)+0.02;
+  const heroX = f.playerPos.x*CAMP_TILE, heroY = f.playerPos.y*CAMP_TILE;
+  things.push({baseline:heroBaseline,draw:()=>drawHero(ctx,f.hero,heroX,heroY,CAMP_TILE,CAMP_SHADOW)});
+  things.sort((a,b)=>a.baseline-b.baseline).forEach(t=>t.draw());
+  // Behind a sign, a lamp post or a stack of crates the delver would vanish: show them through it, faintly. Drawn over
+  // the delver's own visible pixels it changes nothing, so it only shows where something in front covers them.
+  if (art.cuts.some(c => c.object.baseline > heroBaseline && c.x < heroX+CAMP_TILE+8 && c.x+c.w > heroX-8 && c.y < heroY+CAMP_TILE && c.y+c.h > heroY-24)) {
+    ctx.save(); ctx.globalAlpha = 0.45;
+    drawHero(ctx,f.hero,heroX,heroY,CAMP_TILE,"rgba(0,0,0,0)");
+    ctx.restore();
+  }
+  paintedLights(ctx,f);
+  ctx.restore();
+  paintedLightMask(ctx,art,f);
+  ctx.save(); ctx.translate(-f.camera.x,-f.camera.y); campNames(ctx,f); ctx.restore();
+}
+
+/** Draws the whole camp for one frame. Everything is pixel art built from rectangles. */
+function drawCodeCamp(ctx: CanvasRenderingContext2D, f: CampFrame) {
   ctx.setTransform(f.zoom, 0, 0, f.zoom, 0, 0);
   ctx.imageSmoothingEnabled = false;
   const cam = f.camera;

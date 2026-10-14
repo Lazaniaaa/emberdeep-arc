@@ -1,7 +1,7 @@
-// The lobby is a walkable camp. Buildings are solid; standing next to one lets you open it.
+// The painted lobby. Footprints come from the walk map; station coordinates are OPEN door tiles.
 
-export const CAMP_W = 40;
-export const CAMP_H = 26;
+export const CAMP_W = 48;
+export const CAMP_H = 32;
 
 export type Facing = "left" | "right" | "up" | "down";
 export type StationId = "gate" | "altar" | "armory" | "board" | "ledger" | "guide" | "hall";
@@ -17,32 +17,28 @@ export type Station = {
 };
 
 export const STATIONS: readonly Station[] = [
-  { id: "gate", x: 20, y: 5, name: "Dungeon Gate", blurb: "Pick who descends, buy oil and an entry key, then light the lantern." },
-  { id: "altar", x: 9, y: 9, name: "Ember Altar", blurb: "Mint Delvers, lock them for stronger perks, or send them on expeditions." },
-  { id: "armory", x: 31, y: 9, name: "Armory", blurb: "Weapons, potions and crafting with crystals." },
-  { id: "board", x: 9, y: 19, name: "Draw Board", blurb: "The weekly draw for free Delver mints, your tickets and the passes." },
-  { id: "ledger", x: 31, y: 19, name: "Vault", blurb: "The reward round, where every dollar goes, and your session." },
-  { id: "guide", x: 16, y: 18, name: "Welcome Board", blurb: "How a descent works, in four steps." },
-  { id: "hall", x: 24, y: 18, name: "Hall of Delvers", blurb: "Your own records, and the Hall of Descents on Arc." },
+  { id: "gate", x: 24, y: 9, name: "Dungeon Gate", blurb: "Pick who descends, buy oil and an entry key, then light the lantern." },
+  { id: "altar", x: 7, y: 20, name: "Ember Altar", blurb: "Mint Delvers, lock them for stronger perks, or send them on expeditions." },
+  { id: "armory", x: 36, y: 11, name: "Armory", blurb: "Weapons, potions and crafting with crystals." },
+  { id: "board", x: 37, y: 23, name: "Draw Board", blurb: "The weekly draw for free Delver mints, your tickets and the passes." },
+  { id: "ledger", x: 42, y: 18, name: "Vault", blurb: "The reward round, where every dollar goes, and your session." },
+  { id: "guide", x: 27, y: 25, name: "Welcome Board", blurb: "How a descent works, in four steps." },
+  { id: "hall", x: 10, y: 11, name: "Hall of Delvers", blurb: "Your own records, and the Hall of Descents on Arc." },
 ];
 
 export type CampProp = { x: number; y: number; kind: "fire" | "lamp" | "crystal" | "mushroom" | "crate" | "rock" };
 
+/** Old code sprites are used only while the painting is loading or unavailable. */
 export const CAMP_PROPS: readonly CampProp[] = [
-  { x: 20, y: 14, kind: "fire" },
-  { x: 19, y: 8, kind: "lamp" }, { x: 22, y: 8, kind: "lamp" },
-  { x: 14, y: 14, kind: "lamp" }, { x: 27, y: 14, kind: "lamp" },
-  { x: 4, y: 5, kind: "crystal" }, { x: 35, y: 5, kind: "crystal" },
-  { x: 4, y: 21, kind: "crystal" }, { x: 35, y: 21, kind: "crystal" },
-  { x: 15, y: 10, kind: "mushroom" }, { x: 26, y: 10, kind: "mushroom" },
-  { x: 13, y: 22, kind: "mushroom" }, { x: 27, y: 22, kind: "mushroom" },
-  { x: 12, y: 7, kind: "crate" }, { x: 13, y: 7, kind: "crate" }, { x: 28, y: 7, kind: "crate" },
-  { x: 6, y: 11, kind: "rock" }, { x: 33, y: 11, kind: "rock" }, { x: 7, y: 22, kind: "rock" },
-  { x: 32, y: 22, kind: "rock" }, { x: 17, y: 3, kind: "rock" }, { x: 23, y: 3, kind: "rock" },
+  { x: 24, y: 17, kind: "fire" },
+  { x: 19, y: 14, kind: "lamp" }, { x: 29, y: 14, kind: "lamp" },
+  { x: 21, y: 21, kind: "lamp" }, { x: 26, y: 21, kind: "lamp" },
+  { x: 4, y: 8, kind: "crystal" }, { x: 34, y: 3, kind: "crystal" },
+  { x: 15, y: 27, kind: "crystal" }, { x: 44, y: 28, kind: "crystal" },
 ];
 
-export const CAMP_SPAWN = { x: 20, y: 17 };
-export const PLAZA = { x: 20, y: 14, rx: 7, ry: 5 };
+export const CAMP_SPAWN = { x: 24, y: 24 };
+export const PLAZA = { x: 24, y: 17, rx: 7, ry: 6 };
 
 /** How many tiles of the camp the camera shows. */
 export const VIEW_W = 22;
@@ -55,45 +51,53 @@ function hash(x: number, y: number) {
 }
 export { hash as campHash };
 
-let terrain: Terrain[] | null = null;
-
-function buildTerrain() {
-  const t = new Array<Terrain>(CAMP_W * CAMP_H).fill("moss");
-  const set = (x: number, y: number, kind: Terrain) => {
-    if (x >= 0 && y >= 0 && x < CAMP_W && y < CAMP_H) t[y * CAMP_W + x] = kind;
-  };
-  for (let y = 0; y < CAMP_H; y++) {
-    for (let x = 0; x < CAMP_W; x++) {
-      const edge = x < 2 || y < 2 || x >= CAMP_W - 2 || y >= CAMP_H - 2;
-      const ridge = x === 2 || y === 2 || x === CAMP_W - 3 || y === CAMP_H - 3;
-      if (edge || (ridge && hash(x, y) > 0.55)) set(x, y, "cliff");
-    }
-  }
-  // Ponds sit between the paths, never on them.
-  for (const [x0, y0, x1, y1] of [[4, 12, 7, 16], [33, 12, 36, 16], [12, 4, 14, 6], [26, 4, 28, 6]]) {
-    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) set(x, y, "water");
-  }
-  // Flagstone paths: from the plaza sideways, then up or down to the door of each building.
-  for (const s of STATIONS) {
-    const cx = PLAZA.x, cy = PLAZA.y;
-    const sx = Math.min(cx, s.x), ex = Math.max(cx, s.x);
-    for (let x = sx; x <= ex + 1; x++) for (let w = 0; w < 2; w++) set(x, cy + w, "path");
-    const top = Math.min(cy, s.y + 1), bottom = Math.max(cy, s.y + 1);
-    for (let y = top; y <= bottom; y++) for (let w = 0; w < 2; w++) set(s.x + w, y, "path");
-  }
-  for (let y = 0; y < CAMP_H; y++) {
-    for (let x = 0; x < CAMP_W; x++) {
-      const d = ((x - PLAZA.x) / PLAZA.rx) ** 2 + ((y - PLAZA.y) / PLAZA.ry) ** 2;
-      if (d <= 1 && t[y * CAMP_W + x] !== "cliff") set(x, y, "plaza");
-    }
-  }
-  return t;
-}
+/** Traced against art/lobby/camp-v1-grid.png. . ground, # rock/object base, ~ water.
+ * Inspect the foot anchor (x * 32 + 16, y * 32 + 30), not the tile centre or a hanging lamp.
+ * Upper parts of tall objects are NOT solid: their cropped artwork occludes delvers behind them.
+ * Keep these 32 rows literal so a collision correction remains a one-character edit.
+ */
+export const CAMP_WALK_MAP: readonly string[] = [
+  "################################################", // 00
+  "################################################", // 01
+  "################################################", // 02
+  "################################################", // 03
+  "############################################~~##", // 04
+  "###########################################~~~~#", // 05
+  "###########################################~~~~#", // 06
+  "###########################################~~~~#", // 07
+  "######################....#################~~~~#", // 08
+  "#########...###########....####.############~~~#", // 09
+  "#########...#.##.#####.....####....##.#...######", // 10
+  "#####............###.......................#####", // 11
+  "#########..................................#####", // 12
+  "###########..........##....##.......############", // 13
+  "############........#.......#........###########", // 14
+  "############..#####...................##########", // 15
+  "############..#####..######.........#####..#####", // 16
+  "############..#####...####............##....####", // 17
+  "############..#####...........................##", // 18
+  "####..............................#########...##", // 19
+  "###................#.#......#.....#########...##", // 20
+  "####................##....#.......#########..###", // 21
+  "###########.......................#########..###", // 22
+  "####~~#############..........................###", // 23
+  "####~~#############.##...##.##............######", // 24
+  "###~~~~~~~~~###########..##.####################", // 25
+  "##~~~~~~~~~~~##########..##...##################", // 26
+  "##~~#~~~~#~~~##########..#######################", // 27
+  "###~~~~~##~~~~#########..#######################", // 28
+  "#####~~~~~~~~~#########..#######################", // 29
+  "#######~~~~~###########...######################", // 30
+  "######################....######################", // 31
+];
 
 export function terrainAt(x: number, y: number): Terrain {
-  if (x < 0 || y < 0 || x >= CAMP_W || y >= CAMP_H) return "cliff";
-  terrain ??= buildTerrain();
-  return terrain[y * CAMP_W + x];
+  if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || y < 0 || x >= CAMP_W || y >= CAMP_H) return "cliff";
+  const ch = CAMP_WALK_MAP[y][x];
+  if (ch === "#") return "cliff";
+  if (ch === "~") return "water";
+  const d = ((x - PLAZA.x) / PLAZA.rx) ** 2 + ((y - PLAZA.y) / PLAZA.ry) ** 2;
+  return d <= 1 ? "plaza" : "path";
 }
 
 export function isCampWall(x: number, y: number) {
@@ -106,7 +110,7 @@ export function stationAt(x: number, y: number) {
 }
 
 export function campSolid(x: number, y: number) {
-  return isCampWall(x, y) || stationAt(x, y) !== null || CAMP_PROPS.some(p => p.x === x && p.y === y);
+  return isCampWall(x, y);
 }
 
 const DELTA: Record<Facing, { dx: number; dy: number }> = {
@@ -130,6 +134,8 @@ export function stepInCamp(pos: { x: number; y: number }, dx: number, dy: number
 
 /** The building you can open from here: the one you face, otherwise any that touches you. */
 export function stationNear(pos: { x: number; y: number }, facing: Facing) {
+  const door = stationAt(pos.x, pos.y);
+  if (door) return door;
   const ahead = DELTA[facing];
   const faced = stationAt(pos.x + ahead.dx, pos.y + ahead.dy);
   if (faced) return faced;
@@ -171,11 +177,11 @@ export function pathTo(from: Cell, to: Cell) {
   return walk(from, c => c.x === to.x && c.y === to.y);
 }
 
-/** Cells to walk until you stand next to a building. Empty when you already do. */
+/** Cells to walk to the painted door. Empty when already at the door or touching it. */
 export function pathToStation(from: Cell, station: Station) {
-  const touching = (c: Cell) => Math.abs(c.x - station.x) + Math.abs(c.y - station.y) === 1;
+  const touching = (c: Cell) => Math.abs(c.x - station.x) + Math.abs(c.y - station.y) <= 1;
   if (touching(from)) return [];
-  return walk(from, touching);
+  return pathTo(from, { x: station.x, y: station.y });
 }
 
 /** Facing that looks at the building from the last cell of a walk. */

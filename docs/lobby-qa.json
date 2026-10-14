@@ -1,0 +1,129 @@
+{
+  "desktop": {
+    "viewport": [
+      1280,
+      800
+    ],
+    "opened": [
+      "guide",
+      "gate",
+      "hall",
+      "altar",
+      "armory",
+      "ledger",
+      "board"
+    ],
+    "keyboardWalks": true,
+    "groundTap": true,
+    "buildingTaps": true,
+    "clearFloorSteps": 12,
+    "forgeFloorTap": true
+  },
+  "phone": {
+    "viewport": [
+      375,
+      812
+    ],
+    "opened": [
+      "guide",
+      "gate",
+      "hall",
+      "altar",
+      "armory",
+      "ledger",
+      "board"
+    ],
+    "keyboardWalks": true,
+    "groundTap": true,
+    "buildingTaps": true,
+    "clearFloorSteps": 12,
+    "forgeFloorTap": true
+  },
+  "render": {
+    "reducedMotionStill": true,
+    "animatedPixels": 403153,
+    "depth": [
+      {
+        "id": "hall",
+        "covered": 702,
+        "leaked": 0,
+        "shown": 360
+      },
+      {
+        "id": "armory",
+        "covered": 308,
+        "leaked": 0,
+        "shown": 863
+      },
+      {
+        "id": "gate",
+        "covered": 259,
+        "leaked": 0,
+        "shown": 929
+      },
+      {
+        "id": "vault-pillar",
+        "covered": 899,
+        "leaked": 0,
+        "shown": 231
+      }
+    ],
+    "clearFloor": [
+      {
+        "id": "hall-stairs",
+        "shown": 1194
+      },
+      {
+        "id": "altar-stairs",
+        "shown": 1194
+      },
+      {
+        "id": "vault-stairs",
+        "shown": 1194
+      },
+      {
+        "id": "anvil-left",
+        "shown": 917
+      },
+      {
+        "id": "anvil-right",
+        "shown": 1194
+      },
+      {
+        "id": "forge-rack-front",
+        "shown": 1194
+      },
+      {
+        "id": "forge-barrel-front",
+        "shown": 1194
+      },
+      {
+        "id": "fire-left",
+        "shown": 1194
+      },
+      {
+        "id": "fire-right",
+        "shown": 1194
+      },
+      {
+        "id": "tent-front",
+        "shown": 1194
+      },
+      {
+        "id": "guide-side",
+        "shown": 744
+      }
+    ],
+    "frameMsMedian": 0.8999999761581421,
+    "frameMsP95": 1.3000000715255737
+  },
+  "fallback": {
+    "imageUnavailable": true,
+    "gateOpens": true
+  },
+  "validationNotes": [
+    "Desktop and phone UI/clear-floor walking passed before the final Vault pillar cutout adjustment.",
+    "Rendering, clear-floor visibility and fallback were rerun after the final adjustment; connectivity and object-base checks also passed.",
+    "Phone means a 375 x 812 desktop-browser viewport, not a physical phone."
+  ]
+}
