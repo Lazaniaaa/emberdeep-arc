@@ -1,4 +1,6 @@
-// The painted lobby. Footprints come from the walk map; station coordinates are OPEN door tiles.
+// The lobby: a painted cave with every building and object standing on its own tiles (camp-art.ts). Station
+// coordinates are the OPEN door tiles in front of the buildings.
+import { CAMP_GROUND, CAMP_OBJECTS, objectBox, type CampObject } from "./camp-art";
 
 export const CAMP_W = 48;
 export const CAMP_H = 32;
@@ -17,28 +19,29 @@ export type Station = {
 };
 
 export const STATIONS: readonly Station[] = [
-  { id: "gate", x: 24, y: 9, name: "Dungeon Gate", blurb: "Pick who descends, buy oil and an entry key, then light the lantern." },
-  { id: "altar", x: 7, y: 20, name: "Ember Altar", blurb: "Mint Delvers, lock them for stronger perks, or send them on expeditions." },
-  { id: "armory", x: 36, y: 11, name: "Armory", blurb: "Weapons, potions and crafting with crystals." },
-  { id: "board", x: 37, y: 23, name: "Draw Board", blurb: "The weekly draw for free Delver mints, your tickets and the passes." },
-  { id: "ledger", x: 42, y: 17, name: "Vault", blurb: "The reward round, where every dollar goes, and your session." },
-  { id: "guide", x: 26, y: 23, name: "Welcome Board", blurb: "How a descent works, in four steps." },
-  { id: "hall", x: 10, y: 11, name: "Hall of Delvers", blurb: "Your own records, and the Hall of Descents on Arc." },
+  { id: "gate", x: 24, y: 7, name: "Dungeon Gate", blurb: "Pick who descends, buy oil and an entry key, then light the lantern." },
+  { id: "altar", x: 9, y: 15, name: "Ember Altar", blurb: "Mint Delvers, lock them for stronger perks, or send them on expeditions." },
+  { id: "armory", x: 37, y: 11, name: "Armory", blurb: "Weapons, potions and crafting with crystals." },
+  { id: "board", x: 37, y: 19, name: "Draw Board", blurb: "The weekly draw for free Delver mints, your tickets and the passes." },
+  { id: "ledger", x: 39, y: 15, name: "Vault", blurb: "The reward round, where every dollar goes, and your session." },
+  { id: "guide", x: 25, y: 23, name: "Welcome Board", blurb: "How a descent works, in four steps." },
+  { id: "hall", x: 11, y: 11, name: "Hall of Delvers", blurb: "Your own records, and the Hall of Descents on Arc." },
 ];
 
 export type CampProp = { x: number; y: number; kind: "fire" | "lamp" | "crystal" | "mushroom" | "crate" | "rock" };
 
-/** Old code sprites are used only while the painting is loading or unavailable. */
-export const CAMP_PROPS: readonly CampProp[] = [
-  { x: 24, y: 17, kind: "fire" },
-  { x: 19, y: 14, kind: "lamp" }, { x: 29, y: 14, kind: "lamp" },
-  { x: 21, y: 21, kind: "lamp" }, { x: 26, y: 21, kind: "lamp" },
-  { x: 4, y: 8, kind: "crystal" }, { x: 34, y: 3, kind: "crystal" },
-  { x: 15, y: 27, kind: "crystal" }, { x: 44, y: 28, kind: "crystal" },
-];
+/** Old code sprites stand in for the camp's own while its pictures load (or if they fail). */
+const FALLBACK: Partial<Record<CampObject["sprite"], CampProp["kind"]>> = {
+  fire: "fire", lamp: "lamp", brazier: "lamp", crystal: "crystal", mushrooms: "mushroom",
+  crate: "crate", crates: "crate", barrel: "crate", boulder: "rock", stalagmite: "rock",
+};
+export const CAMP_PROPS: readonly CampProp[] = CAMP_OBJECTS.flatMap(o => {
+  const kind = FALLBACK[o.sprite];
+  return kind ? [{ x: Math.floor(o.x + (o.w - 1) / 2), y: o.y + o.h - 1, kind }] : [];
+});
 
 export const CAMP_SPAWN = { x: 24, y: 24 };
-export const PLAZA = { x: 24, y: 17, rx: 7, ry: 6 };
+export const PLAZA = { x: 24, y: 15, rx: 4, ry: 4 };
 
 /** How many tiles of the camp the camera shows. */
 export const VIEW_W = 22;
@@ -51,45 +54,32 @@ function hash(x: number, y: number) {
 }
 export { hash as campHash };
 
-/** Traced against art/lobby/camp-v1-grid.png. . ground, # rock/object base, ~ water.
- * Inspect the foot anchor (x * 32 + 16, y * 32 + 30), not the tile centre or a hanging lamp.
- * Upper parts of tall objects are NOT solid: their cropped artwork occludes delvers behind them.
- * Keep these 32 rows literal so a collision correction remains a one-character edit.
+/**
+ * Whether an object takes a tile: its footprint, and for anything two tiles wide or more (a building, the fire, the
+ * tent) the tiles its picture covers behind it too, so nobody walks hidden behind a building or through its roof.
  */
-export const CAMP_WALK_MAP: readonly string[] = [
-  "################################################", // 00
-  "################################################", // 01
-  "################################################", // 02
-  "################################################", // 03
-  "############################################~~##", // 04
-  "###########################################~~~~#", // 05
-  "###########################################~~~~#", // 06
-  "###########################################~~~~#", // 07
-  "######################....#################~~~~#", // 08
-  "#########...###########....#################~~~#", // 09
-  "#########...##########.....####.#####.##########", // 10
-  "#####........###.####.......#......#.....#######", // 11
-  "#########..........###......##.......#.#########", // 12
-  "###########........####...####......############", // 13
-  "############....#...#......##......#############", // 14
-  "############..#####...#####........#############", // 15
-  "############..#####..######........#############", // 16
-  "#############.############..####....####....####", // 17
-  "############..###########...####..######..#...##", // 18
-  "##########....####.###....#####...#########...##", // 19
-  "###................###....###.....##########..##", // 20
-  "####................##....##......##########.###", // 21
-  "###########..................#....##########.###", // 22
-  "####~~#############........####.......#####..###", // 23
-  "####~~#################..######.............####", // 24
-  "###~~~~~~~~~####################################", // 25
-  "##~~~~~~~~~~~###################################", // 26
-  "##~~#~~~~#~~~###################################", // 27
-  "###~~~~~##~~~~##################################", // 28
-  "#####~~~~~~~~~##################################", // 29
-  "#######~~~~~####################################", // 30
-  "################################################", // 31
-];
+function takes(o: CampObject, x: number, y: number) {
+  if (x < o.x || x >= o.x + o.w) return false;
+  if (y >= o.y && y < o.y + o.h) return true;
+  return o.w >= 2 && y < o.y && y >= Math.round(objectBox(o).y / 32);
+}
+
+/**
+ * Where a delver can stand: the cave's floor (CAMP_GROUND) less every tile an object takes, and less any pocket of floor
+ * the objects cut off from the entrance. `.` open, `#` rock or an object, `~` water.
+ */
+export const CAMP_WALK_MAP: readonly string[] = (() => {
+  const grid = CAMP_GROUND.map((row, y) => [...row].map((ch, x) => (ch === "." && CAMP_OBJECTS.some(o => takes(o, x, y)) ? "#" : ch)));
+  const seen = new Set([`${CAMP_SPAWN.x},${CAMP_SPAWN.y}`]);
+  const queue = [CAMP_SPAWN];
+  for (const p of queue) for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+    const x = p.x + dx, y = p.y + dy;
+    if (grid[y]?.[x] !== "." || seen.has(`${x},${y}`)) continue;
+    seen.add(`${x},${y}`);
+    queue.push({ x, y });
+  }
+  return grid.map((row, y) => row.map((ch, x) => (ch === "." && !seen.has(`${x},${y}`) ? "#" : ch)).join(""));
+})();
 
 export function terrainAt(x: number, y: number): Terrain {
   if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || y < 0 || x >= CAMP_W || y >= CAMP_H) return "cliff";

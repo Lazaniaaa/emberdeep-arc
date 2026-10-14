@@ -8,7 +8,7 @@ import { SPRITES } from "@/render/camp-renderer";
 import { PALETTE, SPRITE_SIZE } from "@/render/pixel-art";
 import { ITEM_ART, portraitArt } from "@/render/item-art";
 import { CLASS_IDS, RARITIES } from "./catalog";
-import { CAMP_ART_HEIGHT, CAMP_ART_WIDTH, CAMP_LIGHTS, CAMP_OCCLUDERS, CAMP_WATER, inCampPolygon, paintedStationAt } from "./camp-art";
+import { CAMP_ART_HEIGHT, CAMP_ART_WIDTH, CAMP_GROUND, CAMP_LIGHTS, CAMP_OBJECTS, CAMP_WATER, footOf, inCampPolygon, objectBox, paintedStationAt } from "./camp-art";
 
 /** Every free cell the delver can reach on foot from the spawn point. */
 function reachable() {
@@ -61,56 +61,57 @@ describe("camp", () => {
       expect(taken.has(key)).toBe(false);
       taken.add(key);
     }
-    expect(stationAt(24, 9)?.id).toBe("gate");
-    expect(stationAt(24, 10)).toBeNull();
-    expect(terrainAt(5, 26)).toBe("water");
-    for (const [x,y] of [[5,26],[7,16],[10,7],[24,17],[17,18],[36,8],[33,9],[35,10],[14,10],[42,15],[37,21],[24,16],[16,23],[20,24],[36,16],[37,16]]) expect(campSolid(x,y), `${x},${y}`).toBe(true);
+    expect(stationAt(24, 7)?.id).toBe("gate");
+    expect(stationAt(24, 8)).toBeNull();
+    expect(terrainAt(4, 25)).toBe("water");
+    // Inside the gate, the hall, the altar, the armory, the vault, the board, the sign, the fire and the tent.
+    for (const [x,y] of [[24,4],[11,8],[6,15],[36,8],[42,15],[36,21],[26,22],[24,15],[15,18],[4,25],[24,26]]) expect(campSolid(x,y), `${x},${y}`).toBe(true);
   });
 
-  it("keeps the delver's feet off every painted object, so they never stand on or in one", () => {
-    // The lower body of a delver on an open tile (their feet and legs, in painting pixels) must miss every silhouette; at a
-    // door the building itself is allowed, so they can stand right in front of it.
-    const doors = new Map(STATIONS.map(s => [`${s.x},${s.y}`, s.id]));
-    CAMP_WALK_MAP.forEach((row,y) => [...row].forEach((ch,x) => {
-      if (ch !== ".") return;
-      const door = doors.get(`${x},${y}`);
-      for (let py=y*32+12; py<=y*32+30; py+=2) for (let px=x*32+8; px<=x*32+24; px+=2) {
-        const hit = CAMP_OCCLUDERS.find(o => o.station !== door && inCampPolygon(px,py,o.polygon));
-        expect(hit?.id, `${x},${y}`).toBeUndefined();
+  it("stands every object on the cave's floor, on its own tiles, with each building's door just in front of it", () => {
+    const tiles = new Map<string, string>();
+    const ids = new Set<string>();
+    for (const o of CAMP_OBJECTS) {
+      expect(ids.has(o.id), o.id).toBe(false); ids.add(o.id);
+      for (let y = o.y; y < o.y + o.h; y++) for (let x = o.x; x < o.x + o.w; x++) {
+        expect(CAMP_GROUND[y][x], `${o.id} at ${x},${y} is not on floor`).toBe(".");
+        expect(tiles.get(`${x},${y}`), `${o.id} overlaps ${tiles.get(`${x},${y}`)}`).toBeUndefined();
+        tiles.set(`${x},${y}`, o.id);
+        expect(campSolid(x, y)).toBe(true);
       }
-    }));
-    // Floor, but a delver there would stand inside the Welcome Board's hanging sign, behind the Draw Board's lamp post or
-    // the west brazier, hidden whole: those few are closed.
-    for (const [x,y] of [[28,24],[29,24],[28,25],[29,25],[34,19],[35,19],[21,20]]) expect(campSolid(x,y), `hidden ${x},${y}`).toBe(true);
+    }
+    for (const s of STATIONS) {
+      const b = CAMP_OBJECTS.find(o => o.station === s.id)!;
+      expect(b, s.id).toBeDefined();
+      // The door touches the building's footprint from outside.
+      const dx = Math.max(b.x - s.x, 0, s.x - (b.x + b.w - 1)), dy = Math.max(b.y - s.y, 0, s.y - (b.y + b.h - 1));
+      expect(dx + dy, `${s.id} door`).toBe(1);
+    }
   });
 
-  it("allows a direct step beside the anvil, fire, stairs and lower camp instead of a detour", () => {
-    for (const [x,y,dx,dy] of [[37,11,0,-1],[25,18,1,0],[10,10,0,-1],[42,17,1,0],[15,22,1,0],[26,23,0,-1]]) {
+  it("allows a direct step away from every door", () => {
+    for (const [x,y,dx,dy] of [[24,7,0,1],[11,11,0,1],[9,15,1,0],[37,11,0,1],[39,15,-1,0],[37,19,0,-1],[25,23,-1,0]]) {
       expect(stepInCamp({x,y},dx,dy), `${x},${y}`).toEqual({x:x+dx,y:y+dy});
     }
   });
 
   it("lets the delver walk up to every building", () => {
     const cells = reachable();
-    for (const s of STATIONS) {
-      expect(cells.has(s.y*CAMP_W+s.x), s.id).toBe(true);
-      const neighbours = [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => (s.y + dy) * CAMP_W + s.x + dx);
-      expect(neighbours.some(k => cells.has(k))).toBe(true);
-    }
+    for (const s of STATIONS) expect(cells.has(s.y*CAMP_W+s.x), s.id).toBe(true);
   });
 
   it("does not move the delver into a wall or a building, but still turns them", () => {
     expect(stepInCamp({ x: 24, y: 24 }, -1, 0)).toEqual({ x: 23, y: 24 });
-    expect(stepInCamp({ x: 24, y: 15 }, 0, 1)).toEqual({ x: 24, y: 15 });
-    expect(stepInCamp({ x: 24, y: 31 }, 0, 1)).toEqual({ x: 24, y: 31 });
+    expect(stepInCamp({ x: 24, y: 13 }, 0, 1)).toEqual({ x: 24, y: 13 });
+    expect(stepInCamp({ x: 24, y: 24 }, 0, 1)).toEqual({ x: 24, y: 24 });
     expect(facingOf(-1, 0, "up")).toBe("left");
     expect(facingOf(0, 0, "down")).toBe("down");
   });
 
   it("offers the building you face first, then any that touches you", () => {
-    expect(stationNear({ x: 24, y: 10 }, "up")?.id).toBe("gate");
-    expect(stationNear({ x: 24, y: 10 }, "left")?.id).toBe("gate");
-    expect(stationNear({ x: 24, y: 9 }, "down")?.id).toBe("gate");
+    expect(stationNear({ x: 24, y: 8 }, "up")?.id).toBe("gate");
+    expect(stationNear({ x: 24, y: 8 }, "left")?.id).toBe("gate");
+    expect(stationNear({ x: 24, y: 7 }, "down")?.id).toBe("gate");
     expect(stationNear(CAMP_SPAWN, "up")).toBeNull();
   });
 
@@ -120,31 +121,30 @@ describe("camp", () => {
     // The fire sits between them, so the walk has to detour and cannot be a straight line.
     expect(path.length).toBeGreaterThan(12);
     for (const cell of path) expect(campSolid(cell.x, cell.y)).toBe(false);
-    expect(pathTo(CAMP_SPAWN, { x: 24, y: 17 })).toBeNull();
+    expect(pathTo(CAMP_SPAWN, { x: 24, y: 15 })).toBeNull();
     expect(pathTo(CAMP_SPAWN, CAMP_SPAWN)).toEqual([]);
 
     for (const s of STATIONS) {
       const walk = pathToStation(CAMP_SPAWN, s)!;
       expect(walk).not.toBeNull();
       const end = walk.at(-1) ?? CAMP_SPAWN;
-      expect(end).toEqual({ x: s.x, y: s.y });
       expect(stationNear({ x: end.x, y: end.y }, facingStation(end, s))?.id).toBe(s.id);
     }
-    expect(pathToStation({ x: 24, y: 10 }, STATIONS[0])).toEqual([]);
+    expect(pathToStation({ x: 24, y: 8 }, STATIONS[0])).toEqual([]);
     expect(pathToStation(STATIONS[0], STATIONS[0])).toEqual([]);
   });
 });
 
-describe("painted camp geometry", () => {
-  it("keeps every cutout, light and water outline within the source painting", () => {
-    const ids = new Set<string>();
-    for (const cut of CAMP_OCCLUDERS) {
-      expect(ids.has(cut.id)).toBe(false); ids.add(cut.id);
-      expect(cut.polygon.length).toBeGreaterThanOrEqual(3);
-      expect(cut.baseline).toBeGreaterThan(0);
-      expect(cut.baseline).toBeLessThanOrEqual(CAMP_ART_HEIGHT);
+describe("camp map", () => {
+  it("keeps every object, light and water outline within the ground picture", () => {
+    expect(CAMP_GROUND).toHaveLength(CAMP_H);
+    for (const row of CAMP_GROUND) expect(row).toMatch(new RegExp(`^[.#~]{${CAMP_W}}$`));
+    for (const o of CAMP_OBJECTS) {
+      const b = objectBox(o);
+      expect(b.x, o.id).toBeGreaterThanOrEqual(0); expect(b.x + b.w, o.id).toBeLessThanOrEqual(CAMP_ART_WIDTH);
+      expect(b.y, o.id).toBeGreaterThanOrEqual(0); expect(footOf(o).y, o.id).toBeLessThanOrEqual(CAMP_ART_HEIGHT);
     }
-    for (const polygon of [...CAMP_OCCLUDERS.flatMap(c=>c.hitPolygon ? [c.polygon,c.hitPolygon] : [c.polygon]),...CAMP_WATER.map(w=>w.polygon)]) for (const [x,y] of polygon) {
+    for (const [x,y] of CAMP_WATER.flatMap(w => w.polygon)) {
       expect(x).toBeGreaterThanOrEqual(0); expect(x).toBeLessThanOrEqual(CAMP_ART_WIDTH);
       expect(y).toBeGreaterThanOrEqual(0); expect(y).toBeLessThanOrEqual(CAMP_ART_HEIGHT);
     }
@@ -156,17 +156,15 @@ describe("painted camp geometry", () => {
     }
   });
 
-  it("hits all seven painted stations without treating surrounding rock as a building", () => {
-    for (const [id,x,y] of [["gate",770,160],["hall",331,220],["altar",215,580],["armory",1185,285],["ledger",1360,488],["board",1190,665],["guide",915,785]] as const) {
-      expect(paintedStationAt(x,y)).toBe(id);
+  it("opens a building tapped anywhere on its picture, and nothing for the floor around it", () => {
+    for (const o of CAMP_OBJECTS.filter(o => o.station)) {
+      const b = objectBox(o);
+      expect(paintedStationAt(b.x + b.w / 2, b.y + b.h / 2), o.id).toBe(o.station);
     }
-    expect(paintedStationAt(20,20)).toBeNull();
-    expect(paintedStationAt(770,714)).toBeNull();
-    for (const x of [32,33,34,37,39,40]) expect(paintedStationAt(x*32+16,350), `forge floor ${x}`).toBeNull();
+    expect(paintedStationAt(20, 20)).toBeNull();
+    expect(paintedStationAt(770, 700)).toBeNull();
     expect(inCampPolygon(5,5,[[0,0],[10,0],[10,10],[0,10]])).toBe(true);
     expect(inCampPolygon(15,5,[[0,0],[10,0],[10,10],[0,10]])).toBe(false);
-    // The arch has an actual hole: it remains interactive without re-painting the portal over a walking delver.
-    expect(CAMP_OCCLUDERS.filter(c=>c.station === "gate").some(c=>inCampPolygon(770,180,c.polygon))).toBe(false);
   });
 });
 

@@ -253,6 +253,16 @@ export const PROP_FRAMES = { urn: 6, crate: 6, barrel: 6, sack: 6 };
 export const LOOT_ORDER = ["gold", "crystal", "oil", "chest", "vault", "hoard"];
 export const LOOT_HEIGHT = { gold: 12, crystal: 16, oil: 16, chest: 18, vault: 19, hoard: 26 };
 
+/** The camp's buildings, left to right as art/lobby/sprites/buildings.webp shows them, and each one's height in the game. */
+export const BUILDING_ORDER = ["gate", "hall", "altar", "armory", "ledger", "board", "guide"];
+export const BUILDING_HEIGHT = { gate: 186, hall: 150, altar: 150, armory: 156, ledger: 156, board: 128, guide: 74 };
+/** The camp's furniture, as art/lobby/sprites/furniture.webp shows it, and each piece's height in the game. */
+export const FURNITURE_ORDER = ["fire", "bench", "crate", "crates", "barrel", "chair", "tent"];
+export const FURNITURE_HEIGHT = { fire: 90, bench: 34, crate: 30, crates: 46, barrel: 34, chair: 38, tent: 104 };
+/** The camp's lights and cave details, as art/lobby/sprites/decor.webp shows them, and each one's height in the game. */
+export const DECOR_ORDER = ["banner", "lamp", "brazier", "crystal", "mushrooms", "boulder", "stalagmite"];
+export const DECOR_HEIGHT = { banner: 64, lamp: 72, brazier: 46, crystal: 42, mushrooms: 24, boulder: 38, stalagmite: 60 };
+
 const KINDS = {
   heroes: { raw: "art/heroes/raw/", out: "public/heroes/", cols: COLS, rows: ROWS, cellW: CELL_W, cellH: CELL_H, footX: FOOT_X, footY: FOOT_Y, main: false, height: () => FIGURE_H, textureScale: HERO_TEXTURE_SCALE, fixes: FIXES },
   // A mob's cell is wide: its attack (an arrow, a web, a spark) flies ahead of it, to the right.
@@ -276,6 +286,18 @@ const KINDS = {
     isBg: (r, g, b, name) => Math.min(r, b) > 40 && g < 0.45 * Math.min(r, b) && Math.abs(r - b) < 0.35 * Math.max(r, b)
       && (name !== "loot" || b - r < 20),
     variant: (name, w, h) => (name === "loot" ? { cols: LOOT_ORDER.length, perCell: LOOT_ORDER.map(id => LOOT_HEIGHT[id]) } : { cols: PROP_FRAMES[name] ?? Math.max(1, Math.round(w / h)) }),
+  },
+  // The camp's buildings and furniture, drawn apart from the empty cave so each stands on its own tiles (2026-10-15).
+  // A row of things of different sizes, like the loot: each scaled to its own height. Violet and pink glows are part of
+  // the art, so only true magenta is background and nothing is untinted.
+  lobby: {
+    raw: "art/lobby/sprites/", out: "public/lobby/", cols: 1, rows: 1, cellW: 224, cellH: 208, footX: 112, footY: 200, main: false,
+    height: () => 100, fixes: {}, textureScale: 1,
+    isBg: (r, g, b) => Math.min(r, b) > 40 && g < 0.45 * Math.min(r, b) && Math.abs(r - b) < 0.35 * Math.max(r, b) && b - r < 20,
+    variant: name => {
+      const rows = { buildings: [BUILDING_ORDER, BUILDING_HEIGHT], furniture: [FURNITURE_ORDER, FURNITURE_HEIGHT], decor: [DECOR_ORDER, DECOR_HEIGHT] }[name];
+      return rows ? { cols: rows[0].length, perCell: rows[0].map(id => rows[1][id]) } : null;
+    },
   },
 };
 

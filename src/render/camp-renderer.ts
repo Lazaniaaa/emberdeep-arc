@@ -3,8 +3,8 @@ import {
 } from "@/game/camp";
 import { ANIMALS } from "@/game/animals";
 import {
-  CAMP_ART_HEIGHT, CAMP_ART_URL, CAMP_ART_WIDTH, CAMP_LABELS, CAMP_LIGHTS, CAMP_OCCLUDERS, CAMP_WATER,
-  type CampOccluder, type CampPoint,
+  CAMP_ART_HEIGHT, CAMP_ART_URL, CAMP_ART_WIDTH, CAMP_CELL_H, CAMP_CELL_W, CAMP_FOOT_X, CAMP_FOOT_Y, CAMP_LABELS, CAMP_LIGHTS,
+  CAMP_OBJECTS, CAMP_SHEETS, CAMP_WATER, cellOf, footOf, objectBox, sheetOf, type CampObject, type CampPoint, type CampSheet,
 } from "@/game/camp-art";
 import type { Npc } from "@/game/camp-crowd";
 import { drawHero, type HeroPose } from "./mob-art";
@@ -463,9 +463,9 @@ function drawNpc(ctx: CanvasRenderingContext2D, n: CampNpc, time: number) {
 /** Names float above a delver's head, which rises half a tile over the tile it stands on. */
 const NAME_ABOVE = 22;
 
-type ArtCut = { object: CampOccluder; canvas: HTMLCanvasElement; x: number; y: number; w: number; h: number };
-type PaintedCamp = { image: HTMLImageElement; cuts: ArtCut[]; darkness: HTMLCanvasElement };
+type PaintedCamp = { image: HTMLImageElement; sheets: Record<CampSheet, HTMLCanvasElement>; darkness: HTMLCanvasElement };
 let campImage: HTMLImageElement | null = null;
+let campSheets: Record<CampSheet, HTMLImageElement> | null = null;
 let painted: PaintedCamp | null = null;
 let lightFrame: HTMLCanvasElement | null = null;
 
@@ -478,7 +478,9 @@ function polygonPath(polygon: readonly CampPoint[], ox = 0, oy = 0) {
 
 /** Also used by pointer handling, so a loading/failed painting has the same hit test as its fallback. */
 export function paintedCampReady() {
-  return campImage !== null && campImage.complete && campImage.naturalWidth === CAMP_ART_WIDTH && campImage.naturalHeight === CAMP_ART_HEIGHT;
+  const loaded = (i: HTMLImageElement) => i.complete && i.naturalWidth > 0;
+  return campImage !== null && loaded(campImage) && campImage.naturalWidth === CAMP_ART_WIDTH && campImage.naturalHeight === CAMP_ART_HEIGHT
+    && campSheets !== null && Object.values(campSheets).every(loaded);
 }
 
 function paintedCamp(): PaintedCamp | null {
@@ -486,21 +488,14 @@ function paintedCamp(): PaintedCamp | null {
   if (!campImage) {
     campImage = new Image();
     campImage.src = `${import.meta.env.BASE_URL}${CAMP_ART_URL}`;
+    campSheets = Object.fromEntries((Object.keys(CAMP_SHEETS) as CampSheet[]).map(name => {
+      const sheet = new Image();
+      sheet.src = `${import.meta.env.BASE_URL}lobby/${name}.png`;
+      return [name, sheet];
+    })) as Record<CampSheet, HTMLImageElement>;
   }
   if (!paintedCampReady()) return null;
   const image = campImage;
-  // Clip from the original painting ONCE, into small transparent canvases. No full-map clipping per animation frame.
-  const cuts = CAMP_OCCLUDERS.map(object => {
-    const xs = object.polygon.map(p => p[0]), ys = object.polygon.map(p => p[1]);
-    const x = Math.min(...xs), y = Math.min(...ys), w = Math.max(...xs)-x+1, h = Math.max(...ys)-y+1;
-    const canvas = document.createElement("canvas");
-    canvas.width = w; canvas.height = h;
-    const cut = canvas.getContext("2d")!;
-    cut.imageSmoothingEnabled = false;
-    cut.clip(polygonPath(object.polygon,x,y),"evenodd");
-    cut.drawImage(image,-x,-y);
-    return {object,canvas,x,y,w,h};
-  });
   const darkness = document.createElement("canvas");
   darkness.width = CAMP_ART_WIDTH; darkness.height = CAMP_ART_HEIGHT;
   const dark = darkness.getContext("2d")!;
@@ -511,8 +506,21 @@ function paintedCamp(): PaintedCamp | null {
   dark.fillStyle = edge; dark.fillRect(0,0,darkness.width,darkness.height);
   dark.globalCompositeOperation = "destination-out";
   for (const light of CAMP_LIGHTS) glow(dark,light.x,light.y,light.radius*1.3,"255,255,255",0.8);
-  painted = {image,cuts,darkness};
+  // Copied once into canvases: a sheet drawn straight from its image can come out blank the first time it is decoded.
+  const sheets = Object.fromEntries(Object.entries(campSheets!).map(([name, sheet]) => {
+    const canvas = document.createElement("canvas");
+    canvas.width = sheet.naturalWidth; canvas.height = sheet.naturalHeight;
+    canvas.getContext("2d")!.drawImage(sheet, 0, 0);
+    return [name, canvas];
+  })) as Record<CampSheet, HTMLCanvasElement>;
+  painted = {image,sheets,darkness};
   return painted;
+}
+
+/** One camp object from its sheet, its foot on the middle of its footprint's bottom edge. */
+function drawObject(ctx: CanvasRenderingContext2D, art: PaintedCamp, o: CampObject) {
+  const foot = footOf(o);
+  ctx.drawImage(art.sheets[sheetOf(o.sprite)], cellOf(o.sprite)*CAMP_CELL_W, 0, CAMP_CELL_W, CAMP_CELL_H, Math.round(foot.x-CAMP_FOOT_X), Math.round(foot.y-CAMP_FOOT_Y), CAMP_CELL_W, CAMP_CELL_H);
 }
 
 /** Feet and physical object bases use exactly the same world-pixel depth unit. */
@@ -642,13 +650,14 @@ export function drawCamp(ctx: CanvasRenderingContext2D, f: CampFrame) {
   ctx.drawImage(art.image,0,0); // Native 1536 x 1024 pixels: never stretched to a different tile grid.
   if (!f.reducedMotion) paintedWater(ctx,f.time);
   const things: {baseline:number;draw:()=>void}[] = [];
-  for (const cut of art.cuts) {
-    if (!inView(cut.x,cut.y,cut.w,cut.h,f)) continue;
-    things.push({baseline:cut.object.baseline,draw:()=>{
-      ctx.drawImage(cut.canvas,cut.x,cut.y);
-      if (cut.object.station && f.near === cut.object.station) {
-        ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha = 0.09;
-        ctx.drawImage(cut.canvas,cut.x,cut.y); ctx.restore();
+  for (const object of CAMP_OBJECTS) {
+    const box = objectBox(object);
+    if (!inView(box.x-CAMP_CELL_W/2,box.y-40,box.w+CAMP_CELL_W,box.h+40,f)) continue;
+    things.push({baseline:footOf(object).y,draw:()=>{
+      drawObject(ctx,art,object);
+      if (object.station && f.near === object.station) {
+        ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha = 0.12;
+        drawObject(ctx,art,object); ctx.restore();
       }
     }});
   }
@@ -659,7 +668,7 @@ export function drawCamp(ctx: CanvasRenderingContext2D, f: CampFrame) {
   things.sort((a,b)=>a.baseline-b.baseline).forEach(t=>t.draw());
   // Behind a sign, a lamp post or a stack of crates the delver would vanish: show them through it, faintly. Drawn over
   // the delver's own visible pixels it changes nothing, so it only shows where something in front covers them.
-  if (art.cuts.some(c => c.object.baseline > heroBaseline && c.x < heroX+CAMP_TILE+8 && c.x+c.w > heroX-8 && c.y < heroY+CAMP_TILE && c.y+c.h > heroY-24)) {
+  if (CAMP_OBJECTS.some(o => { const b = objectBox(o); return footOf(o).y > heroBaseline && b.x < heroX+CAMP_TILE+8 && b.x+b.w > heroX-8 && b.y < heroY+CAMP_TILE && b.y+b.h > heroY-24; })) {
     ctx.save(); ctx.globalAlpha = 0.45;
     drawHero(ctx,f.hero,heroX,heroY,CAMP_TILE,"rgba(0,0,0,0)");
     ctx.restore();

@@ -9,7 +9,10 @@ import { MOB_CELL_H, MOB_CELL_W, MOB_FOOT_Y, MOB_HEIGHT } from "../src/render/mo
 import { LOOT_ORDER, PROP_CELL_H, PROP_CELL_W, PROP_FOOT_Y, stagesOf } from "../src/render/prop-sheets";
 import { PROPS } from "../src/game/props";
 // @ts-expect-error -- a plain .mjs build script without type declarations
-import { LOOT_HEIGHT, LOOT_ORDER as SCRIPT_LOOT_ORDER, PROP_HEIGHT } from "./sprite-sheets.mjs";
+import { CAMP_CELL_H, CAMP_CELL_W, CAMP_FOOT_Y, CAMP_SHEETS, CAMP_SPRITE_HEIGHT } from "../src/game/camp-art";
+import {
+  BUILDING_HEIGHT, BUILDING_ORDER, DECOR_HEIGHT, DECOR_ORDER, FURNITURE_HEIGHT, FURNITURE_ORDER, LOOT_HEIGHT, LOOT_ORDER as SCRIPT_LOOT_ORDER, PROP_HEIGHT,
+} from "./sprite-sheets.mjs";
 
 async function frames(file: string, cols: number, rows: number, cellW: number, cellH: number) {
   expect(existsSync(file), file).toBe(true);
@@ -120,6 +123,28 @@ describe("prop and loot sheets", () => {
         expect(f.corner).toBe(0);
         if (i < standing) expect(Math.abs(f.bottom - PROP_FOOT_Y * d), `frame ${i}`).toBeLessThanOrEqual(d);
         else expect(f.bottom, `frame ${i}`).toBeLessThan(PROP_CELL_H * d - 1);
+      }
+    });
+  }
+});
+
+describe("camp sheets", () => {
+  it("cut the buildings, furniture and decor in the order and at the sizes the camp draws them", () => {
+    expect([...CAMP_SHEETS.buildings]).toEqual(BUILDING_ORDER);
+    expect([...CAMP_SHEETS.furniture]).toEqual(FURNITURE_ORDER);
+    expect([...CAMP_SHEETS.decor]).toEqual(DECOR_ORDER);
+    expect(CAMP_SPRITE_HEIGHT).toEqual({ ...BUILDING_HEIGHT, ...FURNITURE_HEIGHT, ...DECOR_HEIGHT });
+  });
+
+  for (const name of Object.keys(CAMP_SHEETS) as (keyof typeof CAMP_SHEETS)[]) {
+    const file = `public/lobby/${name}.png`;
+    it.skipIf(!existsSync(file))(`${name}: one clear cell for each, standing on the line`, async () => {
+      const { width, height } = await sharp(file).metadata();
+      expect(height).toBe(CAMP_CELL_H);
+      expect(width).toBe(CAMP_CELL_W * CAMP_SHEETS[name].length);
+      for (const f of await frames(file, CAMP_SHEETS[name].length, 1, CAMP_CELL_W, CAMP_CELL_H)) {
+        expect(f.corner).toBe(0);
+        expect(Math.abs(f.bottom - CAMP_FOOT_Y)).toBeLessThanOrEqual(2);
       }
     });
   }

@@ -45,7 +45,7 @@ export const ELDER_HOME = { x: 22, y: 11 };
 export type Crowd = { npcs: Npc[]; rng: Rng };
 
 const HOMES: [number, number][] = [
-  [24, 22], [22, 20], [26, 18], [23, 12], [26, 12], [12, 12], [32, 14], [24, 10], [11, 11], [36, 12], [12, 18], [31, 23],
+  [24, 22], [21, 21], [26, 18], [23, 12], [26, 12], [12, 12], [32, 14], [24, 10], [11, 11], [36, 12], [12, 18], [31, 23],
 ];
 
 export function createCrowd(seed = 7, now = 0): Crowd {

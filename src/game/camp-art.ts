@@ -1,97 +1,164 @@
 import type { StationId } from "./camp";
 
-/** All coordinates are pixels in the approved 1536 x 1024 painting, never screen pixels. */
+/**
+ * The camp as a game map, not a picture (2026-10-15): an empty painted cave (`public/maps/camp-ground.webp`, from
+ * art/lobby/raw/ground-v2.webp) with every building, piece of furniture, light and rock drawn on top as its own sprite,
+ * standing on its own tiles. All coordinates are tiles of the 48 x 32 camp, or pixels of the 1536 x 1024 ground.
+ */
 export const CAMP_ART_WIDTH = 1536;
 export const CAMP_ART_HEIGHT = 1024;
-export const CAMP_ART_URL = "maps/camp.webp";
+export const CAMP_ART_URL = "maps/camp-ground.webp";
 export type CampPoint = readonly [number, number];
-export type CampOccluder = {
-  id: string;
-  station?: StationId;
-  /** The bottom of the object's physical base, used in the same depth sort as delver feet. */
-  baseline: number;
-  polygon: readonly CampPoint[];
-  /** Includes a hollow gate opening for taps, without painting that opening over the delver. */
-  hitPolygon?: readonly CampPoint[];
-};
 
-/** Silhouettes traced from camp-v1-grid.png. Do not replace them with rectangular building cutouts. */
-export const CAMP_OCCLUDERS: readonly CampOccluder[] = [
-  // Floor and steps belong to the ground. Only upright silhouettes can cover a delver.
-  { id: "hall", station: "hall", baseline: 298,
-    polygon: [[253,171],[253,146],[270,130],[309,109],[331,92],[381,114],[408,157],[408,294],[368,295],[368,284],[295,284],[295,295],[254,295]],
-    hitPolygon: [[169,164],[250,164],[252,146],[270,130],[309,109],[331,92],[381,114],[408,157],[494,162],[503,315],[478,335],[407,334],[407,355],[255,355],[254,334],[174,331]] },
-  { id: "hall-left", station: "hall", baseline: 354, polygon: [[169,164],[250,164],[254,173],[254,301],[283,301],[283,351],[254,354],[254,334],[174,331]] },
-  { id: "hall-right", station: "hall", baseline: 356, polygon: [[409,157],[494,162],[503,315],[478,335],[408,334],[408,355],[383,355],[383,301],[409,301]] },
-  { id: "gate", station: "gate", baseline: 304,
-    polygon: [[658,39],[693,27],[747,3],[791,8],[842,34],[866,53],[867,109],[833,163],[832,134],[814,112],[769,93],[731,113],[706,148],[688,99]],
-    hitPolygon: [[623,60],[658,39],[693,27],[747,3],[791,8],[842,34],[898,47],[916,284],[867,294],[825,284],[709,284],[655,304],[612,289]] },
-  { id: "gate-left", station: "gate", baseline: 304, polygon: [[623,60],[658,39],[687,57],[699,105],[708,148],[708,224],[710,284],[684,300],[654,304],[612,289]] },
-  { id: "gate-right", station: "gate", baseline: 304, polygon: [[841,46],[898,47],[916,284],[867,294],[830,285],[829,217],[831,158],[844,116]] },
-  { id: "armory", station: "armory", baseline: 334, polygon: [[1028,157],[1068,140],[1107,169],[1240,170],[1243,142],[1282,143],[1283,289],[1310,315],[1304,334],[1277,340],[1262,336],[1232,336],[1219,328],[1185,327],[1157,336],[1138,328],[1081,329],[1056,340],[1024,332]] },
-  { id: "armory-rack", station: "armory", baseline: 340, polygon: [[1052,307],[1073,292],[1097,305],[1094,329],[1080,340],[1058,339]] },
-  { id: "armory-crates", station: "armory", baseline: 350, polygon: [[1232,314],[1257,307],[1275,316],[1270,343],[1257,350],[1232,344]] },
-  { id: "anvil", station: "armory", baseline: 370, polygon: [[1103,327],[1138,316],[1176,326],[1173,344],[1160,350],[1166,359],[1165,368],[1121,366],[1120,349],[1104,342]] },
-  { id: "vault", station: "ledger", baseline: 542, polygon: [[1229,470],[1260,419],[1287,397],[1342,374],[1383,388],[1408,415],[1446,449],[1471,483],[1471,529],[1451,541],[1418,542],[1418,527],[1265,527],[1265,542],[1230,545]] },
-  { id: "vault-pillar", baseline: 568, polygon: [[1185,413],[1210,409],[1226,416],[1224,435],[1217,444],[1213,545],[1219,556],[1214,569],[1188,570],[1182,557],[1192,545],[1190,446],[1183,438]] },
-  { id: "vault-side-crate", baseline: 562, polygon: [[1146,512],[1168,508],[1185,520],[1186,547],[1175,562],[1148,555],[1144,532]] },
-  { id: "vault-side-rock", baseline: 495, polygon: [[1129,457],[1150,443],[1170,444],[1183,456],[1186,482],[1172,495],[1145,494],[1123,483]] },
-  { id: "altar", station: "altar", baseline: 632, polygon: [[88,438],[132,424],[132,559],[165,552],[192,463],[216,436],[241,468],[264,547],[296,545],[294,439],[335,429],[341,534],[390,531],[395,583],[375,594],[353,610],[331,610],[312,628],[129,630],[106,608],[78,605],[74,566],[58,554],[59,533],[88,530]] },
-  { id: "draw-board", station: "board", baseline: 761, polygon: [[1087,576],[1138,590],[1184,594],[1244,597],[1280,609],[1339,610],[1361,600],[1377,615],[1391,720],[1365,748],[1309,750],[1260,756],[1243,758],[1223,738],[1115,735],[1097,715]] },
-  { id: "guide", station: "guide", baseline: 857, polygon: [[879,745],[962,732],[979,748],[979,823],[950,828],[955,850],[950,859],[942,858],[942,806],[881,807]] },
-  { id: "tent", baseline: 638, polygon: [[449,523],[466,504],[519,486],[531,470],[543,493],[583,505],[601,502],[600,599],[581,617],[517,637],[465,627],[442,621]] },
-  { id: "fire-ring", baseline: 590, polygon: [[717,544],[737,525],[750,523],[755,506],[768,479],[779,505],[796,524],[817,535],[832,554],[831,570],[811,586],[746,592],[715,576]] },
-  { id: "west-bench", baseline: 550, polygon: [[680,534],[719,502],[737,515],[732,530],[726,535],[710,551],[697,548],[690,551]] },
-  { id: "east-bench", baseline: 545, polygon: [[820,498],[838,504],[870,524],[864,538],[851,548],[835,536],[833,532]] },
-  { id: "south-bench", baseline: 601, polygon: [[699,565],[725,572],[737,585],[728,600],[714,597],[701,585]] },
-  { id: "north-west-bench", baseline: 462, polygon: [[661,429],[696,413],[724,430],[721,444],[705,448],[677,457],[671,467]] },
-  { id: "north-east-bench", baseline: 465, polygon: [[849,423],[869,425],[898,444],[897,457],[882,462],[852,449]] },
-  { id: "hall-lamp", baseline: 389, polygon: [[510,291],[542,289],[557,297],[556,322],[540,318],[537,357],[521,360],[516,343],[523,321],[542,302],[546,375],[536,389],[550,391],[564,383],[560,352],[558,302]] },
-  { id: "armory-lamp", station: "armory", baseline: 363, polygon: [[977,211],[1004,208],[1025,217],[999,230],[998,270],[1004,281],[1003,300],[990,309],[983,285],[992,271],[995,219],[977,222],[977,344],[987,359],[974,363],[968,353],[970,224]] },
-  { id: "hall-storage", baseline: 376, polygon: [[449,327],[463,318],[489,333],[505,345],[503,363],[487,376],[449,375],[435,360],[434,346]] },
-  { id: "west-lamp", baseline: 478, polygon: [[616,395],[650,379],[657,385],[649,399],[647,468],[658,476],[639,481],[634,468],[638,401],[629,405],[629,426],[635,434],[634,450],[623,455],[615,441],[620,426],[622,407],[615,405]] },
-  { id: "east-lamp", baseline: 477, polygon: [[906,383],[918,380],[943,396],[943,405],[935,406],[935,429],[944,437],[943,453],[932,459],[924,444],[930,430],[929,405],[920,401],[920,467],[928,475],[910,479],[906,469]] },
-  { id: "west-banner", baseline: 668, polygon: [[610,549],[624,550],[653,563],[660,567],[656,625],[643,635],[625,620],[624,657],[631,665],[611,670],[610,661]] },
-  { id: "east-banner", baseline: 675, polygon: [[906,548],[919,545],[932,550],[939,562],[933,617],[921,638],[920,663],[928,672],[907,679],[902,668]] },
-  { id: "west-brazier", baseline: 701, polygon: [[673,629],[684,615],[697,629],[702,645],[697,663],[699,696],[689,706],[674,700],[672,669],[668,654]] },
-  { id: "east-brazier", baseline: 702, polygon: [[848,636],[863,614],[874,639],[878,654],[873,672],[876,696],[863,707],[848,700],[845,671],[843,655]] },
-  { id: "tunnel-left", baseline: 958, polygon: [[682,806],[677,799],[682,774],[701,770],[713,783],[719,837],[716,937],[705,958],[687,953]] },
-  { id: "tunnel-right", baseline: 960, polygon: [[815,783],[835,774],[856,790],[863,807],[853,936],[837,959],[812,949],[809,832]] },
-  { id: "tunnel-lintel", baseline: 960, polygon: [[716,810],[812,810],[815,832],[797,850],[720,845]] },
-  { id: "west-crates", baseline: 701, polygon: [[634,660],[651,650],[668,661],[669,690],[654,703],[632,695]] },
-  { id: "east-crates", baseline: 633, polygon: [[943,600],[960,590],[967,569],[986,560],[1007,573],[1002,597],[993,599],[990,620],[974,634],[954,636],[940,622]] },
-  { id: "west-tunnel-rock", baseline: 998, polygon: [[546,749],[583,748],[629,787],[660,836],[675,909],[681,963],[699,998],[605,989],[562,938],[529,873],[512,817]] },
-  { id: "east-tunnel-rock", baseline: 1007, polygon: [[871,917],[914,854],[960,842],[980,866],[971,928],[946,977],[937,1007],[838,1007]] },
+/**
+ * The ground: `.` floor, `#` rock, `~` water. Traced from the empty cave by colour, then by hand: dark moss is floor,
+ * the tunnel below the entrance and the wall behind the gate are rock.
+ */
+export const CAMP_GROUND: readonly string[] = [
+  "################################################", // 00
+  "################################################", // 01
+  "################################################", // 02
+  "#####################......#####################", // 03
+  "#####################......##############~##~~##", // 04
+  "#####################......#################~~##", // 05
+  "#######.......#####..........####.......####~~##", // 06
+  "#######........#####........#####.......####~###", // 07
+  "######............##........###.........########", // 08
+  "#######..................................#######", // 09
+  "#######..................................#######", // 10
+  "#######..................................#######", // 11
+  "###..........................................###", // 12
+  "###..........................................###", // 13
+  "###..........................................###", // 14
+  "###..........................................###", // 15
+  "###..........................................###", // 16
+  "###..........................................###", // 17
+  "###..........................................###", // 18
+  "#####.....................................######", // 19
+  "#####.....................................######", // 20
+  "###############..........................#######", // 21
+  "#################........................#######", // 22
+  "###################......................#######", // 23
+  "####~###############......................######", // 24
+  "###~~~##########################################", // 25
+  "####~~##################~#######################", // 26
+  "#######~###############~~#######################", // 27
+  "#####~~~###############~~~######################", // 28
+  "########~##############~~~######################", // 29
+  "#######################~~#######################", // 30
+  "################################################", // 31
 ];
 
-export const CAMP_LABELS: Record<StationId, CampPoint> = {
-  gate: [768, 74], hall: [331, 117], altar: [216, 421], armory: [1165, 164],
-  ledger: [1353, 406], board: [1227, 587], guide: [920, 737],
+/** The three sprite sheets in public/lobby/, in the order scripts/sprite-sheets.mjs cuts them. */
+export const CAMP_SHEETS = {
+  buildings: ["gate", "hall", "altar", "armory", "ledger", "board", "guide"],
+  furniture: ["fire", "bench", "crate", "crates", "barrel", "chair", "tent"],
+  decor: ["banner", "lamp", "brazier", "crystal", "mushrooms", "boulder", "stalagmite"],
+} as const;
+export type CampSheet = keyof typeof CAMP_SHEETS;
+export type CampSprite = (typeof CAMP_SHEETS)[CampSheet][number];
+/** A cell of every lobby sheet, and where in it a sprite's foot stands (the script's lobby kind). */
+export const CAMP_CELL_W = 224, CAMP_CELL_H = 208, CAMP_FOOT_X = 112, CAMP_FOOT_Y = 200;
+/** How tall each sprite stands, in pixels (the script's BUILDING_HEIGHT, FURNITURE_HEIGHT, DECOR_HEIGHT). */
+export const CAMP_SPRITE_HEIGHT: Record<CampSprite, number> = {
+  gate: 186, hall: 150, altar: 150, armory: 156, ledger: 156, board: 128, guide: 74,
+  fire: 90, bench: 34, crate: 30, crates: 46, barrel: 34, chair: 38, tent: 104,
+  banner: 64, lamp: 72, brazier: 46, crystal: 42, mushrooms: 24, boulder: 38, stalagmite: 60,
 };
+
+export const sheetOf = (sprite: CampSprite): CampSheet =>
+  (Object.keys(CAMP_SHEETS) as CampSheet[]).find(s => (CAMP_SHEETS[s] as readonly string[]).includes(sprite))!;
+export const cellOf = (sprite: CampSprite) => (CAMP_SHEETS[sheetOf(sprite)] as readonly string[]).indexOf(sprite);
+
+/**
+ * Something standing in the camp: a sprite on solid tiles (x, y, w, h). It is drawn with its foot at the middle of the
+ * footprint's bottom edge, or at `footX` (pixels) when the painted pad is not centred on whole tiles.
+ */
+export type CampObject = { id: string; sprite: CampSprite; x: number; y: number; w: number; h: number; footX?: number; station?: StationId };
+
+const one = (id: string, sprite: CampSprite, x: number, y: number): CampObject => ({ id, sprite, x, y, w: 1, h: 1 });
+
+export const CAMP_OBJECTS: readonly CampObject[] = [
+  // The seven buildings, each on its paved square (see art/lobby/ground-v2-grid.png).
+  { id: "gate", sprite: "gate", x: 21, y: 3, w: 6, h: 4, footX: 768, station: "gate" },
+  { id: "hall", sprite: "hall", x: 9, y: 7, w: 5, h: 4, footX: 354, station: "hall" },
+  { id: "altar", sprite: "altar", x: 4, y: 13, w: 5, h: 5, footX: 192, station: "altar" },
+  { id: "armory", sprite: "armory", x: 34, y: 7, w: 6, h: 4, footX: 1181, station: "armory" },
+  { id: "ledger", sprite: "ledger", x: 40, y: 13, w: 5, h: 5, footX: 1344, station: "ledger" },
+  { id: "board", sprite: "board", x: 34, y: 20, w: 6, h: 4, footX: 1183, station: "board" },
+  { id: "guide", sprite: "guide", x: 26, y: 22, w: 2, h: 2, footX: 848, station: "guide" },
+  // The plaza: the fire in the middle, benches in its four corners, lamps at the paths' corners.
+  { id: "fire", sprite: "fire", x: 23, y: 14, w: 3, h: 2 },
+  one("bench-nw", "bench", 21, 13), one("bench-ne", "bench", 27, 13), one("bench-sw", "bench", 21, 17), one("bench-se", "bench", 27, 17),
+  one("lamp-w", "lamp", 19, 11), one("lamp-e", "lamp", 29, 11),
+  // Banners up to the gate, braziers down to the tunnel.
+  one("banner-w", "banner", 22, 9), one("banner-e", "banner", 25, 9),
+  one("brazier-w", "brazier", 22, 20), one("brazier-e", "brazier", 25, 20),
+  // The tent in the lower left, and the stores around the buildings.
+  { id: "tent", sprite: "tent", x: 14, y: 17, w: 4, h: 3 },
+  one("hall-barrel", "barrel", 8, 9), one("hall-crate", "crate", 14, 9),
+  one("armory-barrel", "barrel", 33, 9), one("armory-crates", "crates", 40, 9),
+  one("board-chair", "chair", 33, 22), one("board-crate", "crate", 40, 21),
+  // The cave itself: crystals, mushrooms, boulders and stalagmites along the edges.
+  one("crystal-nw", "crystal", 6, 8), one("crystal-ne", "crystal", 33, 7), one("crystal-sw", "crystal", 5, 18), one("crystal-se", "crystal", 44, 18),
+  one("mushrooms-1", "mushrooms", 16, 12), one("mushrooms-2", "mushrooms", 31, 13), one("mushrooms-3", "mushrooms", 17, 21), one("mushrooms-4", "mushrooms", 30, 22),
+  one("boulder-1", "boulder", 27, 6), one("boulder-2", "boulder", 4, 12), one("boulder-3", "boulder", 41, 20),
+  one("stalagmite-1", "stalagmite", 20, 6), one("stalagmite-2", "stalagmite", 18, 22), one("stalagmite-3", "stalagmite", 31, 24),
+];
+
+/** Where an object's foot stands, in ground pixels: the middle of its footprint's bottom edge, a pixel above the line. */
+export const footOf = (o: CampObject) => ({ x: o.footX ?? (o.x + o.w / 2) * 32, y: (o.y + o.h) * 32 - 2 });
+
+/** The box an object's picture covers, in ground pixels (its width as wide as its footprint, at least a tile). */
+export function objectBox(o: CampObject) {
+  const foot = footOf(o), h = CAMP_SPRITE_HEIGHT[o.sprite];
+  const w = Math.max(o.w, 1) * 32;
+  return { x: foot.x - w / 2, y: foot.y - h, w, h };
+}
+
+/** Labels float above the buildings. */
+export const CAMP_LABELS = Object.fromEntries(
+  CAMP_OBJECTS.filter(o => o.station).map(o => {
+    const box = objectBox(o);
+    return [o.station!, [footOf(o).x, Math.max(10, box.y - 6)] as CampPoint];
+  }),
+) as Record<StationId, CampPoint>;
 
 export type CampLight = { x: number; y: number; rgb: string; radius: number; kind: "fire" | "torch" | "lantern" | "crystal" | "gate" | "water" | "tunnel" };
-const warm = "255,170,70";
+
+/** The lights each kind of sprite carries, from its foot. */
+const SPRITE_LIGHTS: Partial<Record<CampSprite, (Omit<CampLight, "x" | "y"> & { dx: number; dy: number })[]>> = {
+  fire: [{ dx: 0, dy: -24, rgb: "255,143,50", radius: 150, kind: "fire" }],
+  lamp: [{ dx: -14, dy: -40, rgb: "255,197,97", radius: 60, kind: "lantern" }],
+  brazier: [{ dx: 0, dy: -38, rgb: "255,170,70", radius: 58, kind: "torch" }],
+  crystal: [{ dx: 0, dy: -18, rgb: "73,207,255", radius: 54, kind: "crystal" }],
+  mushrooms: [{ dx: 0, dy: -10, rgb: "244,100,255", radius: 30, kind: "crystal" }],
+  gate: [
+    { dx: 0, dy: -70, rgb: "57,241,147", radius: 110, kind: "gate" },
+    { dx: -66, dy: -100, rgb: "255,170,70", radius: 56, kind: "torch" }, { dx: 66, dy: -100, rgb: "255,170,70", radius: 56, kind: "torch" },
+  ],
+  altar: [{ dx: 0, dy: -86, rgb: "244,87,255", radius: 92, kind: "crystal" }],
+  hall: [{ dx: 0, dy: -56, rgb: "176,110,255", radius: 74, kind: "crystal" }],
+  armory: [{ dx: 18, dy: -40, rgb: "255,140,50", radius: 66, kind: "torch" }],
+  ledger: [{ dx: -62, dy: -70, rgb: "255,197,97", radius: 50, kind: "lantern" }, { dx: 62, dy: -70, rgb: "255,197,97", radius: 50, kind: "lantern" }],
+  board: [{ dx: -76, dy: -66, rgb: "255,197,97", radius: 50, kind: "lantern" }, { dx: 72, dy: -66, rgb: "255,197,97", radius: 50, kind: "lantern" }],
+  guide: [{ dx: -6, dy: -46, rgb: "78,223,255", radius: 40, kind: "crystal" }],
+};
+
 export const CAMP_LIGHTS: readonly CampLight[] = [
-  {x:773,y:546,rgb:"255,143,50",radius:155,kind:"fire"},
-  ...[[654,167],[884,173],[847,396],[688,646],[864,644],[700,792],[845,795],[1186,305]].map(([x,y]) => ({x,y,rgb:warm,radius:61,kind:"torch" as const})),
-  ...[[269,297],[395,300],[109,550],[321,550],[136,588],[303,590]].map(([x,y]) => ({x,y,rgb:"244,100,255",radius:52,kind:"torch" as const})),
-  ...[[528,341],[626,433],[933,439],[993,282],[1253,261],[1261,482],[1447,486],[1097,650],[1281,650]].map(([x,y]) => ({x,y,rgb:"255,197,97",radius:57,kind:"lantern" as const})),
-  ...[[137,148],[516,88],[77,347],[590,254],[1102,75],[1399,231],[1470,332],[484,878],[1416,923]].map(([x,y]) => ({x,y,rgb:"73,207,255",radius:61,kind:"crystal" as const})),
-  {x:216,y:488,rgb:"244,87,255",radius:96,kind:"crystal"},
-  {x:920,y:797,rgb:"78,223,255",radius:46,kind:"crystal"},
-  {x:769,y:182,rgb:"57,241,147",radius:116,kind:"gate"},
-  {x:182,y:850,rgb:"64,195,255",radius:95,kind:"water"},
-  {x:1415,y:232,rgb:"64,195,255",radius:72,kind:"water"},
-  {x:772,y:906,rgb:"110,225,255",radius:101,kind:"tunnel"},
+  ...CAMP_OBJECTS.flatMap(o => (SPRITE_LIGHTS[o.sprite] ?? []).map(({ dx, dy, ...light }) => ({ ...light, x: footOf(o).x + dx, y: footOf(o).y + dy }))),
+  { x: 180, y: 860, rgb: "64,195,255", radius: 95, kind: "water" },
+  { x: 1430, y: 220, rgb: "64,195,255", radius: 70, kind: "water" },
+  { x: 772, y: 900, rgb: "110,225,255", radius: 100, kind: "tunnel" },
 ];
 
-export const CAMP_WATER: readonly { polygon: readonly CampPoint[]; falls: readonly [number,number,number,number][] }[] = [
-  {polygon:[[97,796],[162,786],[176,811],[273,803],[321,840],[414,875],[427,911],[391,937],[269,943],[140,939],[65,883],[67,840]],falls:[[116,717,27,113],[151,725,12,93]]},
-  {polygon:[[1350,213],[1385,201],[1438,212],[1509,241],[1534,258],[1504,291],[1450,284],[1389,253]],falls:[[1420,122,27,105],[1380,107,16,109]]},
-  {polygon:[[1240,911],[1297,899],[1352,903],[1375,920],[1312,940],[1259,946]],falls:[]},
+/** The pools and streams of the empty cave, for their shimmer, and the falls in them (x, y, w, h). */
+export const CAMP_WATER: readonly { polygon: readonly CampPoint[]; falls: readonly [number, number, number, number][] }[] = [
+  { polygon: [[60, 800], [200, 790], [330, 818], [470, 848], [482, 930], [380, 962], [200, 962], [62, 930]], falls: [[116, 712, 26, 112], [150, 720, 14, 100]] },
+  { polygon: [[1380, 236], [1470, 222], [1530, 262], [1520, 320], [1470, 334], [1400, 296]], falls: [[1418, 128, 28, 104]] },
 ];
 
-/** Point-in-polygon for painted building taps. Rock surrounding the silhouette is not a building hit. */
+/** Point-in-polygon, for the water. */
 export function inCampPolygon(x: number, y: number, polygon: readonly CampPoint[]) {
   let inside = false;
   for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
@@ -101,9 +168,13 @@ export function inCampPolygon(x: number, y: number, polygon: readonly CampPoint[
   return inside;
 }
 
+/** The building under a tap at ground pixel (x, y): the frontmost one whose picture covers it. */
 export function paintedStationAt(x: number, y: number): StationId | null {
-  // Highest baseline first, matching the visible object where silhouettes overlap.
-  const hits = CAMP_OCCLUDERS.filter(o => o.station && inCampPolygon(x,y,o.hitPolygon ?? o.polygon));
-  hits.sort((a,b) => b.baseline-a.baseline);
+  const hits = CAMP_OBJECTS.filter(o => {
+    if (!o.station) return false;
+    const b = objectBox(o);
+    return x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b.h;
+  });
+  hits.sort((a, b) => footOf(b).y - footOf(a).y);
   return hits[0]?.station ?? null;
 }

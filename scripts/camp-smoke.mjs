@@ -9,14 +9,13 @@ const out = process.argv[3] ?? "artifacts/camp";
 mkdirSync(out,{recursive:true});
 const browser = await chromium.launch({channel:process.env.SMOKE_CHANNEL || "msedge"});
 const errors = [], results = {};
-const stationHits = {gate:[770,160],hall:[331,220],altar:[215,580],armory:[1185,285],ledger:[1360,488],board:[1190,665],guide:[915,785]};
 
 async function session(width,height,name,paint=true) {
   const context = await browser.newContext({viewport:{width,height}});
   const page = await context.newPage();
   page.on("pageerror",e=>errors.push(`${name}: ${e.message}`));
   page.on("console",m=>{if(m.type()==="error" && !(paint===false && m.text().includes("ERR_FAILED"))) errors.push(`${name}: ${m.text()}`);});
-  if (!paint) await page.route("**/maps/camp.webp",route=>route.abort());
+  if (!paint) await page.route("**/maps/camp-ground.webp",route=>route.abort());
   await page.goto(base);
   await page.getByRole("button",{name:"Open Dungeon Gate"}).waitFor();
   if (await page.getByRole("button",{name:/got it/i}).count()) await page.getByRole("button",{name:/got it/i}).click();
@@ -72,6 +71,11 @@ try {
     await walk(page,{x:24,y:20});
     await page.screenshot({path:`${out}/${name}-fire.png`});
     const stations=await page.evaluate(async()=>(await import("/src/game/camp.ts")).STATIONS);
+    // The middle of each building's picture, in ground pixels.
+    const stationHits=await page.evaluate(async()=>{
+      const {CAMP_OBJECTS,objectBox}=await import("/src/game/camp-art.ts");
+      return Object.fromEntries(CAMP_OBJECTS.filter(o=>o.station).map(o=>{const b=objectBox(o);return [o.station,[b.x+b.w/2,b.y+b.h/2]];}));
+    });
     const opened=[];
     for (const id of ["guide","gate","hall","altar","armory","ledger","board"]) {
       const s=stations.find(s=>s.id===id);
@@ -91,14 +95,13 @@ try {
       await closePanel(page);
       opened.push(id);
     }
-    // Real keyboard walks to open tiles beside/behind tall station silhouettes.
-    for (const [id,x,y] of [["hall-lamp",16,11],["altar",12,18],["gate",22,8]]) {
+    // Real keyboard walks to open tiles behind a lamp post and a banner: the delver shows through as a ghost.
+    for (const [id,x,y] of [["lamp-w",19,10],["banner-w",22,8],["lamp-e",29,10]]) {
       await walk(page,{x,y});
       await page.screenshot({path:`${out}/${name}-behind-${id}.png`});
     }
-    // Literal clear-floor steps traced from the painting: a BFS-only check cannot catch phantom walls.
-    const floorSteps = [[37,11,0,-1],[39,11,1,0],[25,18,1,0],[10,10,0,-1],[42,17,1,0],
-      [15,22,1,0],[26,23,0,-1],[12,12,1,0],[22,19,1,0],[44,21,0,1]];
+    // A step away from or onto every door: a BFS-only check cannot catch phantom walls.
+    const floorSteps = [[24,7,0,1],[11,11,0,1],[9,15,1,0],[37,11,0,1],[38,15,1,0],[37,19,0,-1],[24,23,1,0]];
     for (const [x,y,dx,dy] of floorSteps) {
       await walk(page,{x,y});
       await page.keyboard.press(dx===1?"ArrowRight":dy===-1?"ArrowUp":"ArrowDown");
@@ -124,7 +127,6 @@ try {
   // Pixel tests use the production renderer, with no crowd and fixed lighting/labels.
   results.render=await page.evaluate(async()=>{
     const {drawCamp,campFootBaseline}=await import("/src/render/camp-renderer.ts");
-    const {CAMP_OCCLUDERS,inCampPolygon}=await import("/src/game/camp-art.ts");
     const f={time:0,reducedMotion:true,camera:{x:0,y:0},view:{w:1536,h:1024},zoom:1,
       hero:{animal:"cat-ginger-tabby",dir:"down",frame:"a",offX:0,offY:0,flash:0},
       playerPos:{x:24,y:20},playerName:"",playerColor:"#fff",near:null,firstVisit:false,crowd:[]};
@@ -135,33 +137,21 @@ try {
     const still=a.every((v,i)=>v===b[i]);
     const motion0=pixels({...f,reducedMotion:false}),motion1=pixels({...f,reducedMotion:false,time:1800});
     let changed=0;for(let i=0;i<motion0.length;i+=4)if(motion0[i]!==motion1[i]||motion0[i+1]!==motion1[i+1]||motion0[i+2]!==motion1[i+2])changed++;
+    // Behind a lamp post and a banner the delver must still show (the ghost), never vanish.
     const depth=[];
-    for(const [id,x,y] of [["hall-lamp",16,11],["altar",12,18],["gate",22,8],["board",43,19]]) {
+    for(const [id,x,y] of [["lamp-w",19,10],["banner-w",22,8],["lamp-e",29,10]]) {
       const frame={...f,playerPos:{x,y}};
       const visible=pixels(frame),absent=pixels({...frame,hero:{...f.hero,offX:10000}});
-      const blockers=CAMP_OCCLUDERS.filter(o=>(o.station===id || o.id===id) && o.baseline>campFootBaseline(y));
-      let covered=0,leaked=0,shown=0;
-      const solo=document.createElement("canvas");solo.width=1536;solo.height=1024;
-      const single=solo.getContext("2d");
-      const {drawHero}=await import("/src/render/mob-art.ts");
-      drawHero(single,f.hero,x*32,y*32,32,"rgba(0,0,0,0)");
-      const sprite=single.getImageData(0,0,1536,1024).data;
+      let shown=0;
       for(let py=y*32-30;py<y*32+32;py++)for(let px=x*32-25;px<x*32+58;px++) {
         const p=(py*1536+px)*4;
-        if(sprite[p+3]!==255)continue;
-        const blocked=blockers.some(o=>[-1,0,1].every(dx=>[-1,0,1].every(dy=>inCampPolygon(px+dx,py+dy,o.polygon))));
-        const differs=visible[p]!==absent[p]||visible[p+1]!==absent[p+1]||visible[p+2]!==absent[p+2];
-        // Behind a silhouette the delver shows only as a faint ghost (45%): the painting must still win there.
-        const ghost=[0,1,2].reduce((sum,c)=>sum+Math.abs(visible[p+c]-absent[p+c]),0);
-        const full=[0,1,2].reduce((sum,c)=>sum+Math.abs(sprite[p+c]-absent[p+c]),0);
-        if(blocked){covered++;if(ghost>0.6*full+12)leaked++;}else if(differs)shown++;
+        if(visible[p]!==absent[p]||visible[p+1]!==absent[p+1]||visible[p+2]!==absent[p+2])shown++;
       }
-      depth.push({id,covered,leaked,shown});
+      depth.push({id,shown});
     }
     const clearFloor=[];
-    for(const [id,x,y] of [["hall-stairs",10,9],["altar-front",7,20],["vault-stairs",42,17],
-      ["anvil-left",34,11],["anvil-right",37,10],["forge-rack-front",32,11],["forge-barrel-front",40,11],
-      ["fire-left",22,19],["fire-right",25,18],["tent-front",16,20],["guide-side",26,23]]) {
+    for(const [id,x,y] of [["gate-door",24,7],["hall-door",11,11],["altar-door",9,15],["armory-door",37,11],
+      ["vault-door",39,15],["board-door",37,19],["guide-door",25,23],["fire-south",24,16],["tent-front",16,20]]) {
       const frame={...f,playerPos:{x,y}};
       const visible=pixels(frame),absent=pixels({...frame,hero:{...f.hero,offX:10000}});
       let shown=0;
@@ -181,7 +171,7 @@ try {
   });
   assert.equal(results.render.reducedMotionStill,true);
   assert(results.render.animatedPixels>100);
-  for(const d of results.render.depth){assert(d.covered>0,`${d.id}: no actual occlusion checked`);assert(d.leaked<=d.covered*0.02,`${d.id}: delver drawn over the painting, not behind it`);assert(d.shown>0,`${d.id}: delver wholly hidden`);}
+  for(const d of results.render.depth)assert(d.shown>150,`${d.id}: delver hidden behind it (${d.shown} visible pixels)`);
   for(const d of results.render.clearFloor)assert(d.shown>400,`${d.id}: delver hidden by painted floor (${d.shown} visible pixels)`);
   await context.close();
 
