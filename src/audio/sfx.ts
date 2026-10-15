@@ -1,4 +1,5 @@
 import type { RunEvent } from "@/game/run";
+import { audioContext } from "./context";
 
 type Cue = { freq: number; to?: number; dur: number; type?: OscillatorType; gain?: number; delay?: number };
 
@@ -34,15 +35,13 @@ const CUES: Partial<Record<RunEvent | "buy" | "mint" | "burn", Cue[]>> = {
   mint: [392, 523, 659, 784, 1047].map((f, i) => ({ freq: f, dur: 0.16, type: "triangle" as const, gain: 0.06, delay: i * 0.09 })),
 };
 
-let ctx: AudioContext | null = null;
-
 export function playSfx(name: keyof typeof CUES, muted: boolean) {
   if (muted) return;
   const cues = CUES[name];
   if (!cues) return;
   try {
-    ctx ??= new AudioContext();
-    if (ctx.state === "suspended") void ctx.resume();
+    const ctx = audioContext();
+    if (ctx.state === "suspended") void ctx.resume().catch(() => {});
     const now = ctx.currentTime;
     for (const c of cues) {
       const osc = ctx.createOscillator();
@@ -54,6 +53,7 @@ export function playSfx(name: keyof typeof CUES, muted: boolean) {
       gain.gain.setValueAtTime(c.gain ?? 0.04, t);
       gain.gain.exponentialRampToValueAtTime(0.0001, t + c.dur);
       osc.connect(gain).connect(ctx.destination);
+      osc.onended = () => { osc.disconnect(); gain.disconnect(); };
       osc.start(t);
       osc.stop(t + c.dur + 0.02);
     }

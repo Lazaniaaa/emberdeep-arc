@@ -220,7 +220,11 @@ export function lootMultiplier(depth: number) {
 }
 
 export function lightRadius(light: number) {
-  return Math.max(1, Math.min(5, 1 + Math.floor(light / 25)));
+  // A healthy lantern keeps its full view; only the final 25 light narrows it.
+  if (light >= 25) return 5;
+  if (light >= 20) return 4;
+  if (light >= 10) return 3;
+  return light >= 5 ? 2 : 1;
 }
 
 export function toUsd(cents: number) {

@@ -7,12 +7,15 @@ import { ReportDialog } from "@/components/report-dialog";
 import { cn } from "@/lib/utils";
 import { useRun } from "@/state/run-store";
 import { useGame } from "@/state/store";
+import { useSoundtrack } from "@/audio/use-soundtrack";
 
 const RunView = lazy(() => import("@/components/run-view").then(module => ({ default: module.RunView })));
 
 export default function App() {
   const inRun = useRun(s => s.run !== null);
   const reducedMotion = useGame(s => s.reducedMotion);
+  const muted = useGame(s => s.muted);
+  useSoundtrack(muted);
 
   return (
     <TooltipProvider>

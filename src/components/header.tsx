@@ -54,7 +54,7 @@ export function Header({ overlay = false }: { overlay?: boolean }) {
               <TooltipContent>Hall of Descents on Arc</TooltipContent>
             </Tooltip>
           )}
-          <Button variant="ghost" size="icon" aria-label={muted ? "Unmute sound" : "Mute sound"} onClick={() => setMuted(!muted)}>
+          <Button variant="ghost" size="icon" aria-label={muted ? "Unmute sound" : "Mute sound"} title={muted ? "Enable music and effects" : "Mute music and effects"} onClick={() => setMuted(!muted)}>
             {muted ? <VolumeX /> : <Volume2 />}
           </Button>
           <Button

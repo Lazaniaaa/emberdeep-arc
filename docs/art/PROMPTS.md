@@ -574,3 +574,8 @@ Columns, left to right, identical state order in every row:
 
 Keep the creature's ground-contact anchor in exactly the same place in all cells, near the lower centre. Keep scale, colours, head identities and flame positions consistent. Attack and flame silhouettes remain fully inside their own cells. Deliver the sprite sheet only.
 ```
+
+
+## Runtime ordinary-mob sizing (2026-10-15)
+
+No new artwork was generated. The approved sources in `art/mobs/raw/` were recut with `node scripts/sprite-sheets.mjs mobs`: small creatures now occupy roughly one 32px tile along their longer side, preserving proportions; the already-large crab/golem remain the same scale. Logical heights: Waxling 30, Spider 22, Lantern Moth 28, Archer 29, Wisp 26, Golem 36, Skull Crab 22, Shroom 32, Imp 28. All nine textures now use 2x density (768x112, four logical 96x56 cells) to retain eyes and outlines. Cerberus sources and atlas were not changed.

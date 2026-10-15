@@ -62,9 +62,10 @@ afterAll(() => close.forEach(c => c()));
 
 describe("attestation server", () => {
   it("replays a descent that came home, signs exactly its result, and the Hall accepts it", async () => {
-    const { moves, final } = play(() => simulateFogRun(4242, 2));
+    // The wider low-light view changes the bot's route; this seed still extracts with nonzero loot and kills.
+    const { moves, final } = play(() => simulateFogRun(1000, 2));
     expect(final.status).toBe("extracted");
-    const res = await post(base, { player: PLAYER, setup: setupFor(4242, 2), moves });
+    const res = await post(base, { player: PLAYER, setup: setupFor(1000, 2), moves });
     expect(res.status).toBe(200);
     const { descent, signature } = await res.json() as Attestation;
     expect(descent).toMatchObject({ depth: final.deepest, gold: final.gold, kills: final.kills, home: true, deadline: String(EVM_NOW + 3600n) });

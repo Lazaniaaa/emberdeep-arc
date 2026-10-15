@@ -8,7 +8,7 @@ import { CreatureAnimator, restPose, type Pose } from "./creature-anim";
 import type { FxArt, FxQueue } from "./fx";
 import { breakingFrame, drawCell, lootIndex, lootSheet, propSheet, standingFrame } from "./prop-sheets";
 import { drawHero, propCanvas, type HeroPose } from "./mob-art";
-import { MOB_CELL_H, MOB_CELL_W, MOB_FOOT_X, MOB_FOOT_Y, MOB_HEIGHT, mobFrameX, mobSheet } from "./mob-sheets";
+import { MOB_CELL_H, MOB_CELL_W, MOB_FOOT_X, MOB_FOOT_Y, MOB_HEIGHT, MOB_TEXTURE_SCALE, mobFrameX, mobSheet } from "./mob-sheets";
 import { ICONS, drawMask, type Mask } from "./sprites";
 
 export const TILE = 32;
@@ -270,10 +270,10 @@ function drawCreature(ctx: CanvasRenderingContext2D, d: Dimling, pose: Pose) {
   if (!d.awake) ctx.globalAlpha = 0.72;
   else if (phase === "recovery" && !pose.striking) ctx.globalAlpha = 0.6;
   ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(sheet.image, sx, 0, MOB_CELL_W, MOB_CELL_H, -MOB_FOOT_X, -MOB_FOOT_Y, MOB_CELL_W, MOB_CELL_H);
+  ctx.drawImage(sheet.image, sx, 0, MOB_CELL_W*MOB_TEXTURE_SCALE, MOB_CELL_H*MOB_TEXTURE_SCALE, -MOB_FOOT_X, -MOB_FOOT_Y, MOB_CELL_W, MOB_CELL_H);
   if (pose.flash) {
     ctx.globalAlpha = 0.85;
-    ctx.drawImage(sheet.tint("#ffffff"), sx, 0, MOB_CELL_W, MOB_CELL_H, -MOB_FOOT_X, -MOB_FOOT_Y, MOB_CELL_W, MOB_CELL_H);
+    ctx.drawImage(sheet.tint("#ffffff"), sx, 0, MOB_CELL_W*MOB_TEXTURE_SCALE, MOB_CELL_H*MOB_TEXTURE_SCALE, -MOB_FOOT_X, -MOB_FOOT_Y, MOB_CELL_W, MOB_CELL_H);
   }
   ctx.restore();
 }

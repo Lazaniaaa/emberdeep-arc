@@ -43,13 +43,15 @@ by itself; tap a building and it walks up and opens it.
 Other delvers wander the camp with name tags and chatter, and Old Ember by the gate hands out tips.
 **They are simulated ambience, not other players.** They hold nothing and never touch the economy.
 
+The original **Lanterns Below** soundtrack is synthesized locally after your first click or keypress. The sound button mutes music and effects; music pauses in a hidden tab. No external music or samples are downloaded. See [audio notes](docs/audio.md).
+
 ## The loop
 
 1. **Get in.** A descent needs an **entry key** ($0.50). New saves start with three, and $20 of simulated USDC.
 2. **Fill your lantern.** Buy oil flasks at camp ($0.20 each, 80 light per flask).
 3. **Descend.** The descent fills the whole screen like the camp. Floors 1-7 have hand-traced layouts with painted art
    (floors 1-3 are 60% larger than the rest), deeper floors are generated, and all of them sit under fog of war. Every step
-   burns light, and less light means a smaller circle of vision.
+   burns light. Vision stays at radius 5 until light drops below 25; then it narrows at 20, 10 and 5 light.
 4. **Push or pull out.** Deeper floors multiply loot (+40% per depth) but each step burns
    more light. Walk back to the rift you arrived through to extract.
 5. **Lose the light, lose the loot.** If your light and Night Vision run out, you wake up at

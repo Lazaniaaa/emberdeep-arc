@@ -233,12 +233,12 @@ const FIXES = {
 };
 
 /**
- * Game sizes of the mobs: the height of the standing figure in pixels (the hero is 42). The mobs are smaller than the
- * delvers, and each stands on one tile: the golem is the biggest, the waxling and the spider the smallest.
+ * Logical heights: small bodies fill roughly a 32px tile along their longer side, keeping their source proportions.
+ * The already-large golem is unchanged. All sheets retain source details at 2x texture density.
  */
 const MOB_HEIGHT = {
-  wickgnaw: 20, snaretoad: 20, "cinder-hound": 24, chaincoil: 28, "needle-wraith": 22,
-  sootplate: 36, "hollow-burrower": 22, "fourfold-bell": 24, "rift-leaper": 26,
+  wickgnaw: 30, snaretoad: 22, "cinder-hound": 28, chaincoil: 29, "needle-wraith": 26,
+  sootplate: 36, "hollow-burrower": 22, "fourfold-bell": 32, "rift-leaper": 28,
 };
 
 /**
@@ -279,7 +279,7 @@ const KINDS = {
   bosses: { raw: "art/bosses/raw/", out: "public/bosses/", cols: 4, rows: 4, cellW: 128, cellH: 112, footX: 64, footY: 104, main: true, height: () => 72, textureScale: 2, fixes: {} },
   heroes: { raw: "art/heroes/raw/", out: "public/heroes/", cols: COLS, rows: ROWS, cellW: CELL_W, cellH: CELL_H, footX: FOOT_X, footY: FOOT_Y, main: false, height: () => FIGURE_H, textureScale: HERO_TEXTURE_SCALE, fixes: FIXES },
   // A mob's cell is wide: its attack (an arrow, a web, a spark) flies ahead of it, to the right.
-  mobs: { raw: "art/mobs/raw/", out: "public/mobs/", cols: 4, rows: 1, cellW: 96, cellH: 56, footX: 32, footY: 52, main: true, height: name => MOB_HEIGHT[name] ?? 24, fixes: {} },
+  mobs: { raw: "art/mobs/raw/", out: "public/mobs/", cols: 4, rows: 1, cellW: 96, cellH: 56, footX: 32, footY: 52, main: true, height: name => MOB_HEIGHT[name] ?? 24, textureScale: 2, fixes: {} },
   // A prop: a strip of square-ish frames, as many as the picture is times wider than tall: 1 (only whole), 3 (whole,
   // cracked, breaking apart) or 6 (whole, two stages of cracks, three of breaking apart); see src/render/prop-sheets.ts.
   // Every frame is placed by its whole picture on the first frame's baseline, so flying pieces keep their places.

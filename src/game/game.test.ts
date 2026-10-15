@@ -12,7 +12,7 @@ import { applyClaim, applySpend, roundShare, settleRound, splitSpend } from "./e
 import { drawWeek, passCost, ticketChance, ticketsKept } from "./raffle";
 import { createRng } from "./rng";
 import { applyAction, bossAlive, emptyBag, onStairs, startRun, type RunState } from "./run";
-import { simulateFogMany, simulateMany, simulateRound, type Cohort } from "./sim";
+import { simulateFogMany, simulateFogRun, simulateMany, simulateRound, type Cohort } from "./sim";
 
 const ledger = { balance: 1_000, pool: ROUND_SEED_POOL, locked: ROUND_SEED_LOCKED, revenue: 0, spent: 0, returned: 0 };
 
@@ -631,11 +631,14 @@ describe("balance", () => {
     expect(FIELD_GOLD_PER_CENT).toBeGreaterThanOrEqual(bots * 0.7);
   });
 
-  it("makes a key a fixed cost of every descent, so a single flask does not pay for itself", { timeout: 60_000 }, () => {
+  it("keeps a fixed entry cost and a meaningful two-flask efficiency advantage with the wider view", { timeout: 60_000 }, () => {
     const one = simulateFogMany(30, 1).goldPerCent;
     const two = simulateFogMany(30, 2).goldPerCent;
     expect(KEY_PRICE).toBeGreaterThan(0);
-    expect(two).toBeGreaterThan(one * 1.5);
+    expect(simulateFogRun(1000,1).spent).toBe(KEY_PRICE+FLASK_PRICE);
+    expect(simulateFogRun(1000,2).spent).toBe(KEY_PRICE+2*FLASK_PRICE);
+    // Owner-approved rebaseline: full view until 25 light improves one-flask collecting. Observed ratio ~1.34.
+    expect(two).toBeGreaterThan(one * 1.25);
   });
 
   it("lets the best build bank more gold per cent spent, but within 3.5x of an unperked delver", { timeout: 120_000 }, () => {

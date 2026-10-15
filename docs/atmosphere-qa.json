@@ -1,0 +1,125 @@
+{
+  "desktop": {
+    "radii": [
+      {
+        "light": 80,
+        "radius": 5
+      },
+      {
+        "light": 25,
+        "radius": 5
+      },
+      {
+        "light": 24,
+        "radius": 4
+      },
+      {
+        "light": 20,
+        "radius": 4
+      },
+      {
+        "light": 19,
+        "radius": 3
+      },
+      {
+        "light": 10,
+        "radius": 3
+      },
+      {
+        "light": 9,
+        "radius": 2
+      },
+      {
+        "light": 5,
+        "radius": 2
+      },
+      {
+        "light": 4,
+        "radius": 1
+      }
+    ],
+    "music": {
+      "playing": true,
+      "voices": 3,
+      "contexts": 1
+    },
+    "mutePersists": true,
+    "hiddenStops": true,
+    "fixture": "Flat procedural floor with all nine approved creatures; real RunView/HUD"
+  },
+  "phone": {
+    "radii": [
+      {
+        "light": 80,
+        "radius": 5
+      },
+      {
+        "light": 25,
+        "radius": 5
+      },
+      {
+        "light": 24,
+        "radius": 4
+      },
+      {
+        "light": 20,
+        "radius": 4
+      },
+      {
+        "light": 19,
+        "radius": 3
+      },
+      {
+        "light": 10,
+        "radius": 3
+      },
+      {
+        "light": 9,
+        "radius": 2
+      },
+      {
+        "light": 5,
+        "radius": 2
+      },
+      {
+        "light": 4,
+        "radius": 1
+      }
+    ],
+    "music": {
+      "playing": true,
+      "voices": 4,
+      "contexts": 1
+    },
+    "mutePersists": true,
+    "hiddenStops": true,
+    "fixture": "Flat procedural floor with all nine approved creatures; real RunView/HUD"
+  },
+  "audio": {
+    "title": "Lanterns Below",
+    "seconds": 16,
+    "peak": 0.019220173358917236,
+    "rms": 0.002435659528450307
+  },
+  "validation": {
+    "date": "2026-10-15",
+    "typecheck": "passed",
+    "tests": {
+      "passed": 346,
+      "files": 29
+    },
+    "build": "passed",
+    "serverBuild": "passed (existing inlineDynamicImports deprecation)",
+    "lint": {
+      "errors": 0,
+      "knownFastRefreshWarnings": 3
+    },
+    "mobs": "Small approved sprites resized to roughly one 32px tile along their longer side, preserving proportions, now at 2x texture density. Already-wide crab and golem retain their sizes. Cerberus asset, size, HP and damage unchanged.",
+    "visibility": "Full radius 5 at >=25 light; 4 at >=20; 3 at >=10; 2 at >=5; otherwise 1. Perks and Night Vision unchanged. Creature wake distance retains the previous lantern-awareness curve.",
+    "balance": "Owner approved rebaselining the two-flask efficiency test from +50% to +25% minimum; observed roughly +34% over the same 30 seeds. No price, loot or payout changes.",
+    "attestationFixture": "Winning integration-test seed changed from 4242 to 1000 because the bot route under wider vision changes; replay, signature and Hall verification assertions retained.",
+    "music": "Original 64-beat Web Audio score Lanterns Below. No external music or samples. Real App gesture start, mute persistence, hidden pause, screen transition, one shared context and bounded live voices checked.",
+    "scope": "Isolated RunView fixtures at 1280x900 and 375x812, not a manual seven-floor playthrough. Signal peak/RMS measured offline; no claim of human listening QA.",
+    "publication": "Not committed, pushed or deployed. Visibility changes deterministic play; update site and attestation server together."
+  }
+}

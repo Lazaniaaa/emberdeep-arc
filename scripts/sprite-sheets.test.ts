@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { ANIMALS } from "../src/game/animals";
 import { ENEMIES } from "../src/game/enemies";
 import { CELL_H, CELL_W, FOOT_Y, TEXTURE_SCALE } from "../src/render/animal-sprites";
-import { MOB_CELL_H, MOB_CELL_W, MOB_FOOT_Y, MOB_HEIGHT } from "../src/render/mob-sheets";
+import { MOB_CELL_H, MOB_CELL_W, MOB_FOOT_Y, MOB_HEIGHT, MOB_TEXTURE_SCALE } from "../src/render/mob-sheets";
 import { LOOT_ORDER, PROP_CELL_H, PROP_CELL_W, PROP_FOOT_Y, stagesOf } from "../src/render/prop-sheets";
 import { PROPS } from "../src/game/props";
 // @ts-expect-error -- a plain .mjs build script without type declarations
@@ -89,11 +89,11 @@ describe("source eye details", () => {
 describe("creature strips", () => {
   for (const e of ENEMIES) {
     it(`${e.id}: 4 frames, standing on the line, as tall as the game expects`, async () => {
-      const [first, ...rest] = await frames(`public/mobs/${e.id}.png`, 4, 1, MOB_CELL_W, MOB_CELL_H);
+      const [first, ...rest] = await frames(`public/mobs/${e.id}.png`, 4, 1, MOB_CELL_W*MOB_TEXTURE_SCALE, MOB_CELL_H*MOB_TEXTURE_SCALE);
       expect(first.corner).toBe(0);
-      expect(Math.abs(first.bottom - MOB_FOOT_Y)).toBeLessThanOrEqual(1);
+      expect(Math.abs(first.bottom/MOB_TEXTURE_SCALE - MOB_FOOT_Y)).toBeLessThanOrEqual(1);
       // Sparks, spores or a flame tip may stand a little above the body the size is set from.
-      expect(Math.abs(first.bottom - first.top + 1 - MOB_HEIGHT[e.id])).toBeLessThanOrEqual(6);
+      expect(Math.abs((first.bottom - first.top + 1)/MOB_TEXTURE_SCALE - MOB_HEIGHT[e.id])).toBeLessThanOrEqual(6);
       for (const f of rest) expect(f.top).toBeGreaterThanOrEqual(0);
     });
   }

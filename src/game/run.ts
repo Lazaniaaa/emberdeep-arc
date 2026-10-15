@@ -127,6 +127,14 @@ export function currentRadius(state: RunState) {
   return lightRadius(state.light) + state.perks.radius;
 }
 
+/** A brighter view must not wake creatures from farther away. Keep their existing lantern-awareness curve. */
+export function creatureNoticeDistance(state: RunState) {
+  if (state.perks.stealth) return 1;
+  const awareness = state.light <= 0 && state.nightVision > 0
+    ? 2 : Math.max(1, Math.min(5, 1 + Math.floor(state.light / 25))) + state.perks.radius;
+  return awareness + 2;
+}
+
 export function currentStepCost(state: RunState) {
   return stepCost(state.depth) * (1 - state.perks.stepDiscount);
 }
@@ -426,7 +434,7 @@ function creatureAct(state: RunState, d: Dimling, visible: Set<number>, nearest:
 function dimlingsAct(state: RunState) {
   const { floor, player, rng } = state;
   const moveChance = Math.min(0.9, 0.55 + 0.05 * state.depth);
-  const notice = state.perks.stealth ? 1 : currentRadius(state) + 2;
+  const notice = creatureNoticeDistance(state);
   const path = distances(floor, player);
   const nearest = (cells: Point[]) => Math.min(...cells.map(c => path[idx(floor, c.x, c.y)]).filter(v => v >= 0));
   const visible = visibleSet(floor, player, currentRadius(state));
