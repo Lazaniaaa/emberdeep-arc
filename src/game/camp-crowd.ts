@@ -1,5 +1,5 @@
 import type { ClassId } from "./catalog";
-import { CAMP_TIPS, campSolid } from "./camp";
+import { CAMP_TIPS, stepInCamp } from "./camp";
 import { chance, createRng, int, pick, type Rng } from "./rng";
 
 // Ambient delvers that wander the camp so the lobby feels lived in. They are simulated:
@@ -45,7 +45,7 @@ export const ELDER_HOME = { x: 22, y: 11 };
 export type Crowd = { npcs: Npc[]; rng: Rng };
 
 const HOMES: [number, number][] = [
-  [24, 22], [21, 21], [26, 18], [23, 12], [26, 12], [12, 12], [32, 14], [24, 10], [11, 11], [36, 12], [12, 18], [31, 23],
+  [24, 22], [21, 18], [26, 18], [23, 11], [26, 12], [11, 12], [32, 14], [24, 10], [11, 11], [36, 12], [18, 15], [36, 19],
 ];
 
 export function createCrowd(seed = 7, now = 0): Crowd {
@@ -82,8 +82,8 @@ export function advanceCrowd(crowd: Crowd, now: number, avoid: { x: number; y: n
     if (!chance(rng, 0.6)) continue;
 
     const [dx, dy] = pick(rng, [[1, 0], [-1, 0], [0, 1], [0, -1]] as const);
-    const x = npc.x + dx, y = npc.y + dy;
-    if (campSolid(x, y)) continue;
+    const {x,y} = stepInCamp(npc,dx,dy);
+    if (x === npc.x && y === npc.y) continue;
     if (Math.abs(x - npc.homeX) + Math.abs(y - npc.homeY) > ROAM_RADIUS) continue;
     if (npcs.some(o => o !== npc && (o.x === x && o.y === y))) continue;
     if (avoid.some(a => a.x === x && a.y === y)) continue;

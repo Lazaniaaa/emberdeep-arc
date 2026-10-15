@@ -16,8 +16,10 @@
     "keyboardWalks": true,
     "groundTap": true,
     "buildingTaps": true,
-    "clearFloorSteps": 12,
-    "forgeFloorTap": true
+    "clearFloorSteps": 16,
+    "blockedCurbWalks": 6,
+    "blockedCurbTaps": 6,
+    "forgeFloorTapBlocked": true
   },
   "phone": {
     "viewport": [
@@ -36,94 +38,196 @@
     "keyboardWalks": true,
     "groundTap": true,
     "buildingTaps": true,
-    "clearFloorSteps": 12,
-    "forgeFloorTap": true
+    "clearFloorSteps": 16,
+    "blockedCurbWalks": 6,
+    "blockedCurbTaps": 6,
+    "forgeFloorTapBlocked": true
   },
   "render": {
     "reducedMotionStill": true,
-    "animatedPixels": 403153,
+    "animatedPixels": 263603,
     "depth": [
       {
-        "id": "hall",
-        "covered": 702,
-        "leaked": 0,
-        "shown": 360
+        "id": "brazier-w",
+        "shown": 1194
       },
       {
-        "id": "armory",
-        "covered": 308,
-        "leaked": 0,
-        "shown": 863
-      },
-      {
-        "id": "gate",
-        "covered": 259,
-        "leaked": 0,
-        "shown": 929
-      },
-      {
-        "id": "vault-pillar",
-        "covered": 899,
-        "leaked": 0,
-        "shown": 231
+        "id": "brazier-e",
+        "shown": 1194
       }
     ],
     "clearFloor": [
       {
-        "id": "hall-stairs",
+        "id": "gate-door",
         "shown": 1194
       },
       {
-        "id": "altar-stairs",
+        "id": "hall-door",
         "shown": 1194
       },
       {
-        "id": "vault-stairs",
+        "id": "altar-door",
         "shown": 1194
       },
       {
-        "id": "anvil-left",
-        "shown": 917
-      },
-      {
-        "id": "anvil-right",
+        "id": "armory-door",
         "shown": 1194
       },
       {
-        "id": "forge-rack-front",
+        "id": "vault-door",
         "shown": 1194
       },
       {
-        "id": "forge-barrel-front",
+        "id": "board-door",
+        "shown": 1176
+      },
+      {
+        "id": "guide-door",
         "shown": 1194
       },
       {
-        "id": "fire-left",
+        "id": "fire-south",
         "shown": 1194
       },
       {
-        "id": "fire-right",
+        "id": "plaza-south-curb",
         "shown": 1194
-      },
-      {
-        "id": "tent-front",
-        "shown": 1194
-      },
-      {
-        "id": "guide-side",
-        "shown": 744
       }
     ],
-    "frameMsMedian": 0.8999999761581421,
-    "frameMsP95": 1.3000000715255737
+    "curbSegments": 218,
+    "curbCorners": 57,
+    "squarePlazaCorners": [
+      {
+        "x": 656,
+        "y": 368,
+        "rgb": [
+          96,
+          94,
+          113
+        ]
+      },
+      {
+        "x": 912,
+        "y": 368,
+        "rgb": [
+          104,
+          101,
+          119
+        ]
+      },
+      {
+        "x": 656,
+        "y": 624,
+        "rgb": [
+          93,
+          92,
+          113
+        ]
+      },
+      {
+        "x": 912,
+        "y": 624,
+        "rgb": [
+          92,
+          91,
+          112
+        ]
+      }
+    ],
+    "benchLevels": [
+      {
+        "id": "bench-h",
+        "samples": 37,
+        "edgeVariation": 0
+      },
+      {
+        "id": "bench-v",
+        "samples": 39,
+        "edgeVariation": 1
+      }
+    ],
+    "filledCurbGaps": [
+      {
+        "id": "gate-side",
+        "x": 804,
+        "y": 240,
+        "visible": true
+      },
+      {
+        "id": "armory-side",
+        "x": 1220,
+        "y": 368,
+        "visible": true
+      },
+      {
+        "id": "vault-side",
+        "x": 1264,
+        "y": 516,
+        "visible": true
+      }
+    ],
+    "curbPixelsOnPaving": 0,
+    "corridorWidths": [
+      {
+        "id": "north",
+        "clearPixels": 64
+      },
+      {
+        "id": "south",
+        "clearPixels": 64
+      },
+      {
+        "id": "hall",
+        "clearPixels": 64
+      },
+      {
+        "id": "armory",
+        "clearPixels": 64
+      },
+      {
+        "id": "board",
+        "clearPixels": 64
+      },
+      {
+        "id": "west",
+        "clearPixels": 64
+      },
+      {
+        "id": "east",
+        "clearPixels": 64
+      }
+    ],
+    "fireStyle": "square",
+    "squareFireCorners": [
+      true,
+      true,
+      true,
+      true
+    ],
+    "frameMsMedian": 1.100000023841858,
+    "frameMsP95": 1.5
   },
   "fallback": {
     "imageUnavailable": true,
     "gateOpens": true
   },
-  "validationNotes": [
-    "Desktop and phone UI/clear-floor walking passed before the final Vault pillar cutout adjustment.",
-    "Rendering, clear-floor visibility and fallback were rerun after the final adjustment; connectivity and object-base checks also passed.",
-    "Phone means a 375 x 812 desktop-browser viewport, not a physical phone."
-  ]
+  "validation": {
+    "date": "2026-10-15",
+    "typecheck": "passed",
+    "tests": {
+      "passed": 335,
+      "files": 26
+    },
+    "build": "passed",
+    "lint": {
+      "errors": 0,
+      "existingFastRefreshWarnings": 3
+    },
+    "wholeLobbyScreenshot": "docs/screenshots/camp-64px-whole.png",
+    "phoneNote": "375 x 812 Edge viewport, not a physical-phone measurement",
+    "paving": "Every corridor has two complete 32px walking tiles. Seven production-renderer cross-sections have exactly 64 transparent pixels between curb stones; no curb pixels overlap any paved tile.",
+    "collision": "Curbs occupy the outside eight pixels; their inside faces coincide with the tile boundaries that block walking and tap routes. Removed the old seven-pixel inset foot clamp.",
+    "vault": "Moved up one tile: footprint (40,12,5,4), foot (1360,502), pad (40,12,5,5). Door (39,15) stays reachable.",
+    "scope": "Lobby only; no descent, economy, contract or attestation changes"
+  }
 }

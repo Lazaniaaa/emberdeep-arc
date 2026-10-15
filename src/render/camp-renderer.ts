@@ -4,7 +4,9 @@ import {
 import { ANIMALS } from "@/game/animals";
 import {
   CAMP_ART_HEIGHT, CAMP_ART_URL, CAMP_ART_WIDTH, CAMP_CELL_H, CAMP_CELL_W, CAMP_FOOT_X, CAMP_FOOT_Y, CAMP_LABELS, CAMP_LIGHTS,
-  CAMP_OBJECTS, CAMP_SHEETS, CAMP_WATER, cellOf, footOf, objectBox, sheetOf, type CampObject, type CampPoint, type CampSheet,
+  CAMP_OBJECTS, CAMP_SHEETS, CAMP_WATER, CAMP_CURBS, CAMP_CURB_VERTICES, CAMP_PAVING, CAMP_PAVING_REPAIRS, CAMP_FLOOR_SAMPLES, CAMP_FIRE_STYLE,
+  cellOf, footOf, objectBox, sheetOf, campCurbBox, CAMP_CURB_THICKNESS,
+  type CampObject, type CampPoint, type CampSheet, type CampSprite,
 } from "@/game/camp-art";
 import type { Npc } from "@/game/camp-crowd";
 import { drawHero, type HeroPose } from "./mob-art";
@@ -463,7 +465,8 @@ function drawNpc(ctx: CanvasRenderingContext2D, n: CampNpc, time: number) {
 /** Names float above a delver's head, which rises half a tile over the tile it stands on. */
 const NAME_ABOVE = 22;
 
-type PaintedCamp = { image: HTMLImageElement; sheets: Record<CampSheet, HTMLCanvasElement>; darkness: HTMLCanvasElement };
+type PaintedCamp = { image: HTMLCanvasElement; sheets: Record<CampSheet, HTMLCanvasElement>; darkness: HTMLCanvasElement; curbs: HTMLCanvasElement;
+  fire: HTMLCanvasElement };
 let campImage: HTMLImageElement | null = null;
 let campSheets: Record<CampSheet, HTMLImageElement> | null = null;
 let painted: PaintedCamp | null = null;
@@ -495,7 +498,7 @@ function paintedCamp(): PaintedCamp | null {
     })) as Record<CampSheet, HTMLImageElement>;
   }
   if (!paintedCampReady()) return null;
-  const image = campImage;
+  const image = pavedGround(campImage);
   const darkness = document.createElement("canvas");
   darkness.width = CAMP_ART_WIDTH; darkness.height = CAMP_ART_HEIGHT;
   const dark = darkness.getContext("2d")!;
@@ -513,13 +516,104 @@ function paintedCamp(): PaintedCamp | null {
     canvas.getContext("2d")!.drawImage(sheet, 0, 0);
     return [name, canvas];
   })) as Record<CampSheet, HTMLCanvasElement>;
-  painted = {image,sheets,darkness};
+  painted = {image,sheets,darkness,curbs:campCurbLayer(sheets.curbs),...campFurnitureViews(sheets)};
   return painted;
+}
+
+/** The cached furniture views, also available for sprite previews and geometry QA. Source sheets stay untouched. */
+export function campFurnitureViews(sheets: Record<CampSheet,HTMLCanvasElement>) {
+  return {fire:squareHearth(sheets)};
+}
+
+/** Reversible square pit: existing curb stones and the original fire's warm flame/log pixels, cached once. */
+function squareHearth(sheets: Record<CampSheet,HTMLCanvasElement>) {
+  const canvas=document.createElement("canvas"); canvas.width=CAMP_CELL_W; canvas.height=CAMP_CELL_H;
+  const ctx=canvas.getContext("2d")!; ctx.imageSmoothingEnabled=false;
+  const x=76,y=129,size=72;
+  ctx.fillStyle="#291d23";ctx.fillRect(x+8,y+8,size-16,size-16);
+  const horizontal=(yy:number)=>{for(let dx=0;dx<size;dx+=32){const w=Math.min(32,size-dx);
+    ctx.drawImage(sheets.curbs,cellOf("curb-h")*CAMP_CELL_W+CAMP_FOOT_X-16,CAMP_FOOT_Y-7,w,8,x+dx,yy,w,8);}};
+  horizontal(y);
+  for(const xx of [x,x+size-8])for(let dy=0;dy<size;dy+=32){const h=Math.min(32,size-dy);
+    ctx.drawImage(sheets.curbs,cellOf("curb-v")*CAMP_CELL_W+CAMP_FOOT_X-4,CAMP_FOOT_Y-31,8,h,xx,y+dy,8,h);}
+  const raw=sheets.furniture.getContext("2d")!.getImageData(0,0,CAMP_CELL_W,CAMP_CELL_H);
+  const flame=ctx.createImageData(CAMP_CELL_W,CAMP_CELL_H);
+  for(let py=0;py<190;py++)for(let px=87;px<138;px++) {
+    const i=(py*CAMP_CELL_W+px)*4,[r,g,b,a]=raw.data.subarray(i,i+4);
+    // Taper around the front logs, excluding the warm-coloured stones of the old circular rim.
+    const insideLogs=py<176||(py<187&&Math.abs(px-CAMP_FOOT_X)<(187-py)*1.65);
+    if(insideLogs&&a&&((r>b*1.5&&g>b*1.1&&r>g*.9)||Math.min(r,g,b)>220))flame.data.set(raw.data.subarray(i,i+4),i);
+  }
+  const flames=document.createElement("canvas");flames.width=CAMP_CELL_W;flames.height=CAMP_CELL_H;
+  flames.getContext("2d")!.putImageData(flame,0,0);ctx.drawImage(flames,0,0);
+  horizontal(y+size-8);return canvas;
+}
+
+/** Build once from the existing painting. Stone, pads and curbs share the exact same 32px grid. */
+function pavedGround(source: HTMLImageElement) {
+  const canvas=document.createElement("canvas"); canvas.width=CAMP_ART_WIDTH; canvas.height=CAMP_ART_HEIGHT;
+  const ctx=canvas.getContext("2d")!; ctx.imageSmoothingEnabled=false; ctx.drawImage(source,0,0);
+  const moss=CAMP_FLOOR_SAMPLES.moss, stone=CAMP_FLOOR_SAMPLES.stone;
+  for (const r of CAMP_PAVING_REPAIRS) {
+    ctx.save(); ctx.beginPath();
+    if("ellipse" in r)ctx.ellipse(r.x+r.w/2,r.y+r.h/2,r.w/2,r.h/2,0,0,Math.PI*2);
+    else ctx.rect(r.x,r.y,r.w,r.h);
+    ctx.clip();
+    // World-aligned copies keep overlapping repairs on the same moss pattern.
+    for(let y=Math.floor(r.y/moss.h)*moss.h;y<r.y+r.h;y+=moss.h) for(let x=Math.floor(r.x/moss.w)*moss.w;x<r.x+r.w;x+=moss.w)
+      ctx.drawImage(source,moss.x,moss.y,moss.w,moss.h,x,y,moss.w,moss.h);
+    ctx.restore();
+  }
+  const tiles=new Set<string>();
+  for(const p of CAMP_PAVING)for(let y=p.y;y<p.y+p.h;y++)for(let x=p.x;x<p.x+p.w;x++) {
+    const key=`${x},${y}`; if(tiles.has(key))continue; tiles.add(key);
+    ctx.drawImage(source,stone.x,stone.y,stone.w,stone.h,x*32,y*32,32,32);
+  }
+  return canvas;
+}
+
+/** Cache the solid curb's picture once, below actors and objects. Collision uses the same CAMP_CURBS edges. */
+export function campCurbLayer(sheet: HTMLCanvasElement) {
+  const layer = document.createElement("canvas"); layer.width=CAMP_ART_WIDTH; layer.height=CAMP_ART_HEIGHT;
+  const ctx = layer.getContext("2d")!; ctx.imageSmoothingEnabled=false;
+  const stamps = new Map<string,HTMLCanvasElement>();
+  const stamp = (sprite: CampSprite, flipX=false, flipY=false) => {
+    const key = `${sprite}/${flipX}/${flipY}`;
+    if (stamps.has(key)) return stamps.get(key)!;
+    const w = sprite === "curb-v" || sprite === "curb-end-v" ? 8 : 32;
+    const h = sprite === "curb-h" || sprite === "curb-end-h" ? 8 : 32;
+    const c = document.createElement("canvas"); c.width=w; c.height=h;
+    const s = c.getContext("2d")!; s.imageSmoothingEnabled=false;
+    s.setTransform(flipX?-1:1,0,0,flipY?-1:1,flipX?w:0,flipY?h:0);
+    s.drawImage(sheet,cellOf(sprite)*CAMP_CELL_W+CAMP_FOOT_X-w/2,CAMP_FOOT_Y-h+1,w,h,0,0,w,h);
+    stamps.set(key,c); return c;
+  };
+  const ends = new Set(CAMP_CURB_VERTICES.filter(v=>v.edges.length===1).map(v=>v.point.join(",")));
+  for (const e of CAMP_CURBS) {
+    const horizontal=e.a[1]===e.b[1], cappedStart=ends.has(e.a.join(",")), cappedEnd=ends.has(e.b.join(","));
+    const sprite=horizontal ? (cappedStart||cappedEnd?"curb-end-h":"curb-h") : (cappedStart||cappedEnd?"curb-end-v":"curb-v");
+    const box=campCurbBox(e);
+    ctx.drawImage(stamp(sprite,horizontal&&cappedStart,!horizontal&&cappedStart),box.x,box.y);
+  }
+  for (const v of CAMP_CURB_VERTICES) {
+    if (!v.bend) continue;
+    const right=v.corner==="ne"||v.corner==="se", bottom=v.corner==="sw"||v.corner==="se";
+    // Only the knee joins the outside strips. A full 32px L would intrude into the walking tiles.
+    const t=CAMP_CURB_THICKNESS, x=v.point[0]*32-(v.inner?(right?t:0):(right?0:t));
+    const y=v.point[1]*32-(v.inner?(bottom?t:0):(bottom?0:t));
+    ctx.clearRect(x,y,t,t);
+    ctx.drawImage(stamp(v.inner?"curb-inner":"curb-outer",right,bottom),right?32-t:0,bottom?32-t:0,t,t,x,y,t,t);
+  }
+  return layer;
 }
 
 /** One camp object from its sheet, its foot on the middle of its footprint's bottom edge. */
 function drawObject(ctx: CanvasRenderingContext2D, art: PaintedCamp, o: CampObject) {
   const foot = footOf(o);
+  if(o.sprite === "fire" && CAMP_FIRE_STYLE === "square") {
+    ctx.drawImage(art.fire,Math.round(foot.x-CAMP_FOOT_X),Math.round(foot.y-CAMP_FOOT_Y));
+    return;
+  }
   ctx.drawImage(art.sheets[sheetOf(o.sprite)], cellOf(o.sprite)*CAMP_CELL_W, 0, CAMP_CELL_W, CAMP_CELL_H, Math.round(foot.x-CAMP_FOOT_X), Math.round(foot.y-CAMP_FOOT_Y), CAMP_CELL_W, CAMP_CELL_H);
 }
 
@@ -648,6 +742,7 @@ export function drawCamp(ctx: CanvasRenderingContext2D, f: CampFrame) {
   ctx.fillStyle = "#070b18"; ctx.fillRect(0,0,f.view.w,f.view.h);
   ctx.save(); ctx.translate(-f.camera.x,-f.camera.y);
   ctx.drawImage(art.image,0,0); // Native 1536 x 1024 pixels: never stretched to a different tile grid.
+  ctx.drawImage(art.curbs,0,0);
   if (!f.reducedMotion) paintedWater(ctx,f.time);
   const things: {baseline:number;draw:()=>void}[] = [];
   for (const object of CAMP_OBJECTS) {

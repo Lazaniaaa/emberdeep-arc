@@ -36,6 +36,11 @@ async function walk(page,to) {
   for (const next of path) {
     const key = next.x>at.x?"ArrowRight":next.x<at.x?"ArrowLeft":next.y>at.y?"ArrowDown":"ArrowUp";
     await page.keyboard.press(key);
+    // React may commit after Playwright's keyup, especially at the phone viewport under build/test load.
+    await page.waitForFunction(({x,y})=>{
+      const c=document.querySelector("canvas[data-scene=camp]");
+      return Number(c.dataset.playerX)===x&&Number(c.dataset.playerY)===y;
+    },next,{timeout:3000});
     assert.deepEqual(await position(page),next);
     await page.waitForTimeout(145);
     at=next;
@@ -95,22 +100,37 @@ try {
       await closePanel(page);
       opened.push(id);
     }
-    // Real keyboard walks to open tiles behind a lamp post and a banner: the delver shows through as a ghost.
-    for (const [id,x,y] of [["lamp-w",19,10],["banner-w",22,8],["lamp-e",29,10]]) {
+    // The two braziers overlap reachable paving; the player no longer walks onto moss behind the lamps/banners.
+    for (const [id,x,y] of [["brazier-w",22,19],["brazier-e",25,19]]) {
       await walk(page,{x,y});
       await page.screenshot({path:`${out}/${name}-behind-${id}.png`});
     }
     // A step away from or onto every door: a BFS-only check cannot catch phantom walls.
-    const floorSteps = [[24,7,0,1],[11,11,0,1],[9,15,1,0],[37,11,0,1],[38,15,1,0],[37,19,0,-1],[24,23,1,0]];
+    const floorSteps = [[24,7,0,1],[11,11,0,1],[9,15,1,0],[37,11,0,1],[38,15,1,0],[37,19,0,-1],[24,23,1,0],
+      [11,13,0,1],[23,7,0,1],[36,11,0,1],
+      [20,14,1,0],[27,15,1,0],[22,12,0,1],[26,16,0,1],
+      [21,16,0,1],[27,14,0,-1]]; // Clear approaches and the two removed corner benches.
     for (const [x,y,dx,dy] of floorSteps) {
       await walk(page,{x,y});
       await page.keyboard.press(dx===1?"ArrowRight":dy===-1?"ArrowUp":"ArrowDown");
       assert.deepEqual(await position(page),{x:x+dx,y:y+dy},`clear-floor step ${x},${y}`);
       await page.waitForTimeout(145);
     }
-    await walk(page,{x:32,y:11});
+    const blockedSteps=[[24,7,1,0],[37,11,1,0],[39,15,0,1],[20,18,-1,0],[28,18,1,0],[21,19,0,1]];
+    for(const [x,y,dx,dy] of blockedSteps) {
+      await walk(page,{x,y});
+      const key=dx===1?"ArrowRight":dx===-1?"ArrowLeft":"ArrowDown";
+      for(let i=0;i<3;i++){await page.keyboard.press(key);await page.waitForTimeout(145);}
+      assert.deepEqual(await position(page),{x,y},`walked through curb at ${x},${y}`);
+      await tapWorld(page,(x+dx)*32+16,(y+dy)*32+16);
+      await page.waitForTimeout(300);
+      assert.deepEqual(await position(page),{x,y},`tap crossed curb at ${x},${y}`);
+    }
+    await page.screenshot({path:`${out}/${name}-curb-stop.png`});
+    await walk(page,{x:36,y:11});
     await tapWorld(page,34*32+16,11*32+30);
-    await page.waitForFunction(()=>{const c=document.querySelector("canvas[data-scene=camp]");return c.dataset.playerX==="34" && c.dataset.playerY==="11";});
+    await page.waitForTimeout(350);
+    assert.deepEqual(await position(page),{x:36,y:11},"tap on forge-side moss must not cross the curb");
     assert.equal(await page.getByRole("dialog").count(),0,"empty forge floor must not open Armory");
     await page.screenshot({path:`${out}/${name}-anvil-floor.png`});
     if (name==="phone") {
@@ -118,7 +138,8 @@ try {
       await page.getByRole("button",{name:"Move up",exact:true}).click();
       assert.deepEqual(await position(page),{x:24,y:23});
     }
-    results[name]={viewport:[width,height],opened,keyboardWalks:true,groundTap:true,buildingTaps:true,clearFloorSteps:floorSteps.length,forgeFloorTap:true};
+    results[name]={viewport:[width,height],opened,keyboardWalks:true,groundTap:true,buildingTaps:true,clearFloorSteps:floorSteps.length,
+      blockedCurbWalks:blockedSteps.length,blockedCurbTaps:blockedSteps.length,forgeFloorTapBlocked:true};
     await context.close();
     console.log(`${name}: all seven panels, E, painted taps, walking and depth views passed`);
   }
@@ -126,7 +147,8 @@ try {
   const {page,context}=await session(1280,800,"render-fixtures");
   // Pixel tests use the production renderer, with no crowd and fixed lighting/labels.
   results.render=await page.evaluate(async()=>{
-    const {drawCamp,campFootBaseline}=await import("/src/render/camp-renderer.ts");
+    const {drawCamp,campFurnitureViews,campCurbLayer}=await import("/src/render/camp-renderer.ts");
+    const {CAMP_CURBS,CAMP_CURB_VERTICES,CAMP_SHEETS,CAMP_FIRE_STYLE,CAMP_PAVING}=await import("/src/game/camp-art.ts");
     const f={time:0,reducedMotion:true,camera:{x:0,y:0},view:{w:1536,h:1024},zoom:1,
       hero:{animal:"cat-ginger-tabby",dir:"down",frame:"a",offX:0,offY:0,flash:0},
       playerPos:{x:24,y:20},playerName:"",playerColor:"#fff",near:null,firstVisit:false,crowd:[]};
@@ -137,9 +159,49 @@ try {
     const still=a.every((v,i)=>v===b[i]);
     const motion0=pixels({...f,reducedMotion:false}),motion1=pixels({...f,reducedMotion:false,time:1800});
     let changed=0;for(let i=0;i<motion0.length;i+=4)if(motion0[i]!==motion1[i]||motion0[i+1]!==motion1[i+1]||motion0[i+2]!==motion1[i+2])changed++;
-    // Behind a lamp post and a banner the delver must still show (the ghost), never vanish.
+    // Inspect the production cache builder directly; never mutate imported objects (HMR can duplicate module URLs).
+    const sheets=Object.fromEntries(await Promise.all(Object.keys(CAMP_SHEETS).map(async name=>{
+      const image=new Image();image.src=`/lobby/${name}.png`;await image.decode();
+      const c=document.createElement("canvas");c.width=image.naturalWidth;c.height=image.naturalHeight;
+      c.getContext("2d").drawImage(image,0,0);return [name,c];
+    })));
+    const views=campFurnitureViews(sheets);
+    const curbPixels=campCurbLayer(sheets.curbs).getContext("2d").getImageData(0,0,1536,1024).data;
+    const filledCurbGaps=[["gate-side",804,240],["armory-side",1220,368],["vault-side",1264,516]].map(([id,x,y])=>
+      ({id,x,y,visible:curbPixels[(y*1536+x)*4+3]>0}));
+    let curbPixelsOnPaving=0;
+    for(const p of CAMP_PAVING)for(let y=p.y*32;y<(p.y+p.h)*32;y++)for(let x=p.x*32;x<(p.x+p.w)*32;x++) {
+      if(curbPixels[(y*1536+x)*4+3])curbPixelsOnPaving++;
+    }
+    // Scan between opaque stone on both sides, rather than just trusting the rectangle metadata.
+    const corridorWidths=[
+      ["north",768,304,"x"],["south",768,688,"x"],
+      ["hall",352,400,"x"],["armory",1184,400,"x"],["board",1184,592,"x"],
+      ["west",496,480,"y"],["east",1072,480,"y"],
+    ].map(([id,x,y,axis])=>{
+      const alpha=n=>curbPixels[((axis==="y"?n:y)*1536+(axis==="x"?n:x))*4+3];
+      let low=axis==="x"?x:y,high=low;
+      while(low>0&&!alpha(low-1))low--;
+      while(high<(axis==="x"?1536:1024)&&!alpha(high))high++;
+      return {id,clearPixels:high-low};
+    });
+    // The replacement art has a real horizontal seat and a real vertical seat; no runtime shearing or rotation.
+    const benchLevels=CAMP_SHEETS.benches.map((id,col)=>{
+      const data=sheets.benches.getContext("2d").getImageData(col*224,0,224,208).data;
+      const vertical=id==="bench-v",edge=[];
+      for(let p=0;p<(vertical?208:224);p++)for(let q=0;q<(vertical?224:208);q++) {
+        const x=vertical?q:p,y=vertical?p:q;
+        if(data[(y*224+x)*4+3]){edge.push([p,q]);break;}
+      }
+      const min=edge[0][0],span=edge.at(-1)[0]-min;
+      const middle=edge.filter(([p])=>p>min+span*.15&&p<min+span*.7),coords=middle.map(p=>p[1]);
+      return {id,samples:middle.length,edgeVariation:Math.max(...coords)-Math.min(...coords)};
+    });
+    const fire=views.fire.getContext("2d").getImageData(0,0,224,208).data;
+    const squareFireCorners=[[78,131],[145,131],[78,198],[145,198]].map(([x,y])=>fire[(y*224+x)*4+3]>0);
+    // Where braziers overlap playable paving the delver must remain visible.
     const depth=[];
-    for(const [id,x,y] of [["lamp-w",19,10],["banner-w",22,8],["lamp-e",29,10]]) {
+    for(const [id,x,y] of [["brazier-w",22,19],["brazier-e",25,19]]) {
       const frame={...f,playerPos:{x,y}};
       const visible=pixels(frame),absent=pixels({...frame,hero:{...f.hero,offX:10000}});
       let shown=0;
@@ -151,7 +213,7 @@ try {
     }
     const clearFloor=[];
     for(const [id,x,y] of [["gate-door",24,7],["hall-door",11,11],["altar-door",9,15],["armory-door",37,11],
-      ["vault-door",39,15],["board-door",37,19],["guide-door",25,23],["fire-south",24,16],["tent-front",16,20]]) {
+      ["vault-door",39,15],["board-door",37,19],["guide-door",25,23],["fire-south",24,18],["plaza-south-curb",21,19]]) {
       const frame={...f,playerPos:{x,y}};
       const visible=pixels(frame),absent=pixels({...frame,hero:{...f.hero,offX:10000}});
       let shown=0;
@@ -167,12 +229,27 @@ try {
     for(let i=0;i<40;i++){const t=performance.now();drawCamp(ctx,{...view,time:i*34});if(i>4)times.push(performance.now()-t);}
     times.sort((a,b)=>a-b);
     drawCamp(ctx,{...f,view:{w:0,h:0}}); // Hidden/removed canvases must not throw.
-    return {reducedMotionStill:still,animatedPixels:changed,depth,clearFloor,frameMsMedian:times[Math.floor(times.length/2)],frameMsP95:times[Math.floor(times.length*.95)]};
+    const finalPixels=pixels({...f,playerPos:{x:24,y:24}});
+    const squarePlazaCorners=[[656,368],[912,368],[656,624],[912,624]].map(([x,y])=>{
+      const i=(y*1536+x)*4; return {x,y,rgb:[finalPixels[i],finalPixels[i+1],finalPixels[i+2]]};
+    });
+    return {reducedMotionStill:still,animatedPixels:changed,depth,clearFloor,curbSegments:CAMP_CURBS.length,
+      curbCorners:CAMP_CURB_VERTICES.filter(v=>v.bend).length,squarePlazaCorners,benchLevels,filledCurbGaps,curbPixelsOnPaving,corridorWidths,fireStyle:CAMP_FIRE_STYLE,squareFireCorners,
+      wholeLobbyPng:canvas.toDataURL("image/png").split(",")[1],
+      frameMsMedian:times[Math.floor(times.length/2)],frameMsP95:times[Math.floor(times.length*.95)]};
   });
+  writeFileSync(`${out}/whole-lobby.png`,Buffer.from(results.render.wholeLobbyPng,"base64"));
+  delete results.render.wholeLobbyPng;
   assert.equal(results.render.reducedMotionStill,true);
   assert(results.render.animatedPixels>100);
   for(const d of results.render.depth)assert(d.shown>150,`${d.id}: delver hidden behind it (${d.shown} visible pixels)`);
   for(const d of results.render.clearFloor)assert(d.shown>400,`${d.id}: delver hidden by painted floor (${d.shown} visible pixels)`);
+  for(const p of results.render.squarePlazaCorners)assert(Math.min(...p.rgb)>40&&Math.max(...p.rgb)-Math.min(...p.rgb)<60,`square plaza corner ${p.x},${p.y} is not paving`);
+  for(const b of results.render.benchLevels)assert(b.samples>10&&b.edgeVariation<=2,`${b.id}: seat edge is not axis-aligned (${b.edgeVariation}px)`);
+  for(const gap of results.render.filledCurbGaps)assert(gap.visible,`${gap.id}: owner-marked curb gap is still empty`);
+  assert.equal(results.render.curbPixelsOnPaving,0,"curb overlaps a walking tile");
+  for(const path of results.render.corridorWidths)assert.equal(path.clearPixels,64,`${path.id}: paving must have exactly two clear tiles`);
+  if(results.render.fireStyle==="square")assert(results.render.squareFireCorners.every(Boolean),"square hearth has a missing corner");
   await context.close();
 
   const fallback=await session(1280,800,"fallback",false);

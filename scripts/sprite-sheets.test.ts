@@ -9,9 +9,9 @@ import { MOB_CELL_H, MOB_CELL_W, MOB_FOOT_Y, MOB_HEIGHT } from "../src/render/mo
 import { LOOT_ORDER, PROP_CELL_H, PROP_CELL_W, PROP_FOOT_Y, stagesOf } from "../src/render/prop-sheets";
 import { PROPS } from "../src/game/props";
 // @ts-expect-error -- a plain .mjs build script without type declarations
-import { CAMP_CELL_H, CAMP_CELL_W, CAMP_FOOT_Y, CAMP_SHEETS, CAMP_SPRITE_HEIGHT } from "../src/game/camp-art";
+import { CAMP_CELL_H, CAMP_CELL_W, CAMP_FOOT_X, CAMP_FOOT_Y, CAMP_SHEETS, CAMP_SPRITE_HEIGHT, CAMP_OBJECTS, CAMP_PAVING, footOf } from "../src/game/camp-art";
 import {
-  BUILDING_HEIGHT, BUILDING_ORDER, DECOR_HEIGHT, DECOR_ORDER, FURNITURE_HEIGHT, FURNITURE_ORDER, LOOT_HEIGHT, LOOT_ORDER as SCRIPT_LOOT_ORDER, PROP_HEIGHT,
+  BENCH_HEIGHT, BENCH_ORDER, BUILDING_HEIGHT, BUILDING_ORDER, CURB_HEIGHT, CURB_ORDER, DECOR_HEIGHT, DECOR_ORDER, FURNITURE_HEIGHT, FURNITURE_ORDER, VAULT_HEIGHT, VAULT_ORDER, LOOT_HEIGHT, LOOT_ORDER as SCRIPT_LOOT_ORDER, PROP_HEIGHT,
 } from "./sprite-sheets.mjs";
 
 async function frames(file: string, cols: number, rows: number, cellW: number, cellH: number) {
@@ -129,11 +129,45 @@ describe("prop and loot sheets", () => {
 });
 
 describe("camp sheets", () => {
+  it("keeps the Altar and inward-facing Vault foundations inside their pads", async () => {
+    for(const id of ["altar","ledger"] as const) {
+      const sheet=id==="altar"?"buildings":"vault";
+      const {data,info}=await sharp(`public/lobby/${sheet}.png`).ensureAlpha().raw().toBuffer({resolveWithObject:true});
+      const object=CAMP_OBJECTS.find(o=>o.id===id)!;
+      const pad=CAMP_PAVING.find(p=>p.id===(id==="ledger"?"vault-pad":"altar-pad"))!;
+      const col=(CAMP_SHEETS[sheet] as readonly string[]).indexOf(object.sprite), foot=footOf(object);
+      let left=Infinity,right=-Infinity,bottom=-Infinity;
+      for(let y=CAMP_FOOT_Y-5;y<CAMP_CELL_H;y++)for(let x=0;x<CAMP_CELL_W;x++) {
+        if(!data[(y*info.width+col*CAMP_CELL_W+x)*4+3])continue;
+        left=Math.min(left,foot.x+x-CAMP_FOOT_X);right=Math.max(right,foot.x+x-CAMP_FOOT_X);
+        bottom=Math.max(bottom,foot.y+y-CAMP_FOOT_Y);
+      }
+      expect(right-left+1,id).toBeLessThanOrEqual(pad.w*32-16);
+      expect(left,id).toBeGreaterThanOrEqual(pad.x*32+8);
+      expect(right,id).toBeLessThan((pad.x+pad.w)*32-8);
+      expect(bottom,id).toBeLessThan((pad.y+pad.h)*32-8);
+      expect(Math.abs(bottom-((pad.y+pad.h/2)*32+32)),id).toBeLessThanOrEqual(8);
+      if(id==="ledger") {
+        // A rectangle's front edge stays horizontal; the rejected three-quarter foundation sloped across its width.
+        const edge: [number,number][]=[];
+        for(let x=0;x<CAMP_CELL_W;x++)for(let y=CAMP_CELL_H-1;y>=0;y--) {
+          if(data[(y*info.width+col*CAMP_CELL_W+x)*4+3]){edge.push([x,y]);break;}
+        }
+        const ys=edge.filter(([x])=>x>edge[0][0]+5&&x<edge.at(-1)![0]-5).map(p=>p[1]);
+        expect(ys.length).toBeGreaterThan(100);
+        expect(Math.max(...ys)-Math.min(...ys)).toBeLessThanOrEqual(2);
+      }
+    }
+  });
+
   it("cut the buildings, furniture and decor in the order and at the sizes the camp draws them", () => {
     expect([...CAMP_SHEETS.buildings]).toEqual(BUILDING_ORDER);
     expect([...CAMP_SHEETS.furniture]).toEqual(FURNITURE_ORDER);
     expect([...CAMP_SHEETS.decor]).toEqual(DECOR_ORDER);
-    expect(CAMP_SPRITE_HEIGHT).toEqual({ ...BUILDING_HEIGHT, ...FURNITURE_HEIGHT, ...DECOR_HEIGHT });
+    expect([...CAMP_SHEETS.curbs]).toEqual(CURB_ORDER);
+    expect([...CAMP_SHEETS.benches]).toEqual(BENCH_ORDER);
+    expect([...CAMP_SHEETS.vault]).toEqual(VAULT_ORDER);
+    expect(CAMP_SPRITE_HEIGHT).toEqual({ ...BUILDING_HEIGHT, ...FURNITURE_HEIGHT, ...BENCH_HEIGHT, ...VAULT_HEIGHT, ...DECOR_HEIGHT, ...CURB_HEIGHT });
   });
 
   for (const name of Object.keys(CAMP_SHEETS) as (keyof typeof CAMP_SHEETS)[]) {
@@ -148,4 +182,20 @@ describe("camp sheets", () => {
       }
     });
   }
+
+  it("keeps curb joins at one tile, with an empty corner interior and no magenta fringe", async () => {
+    const {data,info} = await sharp("public/lobby/curbs.png").ensureAlpha().raw().toBuffer({resolveWithObject:true});
+    for (let cell=0;cell<CURB_ORDER.length;cell++) {
+      let left=CAMP_CELL_W,right=-1,top=CAMP_CELL_H,bottom=-1;
+      for(let y=0;y<CAMP_CELL_H;y++)for(let x=0;x<CAMP_CELL_W;x++) {
+        const i=(y*info.width+cell*CAMP_CELL_W+x)*4;
+        if(!data[i+3])continue;
+        left=Math.min(left,x);right=Math.max(right,x);top=Math.min(top,y);bottom=Math.max(bottom,y);
+        expect(data[i]>100 && data[i+2]>100 && data[i+1]<50,`magenta at ${cell}/${x}/${y}`).toBe(false);
+      }
+      expect(right-left+1,CURB_ORDER[cell]).toBe(cell===1||cell===5?8:32);
+      expect(bottom-top+1,CURB_ORDER[cell]).toBe(CURB_HEIGHT[CURB_ORDER[cell]]);
+      if(cell===2||cell===3)expect(data[((top+20)*info.width+cell*CAMP_CELL_W+left+20)*4+3]).toBe(0);
+    }
+  });
 });

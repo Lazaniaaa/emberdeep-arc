@@ -433,3 +433,144 @@ Layout, from the bottom to the top, the way a visitor walks:
 - top centre, at the back of the cavern, the deepest point: Dungeon Gate, a big stone arch carved into the rock wall, stairs going down into darkness, a lime-green glow inside, a torch on each side, a wide path leading up to it from the plaza.
 Each building is about two map squares wide, faces the viewer, stands in its own small open space and is easy to tell apart by its own colour of glow. Warm firelight in the middle, the edges of the cavern darker.
 ```
+
+## L2. Modular low stone curbs for the lobby (2026-10-15)
+
+Status: implemented locally (2026-10-15). Owner source: Pixel Art Stone Curb Tile Set.png; lossless copy at `art/lobby/sprites/curbs.webp`, game atlas at `public/lobby/curbs.png`. Decorative placement and browser QA are complete; see `docs/screenshots/camp-curbs-whole.png`.
+
+Attach `art/lobby/sprites/buildings.webp` as the style reference and `public/maps/camp-ground.webp` as the paving/palette
+reference. Generate a **single row of six separate sprites**, not a new map. Supply a PNG or lossless WebP with a solid
+magenta background; the accepted source will go to `art/lobby/sprites/curbs.webp`.
+
+```text
+Create a modular LOW STONE CURB sprite row for Emberdeep, a pixel-art cave game. Match the pixel density, dark outlines,
+stone texture and muted blue-grey/violet palette of the attached buildings; use the cave image only as a paving reference.
+This is a narrow raised border beside a path, like a low Minecraft stone edging, only ankle-high beside a 42-pixel hero.
+
+Use the same straight-on orthographic game view as the building fronts, with a small visible top surface. No isometric
+projection, diagonal recession, camera rotation or vanishing point. Every piece runs exactly along horizontal or vertical
+screen axes and fits a virtual 32 x 32 game-pixel tile. The stone strip is about 6 game pixels thick, including a small
+2-pixel dark raised lip. Keep identical thickness, scale, material and join cross-sections in every piece.
+
+ONE horizontal row of exactly SIX isolated sprites, left to right:
+1. Horizontal straight: 32 pixels long and about 8 pixels high overall; flat open join at BOTH left and right ends.
+2. Vertical straight: 32 pixels long and about 6 pixels wide; flat open join at BOTH top and bottom ends.
+3. Outer convex right-angle corner: an L fitting a 32 x 32 tile, along its top and left edges, square outside bend,
+   open joins at the right end of the top arm and the bottom end of the left arm. Empty interior stays magenta.
+4. Inner concave right-angle corner: a matching L-shaped return for a recessed path corner, with a clearly concave
+   inside bend; same arm lengths, thickness and open join profiles. Empty interior stays magenta.
+5. Horizontal end piece: same length and thickness as piece 1, open join at the LEFT, neatly capped at the RIGHT.
+6. Vertical end piece: same length and thickness as piece 2, open join at the TOP, neatly capped at the BOTTOM.
+
+Make these reusable joining modules, not six decorative piles of rocks. Straight pieces must repeat seamlessly: no
+endcaps, flared ends or overhanging stones at their open joins. Use a few subtle block seams and small chips; keep the
+silhouette straight and readable. No moss or props spilling beyond the strip. No ground slabs filling the corners.
+
+Wide landscape canvas, about 3:1, equal-width invisible cells, every sprite fully inside its own cell, bottoms aligned,
+generous empty gaps between sprites. Render the virtual pixels enlarged crisply with nearest-neighbour edges. Do not
+draw cell borders or labels. Entire background and every empty hole: perfectly flat #FF00FF, no gradient, no texture,
+no cast shadow, glow, magenta reflections or antialiasing. No characters, buildings, scene, UI, text or numbers.
+```
+
+Integration plan used (completed 2026-10-15):
+
+- Extend the existing `lobby` variant in `scripts/sprite-sheets.mjs` with a six-cell `curbs` row in the order above.
+  Target heights are 8 / 32 / 32 / 32 / 8 / 32 world pixels; inspect the actual joins and adjust crop/anchors to exactly
+  32-pixel spans without stretching the stone thickness. Keep the existing 224 x 208 lobby cells and foot convention.
+- Cut with `node scripts/sprite-sheets.mjs lobby curbs`; do not regenerate unrelated rows. Review enlarged joins first.
+- Put curb placements in a separate table in `src/game/camp-art.ts`, aligned to the 32-pixel grid. Keep them decorative:
+  do not add them to solid `CAMP_OBJECTS` or change `CAMP_GROUND`/`CAMP_WALK_MAP`. Leave visible openings at path junctions,
+  plaza entrances and every building door; do not draw a curb across a traversable entrance.
+- After integration: typecheck, tests, build, lint and desktop/phone `camp-smoke.mjs`, plus an image of the whole lobby.
+
+## L3. Straight benches and a west-facing Vault (2026-10-15)
+
+The owner asked the assistant to redraw the benches and turn the Vault toward the campfire. Generated with the built-in `image_gen` tool, then saved losslessly in the project. Only these two new rows are cut; the approved original buildings and furniture rows remain unchanged.
+
+### Bench row
+
+Source: `art/lobby/sprites/benches.webp`; atlas: `public/lobby/benches.png`. Reference: `art/lobby/sprites/furniture.webp` (wood palette/style only). Order: horizontal, vertical; heights: 26, 72 world pixels. Cut: `node scripts/sprite-sheets.mjs lobby benches`.
+
+```text
+Use case: stylized-concept. Asset type: production pixel-art lobby sprite sheet for Emberdeep, two views of the SAME backless wooden camp bench. Reference image: the existing furniture row is ONLY a reference for wood palette, dark outlines, pixel density and fantasy cave-game style. Create a NEW TWO-SPRITE ROW: left half a horizontal bench; right half a vertical bench. Flat solid magenta #FF00FF background everywhere outside the sprites, no ground, no cast shadows, no text or labels. The bench has two golden-brown wooden seat planks, dark brown sturdy legs, small iron nails, lightly worn wood. LEFT bench: perfectly straight east-west rectangular seat, long edges exactly horizontal, short edges exactly vertical, front legs descend vertically, no diagonal tilt, long axis at precisely 0 degrees. RIGHT bench: seen slightly from overhead with its long axis exactly north-south on the ground, two long seat planks running vertically, rectangular footprint, short top and bottom edges horizontal, legs extend downwards in screen space. This is a flat orthographic top-down RPG view, NOT isometric, NOT diagonal. Both benches must be clearly recognizable as matching backless benches, naturally scaled in the same game; left overall width-to-height approximately 2.5:1, right overall width-to-height approximately 0.4:1. Each sprite isolated with generous magenta space around it, full legs visible. Coarse crisp pixel clusters, limited warm brown palette, dark outline, no antialiasing, no smooth illustration. Do not include the reference campfire, crates, barrel, chair or tent. Only two benches.
+```
+
+### Vault, entrance facing the plaza on the left
+
+Previous source: `art/lobby/raw/vault-three-quarter-v1.webp` (147 world pixels tall). Superseded by the grid-aligned L4 view below. Reference: the original Vault cropped from `art/lobby/sprites/buildings.webp`.
+
+```text
+Use case: precise-object-edit. Asset type: single production pixel-art building sprite on magenta. Edit target: the reference round gold-trimmed stone vault. Repaint this SAME vault so its entrance FACES WEST (LEFT in the image), toward a plaza on the LEFT of the building. The attached sprite currently faces SOUTH toward the bottom of the image; change its world orientation, do not rotate the bitmap or turn it upside down. Camera remains the fixed slightly-overhead orthographic camera of a 2D top-down dungeon RPG. The wall/entrance plane runs north-south on the ground; vault doorway, short stairs and access landing are on the LEFT edge of the building; the solid stone backing extends to the RIGHT. Keep the large closed circular blue steel safe door, golden lock wheel and trim, matching blue-grey stone arch, warm amber lanterns and a few gold bars. Make the round safe door recognizable in the west-facing perspective with a vertically elongated visible door ellipse, and the stair tread edges north-south leading outward to the LEFT. All upright stones, hanging lanterns and vertical structures remain upright. Compact almost square ground footprint, no diagonal/isometric alignment to the map grid, straight north-south and east-west ground edges, no diamond platform. Preserve the same crisp coarse pixel-art style, pixel density, blue stone and gold palette and dark outline as the reference. Whole building visible, isolated and centered with generous space. Flat solid #FF00FF background and empty holes, no ground outside its small stone foundation, no shadows on magenta, no text, no labels, no extra props, no character, no UI. One building only.
+```
+
+## L4. Clear plaza approaches and a rectangular west-facing Vault (2026-10-15)
+
+The owner confirmed a rectangle aligned to the map grid, with the body on the right and entrance/steps pointing strictly left. This replaces the three-quarter L3 Vault; the previous source is preserved in `art/lobby/raw/vault-three-quarter-v1.webp`.
+
+Built-in `image_gen` generated `art/lobby/raw/vault-axis-base-v1.webp`, then edited only the staircase into a left-to-right approach. This stage is preserved in `art/lobby/raw/vault-flat-stairs-v1.webp` and superseded by L5 below. Height: 144 world pixels, foundation foot `(1360, 534)`. Cut only this row: `node scripts/sprite-sheets.mjs lobby vault`.
+
+Base prompt (references: the original front Vault crop, and the owner's annotated lobby screenshot):
+
+```text
+Use case: precise-object-edit. Asset type: one production pixel-art building sprite for a fixed-camera 2D top-down RPG lobby. Input 1 is a STYLE AND IDENTITY reference: blue-grey stone Vault with blue steel circular safe door, gold wheel and trim, warm lanterns. Input 2 is the owner's placement sketch: the RED RECTANGLE below the existing vault specifies a flat, AXIS-ALIGNED RECTANGULAR FOUNDATION. Output ONLY a newly redrawn isolated Vault sprite on solid magenta #FF00FF; do not redraw the map or include the red markings.
+PRIMARY REQUIREMENT: exact WEST-FACING / LEFT-FACING side orientation. The vault body stands along the RIGHT (east) side of its rectangular platform; its doorway and short access steps project STRICTLY LEFT (west) onto the empty LEFT half of the platform. In screen coordinates, the entrance WALL and the long stair risers run exactly VERTICAL, parallel to the image's left/right borders. The steps run from the left edge toward the right-hand vault body, in horizontal screen direction. Base is a true screen-aligned rectangle: upper/lower edges exactly horizontal, left/right edges exactly vertical; four 90-degree corners, no diagonal platform edges. The solid rear stone structure is on the RIGHT of the door, running north-south, with a little visible top. Camera is fixed above the game looking down at its grid; ALL ground edges remain east-west / north-south. Turn this building all the way to face LEFT; the blue/gold door appears strongly foreshortened as a thin VERTICAL OVAL on the LEFT face, not a broad circular front-facing door. The gold wheel can be a small oval. Upright stones and lanterns stay upright. Lower stairs should NOT face toward the viewer or lower-left. Do not use a three-quarter or isometric view. No diamond floor. No diagonal floor lines or diagonal step risers.
+Identity: compact upright blue stone arch/body, recognizable heavy gold-trimmed blue safe door, two warm lanterns beside the doorway, a very small gold stack on the platform. Keep modest readable detail in the same coarse pixel clusters, dark outlines, blue-grey/gold palette and pixel density as the reference. Overall bounding box roughly 0.85 as wide as tall. Foundation roughly 3:2 width/depth, with enough flat landing to the left of the body. Crisp native pixel-art game sprite, no smooth painting, no antialiasing. Whole object visible with generous magenta margin, including all rectangular platform corners. Background and empty holes exactly #FF00FF; no cast shadow or glow spill outside the platform, no ground elsewhere, no scene, labels, words, characters or extra buildings.
+```
+
+Targeted staircase edit (reference: `art/lobby/raw/vault-axis-base-v1.webp`):
+
+```text
+Use case: precise-object-edit. Edit target: the supplied pixel-art Vault sprite. CHANGE ONLY THE STAIRCASE/LEFT LANDING in the lower-left part. Keep the entire tall right-hand stone Vault, strongly foreshortened gold/blue door, two lanterns, right-hand gold crate, magenta background, sprite scale, style and overall rectangular foundation boundary unchanged.
+The existing staircase points DOWN, with long horizontal front step risers; this is the wrong entrance direction. Redraw that staircase so it rises from LEFT TO RIGHT toward the vault door. Its THREE long stair riser lines must be perfectly VERTICAL, parallel to the image sides, NOT horizontal or diagonal. Think of parallel vertical bands at x=160, x=290, x=420: each band runs north-south, from roughly y=860 to y=1150. The leftmost vertical riser is the low west entrance, the middle vertical riser is the second step, the rightmost is the top step and landing touching the door at x=570. The treads are axis-aligned rectangles between these VERTICAL risers. Fill any old front-facing steps with flat blue-grey platform flagstones. The front/lower platform edge is a SINGLE straight horizontal rectangular stone edge, with no staircase descending toward the viewer. Walk from the LEFT screen edge HORIZONTALLY RIGHT onto successive steps into the vault. This is a game sprite with west entrance, not an isometric architectural render; use orthographic screen-aligned rectangles even if that simplifies the perspective. NO horizontal staircase risers, NO diagonal ground or platform edges, NO front-facing downward staircase. No labels/arrows/text. Preserve coarse pixel clusters, palette, outlines and flat #FF00FF background. Output the entire single sprite, not a crop.
+```
+
+## L5. Overhead volume for the Vault; remove the corner benches (2026-10-15)
+
+The owner asked to delete the two vertical corner benches, keeping only the horizontal pair, and improve the Vault's volume for the slightly-overhead game camera. The tall pillar-like stairs are replaced by low broad treads with visible upper surfaces. The body remains on the right and the entrance faces left. The outer foundation stays rectangular and aligned to the map grid.
+
+Built-in `image_gen`, two edits. Previous source: `art/lobby/raw/vault-flat-stairs-v1.webp`; intermediate: `art/lobby/raw/vault-volume-v1.webp`; final source: `art/lobby/sprites/vault.webp`; game atlas: `public/lobby/vault.png`. Same height 144 and foot `(1360, 534)`. Cut: `node scripts/sprite-sheets.mjs lobby vault`.
+
+Volume/stair prompt (edit the previous L4 Vault):
+
+```text
+Use case: precise-object-edit. Asset type: production pixel-art Vault sprite for Emberdeep. Edit target: the provided blue-grey stone Vault with gold-trimmed blue safe door, currently facing LEFT, standing on the RIGHT side of a rectangular platform. Preserve its identity, colours, two lanterns, gold stack, west-facing entrance, rectangular grid-aligned foundation, scale and composition. Output one isolated sprite, solid #FF00FF background.
+REQUEST: improve its volume and the staircase for the game's slightly-overhead camera. We are viewing the building from ABOVE at about 40-45 degrees, so the upper surfaces of the stone arch, its thick rear body and especially the stair treads must be clearly visible. Give the body a solid three-dimensional stone thickness behind the door on the RIGHT, readable top planes, restrained highlights on the upper stone faces and cooler shadow on vertical faces. The gold/blue safe door can become a slightly broader readable oval, while still facing strictly LEFT toward the camp plaza; keep the body on the right. Keep the ground footprint a rectangle parallel to the screen axes.
+MOST IMPORTANT CHANGE: replace the huge tall pillar-like blocks in the lower-left with THREE LOW, BROAD, WALKABLE STONE STEPS. A visitor enters from the LEFT of the sprite and ascends horizontally toward the RIGHT into the doorway. Each tread has a large visible upper stone slab surface and only a SHALLOW vertical riser; the current tall blue columns must become squat low steps. The westmost step is lowest; the eastern landing touches the door. The tread tops should read like broad flagstones seen from above, not like tower tops; make their depth several times greater than the riser height. No tall column, fence or wall at the left entrance, keep that edge open for walking. A modest bit of slab thickness and a dark seam under each tread establishes the height; no large vertical blue block faces. Keep the left-to-right direction; do not turn the staircase to face DOWN or diagonally. Use a little top-surface depth in the arch and landing so the whole building shares the slightly-overhead viewpoint. A rectangular horizontal lower foundation edge stays level and all of the footprint stays aligned to the map grid.
+STYLE: match the original coarse crisp pixel clusters and blue-grey stone/gold palette, dark outlines, native pixel-art sprite, no smooth painting or antialiasing. Same general size and proportions, preserve generous magenta margins, all foundation corners visible. Background and all empty holes perfectly flat #FF00FF, no outside ground or cast shadow, no text or labels. Change the staircase and necessary nearby stone geometry, keep the design recognizable.
+```
+
+Targeted foundation correction (edit `art/lobby/raw/vault-volume-v1.webp`):
+
+```text
+Use case: precise-object-edit. Edit target: supplied slightly-overhead pixel-art stone Vault. Keep the improved thick arched body, visible top stone surfaces, gold/blue left-facing door, two lanterns, low broad left-to-right steps, gold crate, all colours and pixel style exactly as shown. Make ONE LOCAL GEOMETRY CORRECTION to the OUTERMOST PLATFORM/FOUNDATION ONLY. Its overall footprint must be a true SCREEN-ALIGNED RECTANGLE like the game map grid, not a skewed quadrilateral. Keep the existing front/bottom horizontal blue foundation edge at y about 1190, extend it left to x about 72 so the entire bottom silhouette is a single perfectly horizontal line from x=72 to x=1100. Make the outer left platform edge a perfectly vertical line at x about 72, from y about 925 down to y=1190. Fill the triangular missing lower-left corner with matching flat blue-grey foundation slabs so the low steps sit on a solid rectangular plinth. The front lower-left corner is exactly 90 degrees. The rectangle must not be rotated or skewed. Keep the low, broad stair treads and their overhead depth; only extend the surrounding flat foundation below them, do not replace the steps with tall pillars and do not move or rotate the Vault. Preserve the same dark pixel outline and a shallow dark blue vertical foundation lip along the bottom. Preserve everything above the low staircase and the entire right-hand building; no changes to the arch, door, lanterns, gold crate or perspective of those parts. Solid #FF00FF background elsewhere, empty margin all around, one whole isolated sprite, no text, no map.
+```
+
+
+## M3b. Cerberus: four facings and four states (2026-10-15)
+
+Owner generates the artwork; no image generation or boss gameplay changes in this step. Current code-rendered boss reference: `docs/art/cerberus-current.png`. Attach that for identity plus `docs/art/mobs/stone-golem.png` and `docs/art/characters/cat-ginger-tabby.png` for the approved pixel style.
+
+The current ordinary-mob pipeline accepts four right-facing frames only, with left mirrored. The existing Cerberus still uses `drawCerberus` in `src/render/renderer.ts`; it has no image sheet loader. This new 4x4 sheet will need a dedicated cutter/loader when the owner supplies it. Do not run `sprite-sheets.mjs mobs cerberus` on it: the older M3 note is not a working boss integration. Save the supplied original as `art/mobs/raw/cerberus-4dir.png` when it arrives.
+
+```text
+Create a production pixel-art SPRITE SHEET for Emberdeep. Match the attached approved monster and hero references: crisp pixel clusters, dark outline, restrained shading, readable on a dark dungeon floor. No smooth painting, antialiasing, 3D render or isometric view.
+
+Character: CERBERUS, one broad, powerful three-headed hound. Exactly THREE distinct canine heads, FOUR legs, ONE body and ONE tail. Dark purple-grey fur, lighter slate muzzle and paws, small round glowing ember-red eyes, short fangs, small orange flames along the back and at the tail tip. Cute-creepy dark fantasy, imposing but not gory. Compact silhouette suitable for a 2x2-tile boss, visibly larger than regular monsters. Match the references' pixel density; do not merely enlarge their pixels. Keep all heads and anatomy consistent across frames.
+
+ONE square PNG, 2048x2048 pixels, arranged as a strict 4-column by 4-row grid of sixteen equal 512x512 cells. Background everywhere perfectly flat magenta #FF00FF. No visible grid lines, text, numbers, labels, floor, platform or cast shadow. Generous empty margins in EVERY cell; nothing crosses cell boundaries.
+
+Rows, top to bottom:
+1 facing DOWN toward the viewer: front view, all three faces readable.
+2 facing LEFT: strict left-facing side view, three distinct heads/necks with natural overlap.
+3 facing RIGHT: strict right-facing side view of the same creature.
+4 facing UP away from the viewer: rear view, backs of the three heads visible; no faces looking toward us.
+Use the same slightly overhead dungeon camera in every row. No diagonal facings and no change of camera elevation.
+
+Columns, left to right, identical state order in every row:
+1 IDLE: planted paws, alert stance.
+2 STEP: one clear walking step, alternating legs, same body scale.
+3 WIND-UP: crouched shoulders, heads pull back, jaws begin opening; readable preparation.
+4 ATTACK: all three heads lunge FORWARD in that row's facing direction, jaws open, flames flare. The body stays anchored; do not depict a leap across the frame or add a projectile.
+
+Keep the creature's ground-contact anchor in exactly the same place in all cells, near the lower centre. Keep scale, colours, head identities and flame positions consistent. Attack and flame silhouettes remain fully inside their own cells. Deliver the sprite sheet only.
+```

@@ -7,6 +7,8 @@
 //        node scripts/sprite-sheets.mjs heroes       (one kind)
 //        node scripts/sprite-sheets.mjs mobs sootplate
 import { existsSync, mkdirSync, readdirSync } from "node:fs";
+import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import sharp from "sharp";
 
 const COLS = 5, ROWS = 4;
@@ -255,13 +257,22 @@ export const LOOT_HEIGHT = { gold: 12, crystal: 16, oil: 16, chest: 18, vault: 1
 
 /** The camp's buildings, left to right as art/lobby/sprites/buildings.webp shows them, and each one's height in the game. */
 export const BUILDING_ORDER = ["gate", "hall", "altar", "armory", "ledger", "board", "guide"];
-export const BUILDING_HEIGHT = { gate: 168, hall: 151, altar: 143, armory: 151, ledger: 159, board: 129, guide: 84 };
+// Altar/Vault bases fit the 144px interior of a five-tile pad (160px less its two 8px curbs).
+export const BUILDING_HEIGHT = { gate: 168, hall: 151, altar: 136, armory: 151, ledger: 147, board: 129, guide: 84 };
 /** The camp's furniture, as art/lobby/sprites/furniture.webp shows it, and each piece's height in the game. */
 export const FURNITURE_ORDER = ["fire", "bench", "crate", "crates", "barrel", "chair", "tent"];
 export const FURNITURE_HEIGHT = { fire: 90, bench: 34, crate: 30, crates: 46, barrel: 34, chair: 38, tent: 104 };
+/** Axis-aligned benches and the inward-facing vault, generated as separate replacement rows. */
+export const BENCH_ORDER = ["bench-h", "bench-v"];
+export const BENCH_HEIGHT = { "bench-h": 26, "bench-v": 72 };
+export const VAULT_ORDER = ["vault-west"];
+export const VAULT_HEIGHT = { "vault-west": 144 };
 /** The camp's lights and cave details, as art/lobby/sprites/decor.webp shows them, and each one's height in the game. */
 export const DECOR_ORDER = ["banner", "lamp", "brazier", "crystal", "mushrooms", "boulder", "stalagmite"];
 export const DECOR_HEIGHT = { banner: 64, lamp: 72, brazier: 46, crystal: 42, mushrooms: 24, boulder: 38, stalagmite: 60 };
+/** L2: one uniform stone scale; joining lengths are normalized by copying/cropping, never stretching the stone. */
+export const CURB_ORDER = ["curb-h", "curb-v", "curb-outer", "curb-inner", "curb-end-h", "curb-end-v"];
+export const CURB_HEIGHT = { "curb-h": 8, "curb-v": 32, "curb-outer": 32, "curb-inner": 32, "curb-end-h": 8, "curb-end-v": 32 };
 
 const KINDS = {
   heroes: { raw: "art/heroes/raw/", out: "public/heroes/", cols: COLS, rows: ROWS, cellW: CELL_W, cellH: CELL_H, footX: FOOT_X, footY: FOOT_Y, main: false, height: () => FIGURE_H, textureScale: HERO_TEXTURE_SCALE, fixes: FIXES },
@@ -292,10 +303,12 @@ const KINDS = {
   // the art, so only true magenta is background and nothing is untinted.
   lobby: {
     raw: "art/lobby/sprites/", out: "public/lobby/", cols: 1, rows: 1, cellW: 224, cellH: 208, footX: 112, footY: 200, main: false,
-    height: () => 100, fixes: {}, textureScale: 1,
+    height: name => name === "curbs" ? 8 : 100, fixes: {}, textureScale: 1,
     isBg: (r, g, b) => Math.min(r, b) > 40 && g < 0.45 * Math.min(r, b) && Math.abs(r - b) < 0.35 * Math.max(r, b) && b - r < 20,
     variant: name => {
-      const rows = { buildings: [BUILDING_ORDER, BUILDING_HEIGHT], furniture: [FURNITURE_ORDER, FURNITURE_HEIGHT], decor: [DECOR_ORDER, DECOR_HEIGHT] }[name];
+      if (name === "curbs") return { cols: CURB_ORDER.length, perCell: CURB_ORDER.map(id => CURB_HEIGHT[id]), uniformScale: true };
+      const rows = { buildings: [BUILDING_ORDER, BUILDING_HEIGHT], furniture: [FURNITURE_ORDER, FURNITURE_HEIGHT],
+        benches: [BENCH_ORDER, BENCH_HEIGHT], vault: [VAULT_ORDER, VAULT_HEIGHT], decor: [DECOR_ORDER, DECOR_HEIGHT] }[name];
       return rows ? { cols: rows[0].length, perCell: rows[0].map(id => rows[1][id]) } : null;
     },
   },
@@ -381,7 +394,7 @@ async function rasterize(name, logical, density = 1) {
   // One scale for the whole sheet, from the first frame (standing, facing the viewer or to the right).
   const s0 = (body[0].y1 - body[0].y0 + 1) / k.height(name);
   /** Source pixels per game pixel: one scale for the whole sheet, or each cell's own in a variant. */
-  const scaleOf = cell => (variant?.perCell ? (body[cell].y1 - body[cell].y0 + 1) / (variant.perCell[cell] * density) : s0);
+  const scaleOf = cell => (variant?.perCell && !variant.uniformScale ? (body[cell].y1 - body[cell].y0 + 1) / (variant.perCell[cell] * density) : s0);
 
   const sheetW = k.cellW * k.cols;
   const out = Buffer.alloc(sheetW * k.cellH * k.rows * 4);
@@ -443,9 +456,40 @@ async function rasterize(name, logical, density = 1) {
   return { data: out, width: sheetW, height: k.cellH * k.rows, scale: s0 };
 }
 
+/** Assemble exact 32px curb joins from the rasterized source. No new stone pixels are painted here. */
+function normalizeCurbs(sheet, k) {
+  const source = sheet.data, out = Buffer.alloc(source.length);
+  for (let cell = 0; cell < CURB_ORDER.length; cell++) {
+    let left = k.cellW, right = -1, top = k.cellH, bottom = -1;
+    const at = (x, y) => (y * sheet.width + cell * k.cellW + x) * 4;
+    for (let y = 0; y < k.cellH; y++) for (let x = 0; x < k.cellW; x++) if (source[at(x,y)+3]) {
+      left = Math.min(left,x); right = Math.max(right,x); top = Math.min(top,y); bottom = Math.max(bottom,y);
+    }
+    if (right < left) throw Error(`Missing curb sprite ${cell}`);
+    const sw = right-left+1, sh = bottom-top+1;
+    const w = cell === 1 || cell === 5 ? 8 : 32, h = CURB_HEIGHT[CURB_ORDER[cell]];
+    const ox = k.footX-w/2, oy = k.footY-h+1;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      // Retain the endcaps on the last two pieces; extend only the straight middle rows/columns.
+      const fit = (p, size, target, end) => {
+        if (size >= target) return p+(end?size-target:0);
+        const middle = Math.floor(size/2), extra = target-size;
+        return p < middle ? p : p < middle+extra ? middle : p-extra;
+      };
+      let sx = fit(x,sw,w,cell === 4), sy = fit(y,sh,h,cell === 5);
+      // The inner source is a top-right bend; the atlas convention is top-left for both corner kinds.
+      if (cell === 3) sx = sw-1-sx;
+      const src = at(left+sx,top+sy), dst = ((oy+y)*sheet.width+cell*k.cellW+ox+x)*4;
+      source.copy(out,dst,src,src+4);
+    }
+  }
+  return { ...sheet, data: out };
+}
+
 async function convert(name, k) {
   const density = k.textureScale ?? 1;
-  const sheet = await rasterize(name, k, density);
+  let sheet = await rasterize(name, k, density);
+  if (name === "curbs" && k.out === "public/lobby/") sheet = normalizeCurbs(sheet,k);
   const untinted = k.untint?.(name);
   if (untinted) {
     const d = sheet.data;
@@ -482,12 +526,15 @@ async function convert(name, k) {
   console.log(name, "texture", density + "x", "scale 1/" + sheet.scale.toFixed(2));
 }
 
-const [kind, only] = process.argv.slice(2);
-for (const [id, k] of Object.entries(KINDS)) {
-  if (kind && kind !== id) continue;
-  if (!existsSync(k.raw)) continue;
-  for (const f of readdirSync(k.raw)) {
-    const name = f.replace(/\.webp$/, "");
-    if (!only || only === name) await convert(name, k);
+// Importing the exported dimensions in tests must not regenerate unrelated artwork.
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+  const [kind, only] = process.argv.slice(2);
+  for (const [id, k] of Object.entries(KINDS)) {
+    if (kind && kind !== id) continue;
+    if (!existsSync(k.raw)) continue;
+    for (const f of readdirSync(k.raw)) {
+      const name = f.replace(/\.webp$/, "");
+      if (!only || only === name) await convert(name, k);
+    }
   }
 }

@@ -1,6 +1,6 @@
 // The lobby: a painted cave with every building and object standing on its own tiles (camp-art.ts). Station
 // coordinates are the OPEN door tiles in front of the buildings.
-import { CAMP_GROUND, CAMP_OBJECTS, objectBox, type CampObject } from "./camp-art";
+import { CAMP_GROUND, CAMP_OBJECTS, campCurbBlocks, objectBox, type CampObject } from "./camp-art";
 
 export const CAMP_W = 48;
 export const CAMP_H = 32;
@@ -65,8 +65,8 @@ function takes(o: CampObject, x: number, y: number) {
 }
 
 /**
- * Where a delver can stand: the cave's floor (CAMP_GROUND) less every tile an object takes, and less any pocket of floor
- * the objects cut off from the entrance. `.` open, `#` rock or an object, `~` water.
+ * Where a delver can stand: the cave's floor less objects and floor cut off by objects/curbs from the entrance.
+ * Moss beyond a closed curb is scenery. `.` open, `#` closed, `~` water.
  */
 export const CAMP_WALK_MAP: readonly string[] = (() => {
   const grid = CAMP_GROUND.map((row, y) => [...row].map((ch, x) => (ch === "." && CAMP_OBJECTS.some(o => takes(o, x, y)) ? "#" : ch)));
@@ -74,7 +74,7 @@ export const CAMP_WALK_MAP: readonly string[] = (() => {
   const queue = [CAMP_SPAWN];
   for (const p of queue) for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
     const x = p.x + dx, y = p.y + dy;
-    if (grid[y]?.[x] !== "." || seen.has(`${x},${y}`)) continue;
+    if (grid[y]?.[x] !== "." || seen.has(`${x},${y}`) || campCurbBlocks(p.x,p.y,x,y)) continue;
     seen.add(`${x},${y}`);
     queue.push({ x, y });
   }
@@ -116,10 +116,11 @@ export function facingOf(dx: number, dy: number, previous: Facing): Facing {
   return previous;
 }
 
-/** One step in the camp. A wall, prop or building leaves you where you are. */
+/** One orthogonal step. Walls, objects and curbs stop the feet on the current tile. */
 export function stepInCamp(pos: { x: number; y: number }, dx: number, dy: number) {
   const x = pos.x + dx, y = pos.y + dy;
-  return campSolid(x, y) ? { x: pos.x, y: pos.y } : { x, y };
+  return Math.abs(dx)+Math.abs(dy) !== 1 || campSolid(x,y) || campCurbBlocks(pos.x,pos.y,x,y)
+    ? { x: pos.x, y: pos.y } : { x, y };
 }
 
 /** The building you can open from here: the one you face, otherwise any that touches you. */
@@ -152,7 +153,7 @@ function walk(from: Cell, done: (c: Cell) => boolean, blocked: (x: number, y: nu
     }
     for (const d of STEPS) {
       const next = { x: cur.x + d.dx, y: cur.y + d.dy };
-      if (prev.has(key(next)) || blocked(next.x, next.y)) continue;
+      if (prev.has(key(next)) || blocked(next.x,next.y) || campCurbBlocks(cur.x,cur.y,next.x,next.y)) continue;
       prev.set(key(next), cur);
       queue.push(next);
     }

@@ -49,21 +49,28 @@ export const CAMP_GROUND: readonly string[] = [
   "################################################", // 31
 ];
 
-/** The three sprite sheets in public/lobby/, in the order scripts/sprite-sheets.mjs cuts them. */
+/** Sprite rows in public/lobby/, in the order scripts/sprite-sheets.mjs cuts them. */
 export const CAMP_SHEETS = {
   buildings: ["gate", "hall", "altar", "armory", "ledger", "board", "guide"],
   furniture: ["fire", "bench", "crate", "crates", "barrel", "chair", "tent"],
+  benches: ["bench-h", "bench-v"],
+  vault: ["vault-west"],
   decor: ["banner", "lamp", "brazier", "crystal", "mushrooms", "boulder", "stalagmite"],
+  curbs: ["curb-h", "curb-v", "curb-outer", "curb-inner", "curb-end-h", "curb-end-v"],
 } as const;
 export type CampSheet = keyof typeof CAMP_SHEETS;
 export type CampSprite = (typeof CAMP_SHEETS)[CampSheet][number];
 /** A cell of every lobby sheet, and where in it a sprite's foot stands (the script's lobby kind). */
 export const CAMP_CELL_W = 224, CAMP_CELL_H = 208, CAMP_FOOT_X = 112, CAMP_FOOT_Y = 200;
+/** Owner's square-hearth experiment. "round" restores the original sprite and foot position. */
+export const CAMP_FIRE_STYLE: "square" | "round" = "square";
 /** How tall each sprite stands, in pixels (the script's BUILDING_HEIGHT, FURNITURE_HEIGHT, DECOR_HEIGHT). */
 export const CAMP_SPRITE_HEIGHT: Record<CampSprite, number> = {
-  gate: 168, hall: 151, altar: 143, armory: 151, ledger: 159, board: 129, guide: 84,
+  gate: 168, hall: 151, altar: 136, armory: 151, ledger: 147, board: 129, guide: 84,
   fire: 90, bench: 34, crate: 30, crates: 46, barrel: 34, chair: 38, tent: 104,
+  "bench-h": 26, "bench-v": 72, "vault-west": 144,
   banner: 64, lamp: 72, brazier: 46, crystal: 42, mushrooms: 24, boulder: 38, stalagmite: 60,
+  "curb-h": 8, "curb-v": 32, "curb-outer": 32, "curb-inner": 32, "curb-end-h": 8, "curb-end-v": 32,
 };
 
 export const sheetOf = (sprite: CampSprite): CampSheet =>
@@ -72,26 +79,26 @@ export const cellOf = (sprite: CampSprite) => (CAMP_SHEETS[sheetOf(sprite)] as r
 
 /**
  * Something standing in the camp: a sprite on solid tiles (x, y, w, h). It is drawn with its foot at the middle of the
- * footprint's bottom edge, or at `footX`, `footY` (pixels): a building stands on the bottom edge of its painted pad,
- * which is not on whole tiles.
+ * footprint's bottom edge, or at `footX`, `footY` (pixels). Building foundations align to their grid pads, with the
+ * eight-pixel curb outside the paving; overrides calibrate the artwork's actual bottom/centre.
  */
 export type CampObject = { id: string; sprite: CampSprite; x: number; y: number; w: number; h: number; footX?: number; footY?: number; station?: StationId };
 
 const one = (id: string, sprite: CampSprite, x: number, y: number): CampObject => ({ id, sprite, x, y, w: 1, h: 1 });
 
 export const CAMP_OBJECTS: readonly CampObject[] = [
-  // The seven buildings, each covering its paved square: as wide as it, standing on its bottom edge (pixels measured on
-  // art/lobby/ground-v2-grid.png). Drawn from the front, so their bases line up with the square grid.
+  // Buildings fit inside their grid pads. The Vault's rectangular base has its entrance on the west (plaza) side.
   { id: "gate", sprite: "gate", x: 21, y: 3, w: 6, h: 4, footX: 768, footY: 212, station: "gate" },
   { id: "hall", sprite: "hall", x: 9, y: 7, w: 5, h: 4, footX: 354, footY: 340, station: "hall" },
-  { id: "altar", sprite: "altar", x: 4, y: 13, w: 5, h: 5, footX: 192, footY: 566, station: "altar" },
+  { id: "altar", sprite: "altar", x: 4, y: 13, w: 5, h: 4, footX: 208, footY: 534, station: "altar" },
   { id: "armory", sprite: "armory", x: 34, y: 7, w: 6, h: 4, footX: 1180, footY: 340, station: "armory" },
-  { id: "ledger", sprite: "ledger", x: 40, y: 13, w: 5, h: 5, footX: 1344, footY: 566, station: "ledger" },
+  { id: "ledger", sprite: "vault-west", x: 40, y: 12, w: 5, h: 4, footX: 1360, footY: 502, station: "ledger" },
   { id: "board", sprite: "board", x: 34, y: 20, w: 6, h: 4, footX: 1182, footY: 756, station: "board" },
   { id: "guide", sprite: "guide", x: 26, y: 22, w: 2, h: 2, footX: 852, footY: 768, station: "guide" },
-  // The plaza: the fire in the middle, benches in its four corners, lamps at the paths' corners.
-  { id: "fire", sprite: "fire", x: 23, y: 14, w: 3, h: 2 },
-  one("bench-nw", "bench", 21, 13), one("bench-ne", "bench", 27, 13), one("bench-sw", "bench", 21, 17), one("bench-se", "bench", 27, 17),
+  // Only the two horizontal benches remain by the hearth; the corner approaches stay open.
+  { id: "fire", sprite: "fire", x: 23, y: 14, w: 3, h: CAMP_FIRE_STYLE === "square" ? 3 : 2, footY: CAMP_FIRE_STYLE === "square" ? 532 : 510 },
+  { id: "bench-n", sprite: "bench-h", x: 23, y: 13, w: 3, h: 1 },
+  { id: "bench-s", sprite: "bench-h", x: 23, y: 17, w: 3, h: 1 },
   one("lamp-w", "lamp", 19, 11), one("lamp-e", "lamp", 29, 11),
   // Banners up to the gate, braziers down to the tunnel.
   one("banner-w", "banner", 22, 9), one("banner-e", "banner", 25, 9),
@@ -126,6 +133,114 @@ export const CAMP_LABELS = Object.fromEntries(
   }),
 ) as Record<StationId, CampPoint>;
 
+/** A square plaza centred on the fire's ground position, in whole tiles. */
+export const CAMP_PLAZA_PAVING = { id: "plaza", x: 20, y: 11, w: 9, h: 9 } as const;
+
+/** These tile rectangles define paths, the square plaza and seven building pads.
+ * Their outside contour is a solid curb; shared edges between paved areas remain open.
+ */
+export const CAMP_PAVING = [
+  { id: "gate-pad", x: 21, y: 3, w: 6, h: 4 },
+  { id: "hall-pad", x: 8, y: 7, w: 6, h: 4 },
+  { id: "armory-pad", x: 34, y: 7, w: 6, h: 4 },
+  { id: "altar-pad", x: 4, y: 13, w: 5, h: 5 },
+  { id: "vault-pad", x: 40, y: 12, w: 5, h: 5 },
+  { id: "board-pad", x: 34, y: 20, w: 6, h: 4 },
+  { id: "guide-pad", x: 23, y: 22, w: 5, h: 3 },
+  { id: "north-path", x: 23, y: 7, w: 2, h: 5 },
+  { id: "south-path", x: 23, y: 18, w: 2, h: 7 },
+  { id: "cross-path", x: 9, y: 14, w: 31, h: 2 },
+  { id: "hall-path", x: 10, y: 11, w: 2, h: 3 },
+  { id: "armory-path", x: 36, y: 11, w: 2, h: 3 },
+  { id: "board-path", x: 36, y: 16, w: 2, h: 4 },
+  CAMP_PLAZA_PAVING,
+] as const;
+
+/** Reuse approved pixels, as the dungeon floor patches do. No generated or code-painted replacement art.
+ * The old painting's paving was not on 32px boundaries. Repair those regions with its moss, then lay its stone
+ * tile on CAMP_PAVING, so a single table controls the actual paving AND its curb. Source painting stays untouched.
+ */
+export const CAMP_FLOOR_SAMPLES = {
+  stone: { x: 461, y: 467, w: 25, h: 25 },
+  moss: { x: 508, y: 362, w: 64, h: 64 },
+} as const;
+export const CAMP_PAVING_REPAIRS = [
+  { x: 682, y: 84, w: 172, h: 130 },
+  { x: 270, y: 214, w: 166, h: 130 }, { x: 1096, y: 214, w: 170, h: 130 },
+  { x: 114, y: 410, w: 156, h: 158 }, { x: 1266, y: 410, w: 156, h: 158 },
+  { x: 1096, y: 628, w: 170, h: 144 }, { x: 735, y: 718, w: 170, h: 80 },
+  { x: 735, y: 212, w: 66, h: 588 },
+  { x: 269, y: 465, w: 999, h: 52 },
+  { x: 326, y: 344, w: 54, h: 121 }, { x: 1156, y: 344, w: 54, h: 284 },
+  { x: 631, y: 374, w: 274, h: 230, ellipse: true },
+] as const;
+
+export type CampEdge = { a: CampPoint; b: CampPoint };
+/** Exact missing edges at the tunnel. Building doors join paved areas internally and need no outside-edge gaps. */
+export const CAMP_CURB_OPENINGS: readonly CampEdge[] = [
+  { a: [23,25], b: [24,25] }, { a: [24,25], b: [25,25] },
+];
+const pavedAt = (x: number, y: number) => CAMP_PAVING.some(p => x >= p.x && x < p.x+p.w && y >= p.y && y < p.y+p.h);
+export type CampCurb = CampEdge & { side: "n" | "e" | "s" | "w" };
+export const CAMP_CURB_THICKNESS = 8;
+/** The stone is OUTSIDE the paving. Its inside face and the blocked step share the tile boundary. */
+export function campCurbBox(edge: CampCurb) {
+  const horizontal = edge.a[1] === edge.b[1], t = CAMP_CURB_THICKNESS;
+  return {
+    x: edge.a[0]*32 - (edge.side === "w" ? t : 0),
+    y: edge.a[1]*32 - (edge.side === "n" ? t : 0),
+    w: horizontal ? 32 : t, h: horizontal ? t : 32,
+  };
+}
+const curbKey = ([x,y]: CampPoint) => `${x},${y}`;
+const curbEdgeKey = ({a,b}: CampEdge) => [curbKey(a),curbKey(b)].sort().join("/");
+
+/** Only the outside of the UNION is bordered: shared path/plaza/pad edges always stay open. */
+export const CAMP_CURBS: readonly CampCurb[] = (() => {
+  const edges: CampCurb[] = [];
+  for (let y=0;y<CAMP_ART_HEIGHT/32;y++) for (let x=0;x<CAMP_ART_WIDTH/32;x++) {
+    if (!pavedAt(x,y)) continue;
+    const candidates: [number,number,CampCurb][] = [
+      [0,-1,{a:[x,y],b:[x+1,y],side:"n"}], [1,0,{a:[x+1,y],b:[x+1,y+1],side:"e"}],
+      [0,1,{a:[x,y+1],b:[x+1,y+1],side:"s"}], [-1,0,{a:[x,y],b:[x,y+1],side:"w"}],
+    ];
+    for (const [dx,dy,edge] of candidates) {
+      if (pavedAt(x+dx,y+dy)) continue;
+      if (CAMP_CURB_OPENINGS.some(gap => curbEdgeKey(gap) === curbEdgeKey(edge))) continue;
+      edges.push(edge);
+    }
+  }
+  return edges;
+})();
+
+const solidCurbEdges = new Set(CAMP_CURBS.map(curbEdgeKey));
+/** The shared tile boundary crossed by an orthogonal step. Used by walking, routing and reachability. */
+export function campCurbBlocks(x: number, y: number, nx: number, ny: number) {
+  if (Math.abs(nx-x)+Math.abs(ny-y) !== 1) return false;
+  const edge = x === nx
+    ? { a: [x,Math.max(y,ny)] as CampPoint, b: [x+1,Math.max(y,ny)] as CampPoint }
+    : { a: [Math.max(x,nx),y] as CampPoint, b: [Math.max(x,nx),y+1] as CampPoint };
+  return solidCurbEdges.has(curbEdgeKey(edge));
+}
+
+/** Corners and capped ends share the same contour, so gaps never receive a corner spanning their entrance. */
+export const CAMP_CURB_VERTICES = (() => {
+  const vertices = new Map<string,{ point: CampPoint; edges: CampCurb[] }>();
+  for (const e of CAMP_CURBS) for (const point of [e.a,e.b]) {
+    const key = curbKey(point), v = vertices.get(key) ?? { point, edges: [] };
+    v.edges.push(e); vertices.set(key,v);
+  }
+  return [...vertices.values()].map(v => {
+    const [x,y] = v.point, quadrants = [pavedAt(x-1,y-1),pavedAt(x,y-1),pavedAt(x,y),pavedAt(x-1,y)];
+    const filled = quadrants.filter(Boolean).length;
+    const inner = filled === 3;
+    const q = quadrants.findIndex(p => inner ? !p : p);
+    // NW/NE/SE/SW labels describe where the L's knee lies in its sprite cell.
+    const corner = (["se","sw","nw","ne"] as const)[q];
+    return { ...v, inner, corner, bend: v.edges.length===2 && (filled===1 || filled===3) };
+  });
+})();
+
 export type CampLight = { x: number; y: number; rgb: string; radius: number; kind: "fire" | "torch" | "lantern" | "crystal" | "gate" | "water" | "tunnel" };
 
 /** The lights each kind of sprite carries, from its foot. */
@@ -142,7 +257,7 @@ const SPRITE_LIGHTS: Partial<Record<CampSprite, (Omit<CampLight, "x" | "y"> & { 
   altar: [{ dx: 0, dy: -86, rgb: "244,87,255", radius: 92, kind: "crystal" }],
   hall: [{ dx: 0, dy: -56, rgb: "176,110,255", radius: 74, kind: "crystal" }],
   armory: [{ dx: 18, dy: -40, rgb: "255,140,50", radius: 66, kind: "torch" }],
-  ledger: [{ dx: -62, dy: -70, rgb: "255,197,97", radius: 50, kind: "lantern" }, { dx: 62, dy: -70, rgb: "255,197,97", radius: 50, kind: "lantern" }],
+  "vault-west": [{ dx: -12, dy: -86, rgb: "255,197,97", radius: 50, kind: "lantern" }, { dx: 22, dy: -56, rgb: "255,197,97", radius: 50, kind: "lantern" }],
   board: [{ dx: -76, dy: -66, rgb: "255,197,97", radius: 50, kind: "lantern" }, { dx: 72, dy: -66, rgb: "255,197,97", radius: 50, kind: "lantern" }],
   guide: [{ dx: -6, dy: -46, rgb: "78,223,255", radius: 40, kind: "crystal" }],
 };

@@ -3,6 +3,20 @@
 A task for a coding agent working in this repository. Read `HANDOFF.md` first (sections 2 and 4 hold the owner's rules), then
 this brief. The owner writes in Ukrainian; code, comments and commits are in English.
 
+## Current curb behaviour — 2026-10-15
+
+Stone curbs block walking. `CAMP_CURBS` drives the cached picture and edge collisions in `camp.ts`. Each corridor
+contains two complete 32px paved tiles: `campCurbBox` places the eight-pixel stone strips OUTSIDE that paving,
+with the inside face exactly on the blocked tile boundary. Corner knees stay outside too. No inset toe clamp remains.
+`CAMP_CURB_OPENINGS` contains exact tunnel edges; internal building/path joins must not erase their sideways border.
+Keyboard movement, tap routes, NPCs and reachability use the same barriers. Moss beyond closed curbs is scenery.
+The Vault, its footprint and pad moved up one tile (foot y=502, footprint y=12); its west door stays at (39,15).
+Enclosed rear paving below Altar/Vault remains inaccessible, while every building door is reachable.
+Regression checks cover all corridor lanes, the whole contour, zero curb overlap on paving, seven rendered 64px
+cross-sections, the three owner-marked gaps and blocked keyboard/tap attempts on desktop and phone viewports.
+
+The original implementation brief and dated notes below describe earlier stages of the lobby.
+
 ## The goal
 
 The lobby (the walkable camp in `src/game/camp.ts`, drawn by `src/render/camp-renderer.ts`, run by
