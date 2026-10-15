@@ -367,6 +367,19 @@ describe("cerberus", () => {
     expect(s.light - warded.light).toBeCloseTo(stepCost(BOSS_DEPTH));
   });
 
+  it("takes exactly 40 light before armour from each orthogonal side of the body", () => {
+    expect(BOSS_DRAIN).toBe(40);
+    for(const player of [{x:4,y:5},{x:7,y:6},{x:5,y:4},{x:6,y:7}])for(const drainReduce of [0,0.3,0.8]) {
+      const s=bossFight({perks:{...NO_PERKS,drainReduce}});
+      s.floor.tiles.fill(1);s.floor.items=[];s.floor.props=[];
+      s.player={...player,facing:"up"};
+      s.floor.dimlings=[{id:1,x:5,y:5,size:2,boss:true,awake:true,hp:150,maxHp:150}];
+      const after=applyAction(s,{type:"wait"});
+      expect(s.light-after.light).toBeCloseTo(stepCost(BOSS_DEPTH)+40*(1-drainReduce));
+      expect(after.events.filter(e=>e==="drain")).toHaveLength(1);
+    }
+  });
+
   it("keeps the stairs sealed, without spending a turn, until the boss is dead", () => {
     let s = bossFight();
     s.player = { ...s.floor.stairs, facing: "up" };

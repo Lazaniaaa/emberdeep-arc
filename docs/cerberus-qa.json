@@ -1,0 +1,371 @@
+{
+  "desktop": {
+    "frames": [
+      {
+        "facing": "down",
+        "frame": "a",
+        "source": [
+          0,
+          0,
+          256,
+          224
+        ]
+      },
+      {
+        "facing": "down",
+        "frame": "b",
+        "source": [
+          256,
+          0,
+          256,
+          224
+        ]
+      },
+      {
+        "facing": "down",
+        "frame": "w",
+        "source": [
+          512,
+          0,
+          256,
+          224
+        ]
+      },
+      {
+        "facing": "down",
+        "frame": "s",
+        "source": [
+          768,
+          0,
+          256,
+          224
+        ]
+      },
+      {
+        "facing": "left",
+        "frame": "a",
+        "source": [
+          0,
+          224,
+          256,
+          224
+        ]
+      },
+      {
+        "facing": "left",
+        "frame": "b",
+        "source": [
+          256,
+          224,
+          256,
+          224
+        ]
+      },
+      {
+        "facing": "left",
+        "frame": "w",
+        "source": [
+          512,
+          224,
+          256,
+          224
+        ]
+      },
+      {
+        "facing": "left",
+        "frame": "s",
+        "source": [
+          768,
+          224,
+          256,
+          224
+        ]
+      },
+      {
+        "facing": "right",
+        "frame": "a",
+        "source": [
+          0,
+          448,
+          256,
+          224
+        ]
+      },
+      {
+        "facing": "right",
+        "frame": "b",
+        "source": [
+          256,
+          448,
+          256,
+          224
+        ]
+      },
+      {
+        "facing": "right",
+        "frame": "w",
+        "source": [
+          512,
+          448,
+          256,
+          224
+        ]
+      },
+      {
+        "facing": "right",
+        "frame": "s",
+        "source": [
+          768,
+          448,
+          256,
+          224
+        ]
+      },
+      {
+        "facing": "up",
+        "frame": "a",
+        "source": [
+          0,
+          672,
+          256,
+          224
+        ]
+      },
+      {
+        "facing": "up",
+        "frame": "b",
+        "source": [
+          256,
+          672,
+          256,
+          224
+        ]
+      },
+      {
+        "facing": "up",
+        "frame": "w",
+        "source": [
+          512,
+          672,
+          256,
+          224
+        ]
+      },
+      {
+        "facing": "up",
+        "frame": "s",
+        "source": [
+          768,
+          672,
+          256,
+          224
+        ]
+      }
+    ],
+    "damage": 40,
+    "atlas": [
+      1024,
+      896
+    ],
+    "reducedMotionStill": true,
+    "boss": {
+      "x": 13,
+      "y": 8,
+      "size": 2,
+      "hp": 150
+    }
+  },
+  "phone": {
+    "frames": [
+      {
+        "facing": "down",
+        "frame": "a",
+        "source": [
+          0,
+          0,
+          256,
+          224
+        ]
+      },
+      {
+        "facing": "down",
+        "frame": "b",
+        "source": [
+          256,
+          0,
+          256,
+          224
+        ]
+      },
+      {
+        "facing": "down",
+        "frame": "w",
+        "source": [
+          512,
+          0,
+          256,
+          224
+        ]
+      },
+      {
+        "facing": "down",
+        "frame": "s",
+        "source": [
+          768,
+          0,
+          256,
+          224
+        ]
+      },
+      {
+        "facing": "left",
+        "frame": "a",
+        "source": [
+          0,
+          224,
+          256,
+          224
+        ]
+      },
+      {
+        "facing": "left",
+        "frame": "b",
+        "source": [
+          256,
+          224,
+          256,
+          224
+        ]
+      },
+      {
+        "facing": "left",
+        "frame": "w",
+        "source": [
+          512,
+          224,
+          256,
+          224
+        ]
+      },
+      {
+        "facing": "left",
+        "frame": "s",
+        "source": [
+          768,
+          224,
+          256,
+          224
+        ]
+      },
+      {
+        "facing": "right",
+        "frame": "a",
+        "source": [
+          0,
+          448,
+          256,
+          224
+        ]
+      },
+      {
+        "facing": "right",
+        "frame": "b",
+        "source": [
+          256,
+          448,
+          256,
+          224
+        ]
+      },
+      {
+        "facing": "right",
+        "frame": "w",
+        "source": [
+          512,
+          448,
+          256,
+          224
+        ]
+      },
+      {
+        "facing": "right",
+        "frame": "s",
+        "source": [
+          768,
+          448,
+          256,
+          224
+        ]
+      },
+      {
+        "facing": "up",
+        "frame": "a",
+        "source": [
+          0,
+          672,
+          256,
+          224
+        ]
+      },
+      {
+        "facing": "up",
+        "frame": "b",
+        "source": [
+          256,
+          672,
+          256,
+          224
+        ]
+      },
+      {
+        "facing": "up",
+        "frame": "w",
+        "source": [
+          512,
+          672,
+          256,
+          224
+        ]
+      },
+      {
+        "facing": "up",
+        "frame": "s",
+        "source": [
+          768,
+          672,
+          256,
+          224
+        ]
+      }
+    ],
+    "damage": 40,
+    "atlas": [
+      1024,
+      896
+    ],
+    "reducedMotionStill": true,
+    "boss": {
+      "x": 13,
+      "y": 8,
+      "size": 2,
+      "hp": 150
+    }
+  },
+  "validation": {
+    "date": "2026-10-15",
+    "typecheck": "passed",
+    "tests": {
+      "passed": 339,
+      "files": 27
+    },
+    "build": "passed",
+    "serverBuild": "passed (inlineDynamicImports deprecation warning)",
+    "lint": {
+      "errors": 0,
+      "knownFastRefreshWarnings": 3
+    },
+    "scope": "Production drawRun fixtures, not a manual seven-floor playthrough. All 16 source rectangles, 4 directions, real applyAction damage and reduced-motion snapshots checked at both viewports.",
+    "damage": "40 light per adjacent turn before armour; Ward still cancels contact damage. HP remains 150; footprint 2x2.",
+    "publish": "Not deployed or pushed. Damage is a replay rule change: update the site and attestation server together."
+  }
+}

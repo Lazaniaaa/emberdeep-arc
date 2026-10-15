@@ -99,6 +99,24 @@ describe("creature strips", () => {
   }
 });
 
+describe("Cerberus four-direction sheet", () => {
+  it("keeps sixteen complete frames on the same baseline, with clear margins and no magenta", async () => {
+    const cells=await frames("public/bosses/cerberus.png",4,4,256,224);
+    expect(cells).toHaveLength(16);
+    for(const f of cells) {
+      expect(f.corner).toBe(0);
+      expect(f.top).toBeGreaterThan(0);
+      expect(Math.abs(f.bottom-208)).toBeLessThanOrEqual(1);
+    }
+    const {data,info}=await sharp("public/bosses/cerberus.png").ensureAlpha().raw().toBuffer({resolveWithObject:true});
+    for(let y=0;y<info.height;y++)for(let x=0;x<info.width;x++) {
+      const i=(y*info.width+x)*4;if(!data[i+3])continue;
+      expect(x%256>0&&x%256<255&&y%224>0&&y%224<223,`clipped at ${x},${y}`).toBe(true);
+      expect(data[i]>80&&data[i+2]>80&&data[i+1]<0.45*Math.min(data[i],data[i+2]),`magenta ${x},${y}`).toBe(false);
+    }
+  });
+});
+
 // The props and the loot have no art until the owner generates it (docs/art/PROMPTS.md, П1-П3); the game draws the code
 // sprites meanwhile. Whatever sheets exist must fit the cells the game crops.
 describe("prop and loot sheets", () => {

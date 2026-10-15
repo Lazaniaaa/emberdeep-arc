@@ -102,7 +102,7 @@ export const HP_SCALE = 8;
 export const BOSS_DEPTH = 7;
 export const BOSS_HP = 150;
 export const BOSS_SIZE = 2;
-export const BOSS_DRAIN = 8;
+export const BOSS_DRAIN = 40;
 export const BOSS_MOVE_FACTOR = 0.5;
 /** What the Cerberus Hoard holds, before the depth multiplier and perks. */
 export const HOARD_GOLD: readonly [number, number] = [40, 60];

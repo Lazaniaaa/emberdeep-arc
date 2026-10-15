@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Dimling } from "@/game/dungeon";
-import { CREATURE_MOVE_MS, CreatureAnimator, HIT_FLASH_MS, IDLE_MS, KNOCKBACK_MS, STRIKE_MS, WALK_MS, restPose } from "./creature-anim";
+import { CREATURE_MOVE_MS, CreatureAnimator, HIT_FLASH_MS, IDLE_MS, KNOCKBACK_MS, STRIKE_MS, WALK_MS } from "./creature-anim";
 import { HERO_WINDUP_MS } from "./hero-anim";
 
 const creature = (over: Partial<Dimling> = {}): Dimling => ({
@@ -151,10 +151,20 @@ describe("CreatureAnimator", () => {
     expect(HIT_FLASH_MS).toBeLessThanOrEqual(KNOCKBACK_MS);
   });
 
-  it("does not animate the boss", () => {
+  it("animates the boss's walk and one wind-up/attack sequence per damaging turn", () => {
     const a = new CreatureAnimator();
     const boss = creature({ boss: true, size: 2 });
     a.update("run:1", [boss], { x: 9, y: 5 }, 1000);
-    expect(a.pose(boss, 1000)).toEqual(restPose(boss));
+    const moved = {...boss,x:6};
+    a.update("run:1",[moved],{x:9,y:5},2000,1);
+    expect(a.pose(moved,2000).frame).toBe("b");
+    expect(a.pose(moved,2080).x).toBeCloseTo(5.5);
+    a.update("run:1",[moved],{x:8,y:5},3000,2,true);
+    expect(a.pose(moved,3000).frame).toBe("w");
+    expect(a.pose(moved,3100).frame).toBe("s");
+    a.update("run:1",[moved],{x:8,y:5},3300,2,true);
+    expect(a.pose(moved,3300).frame).toBe("a"); // Repainting the same turn cannot restart the attack.
+    a.update("run:1",[moved],{x:8,y:5},4000,3,false);
+    expect(a.pose(moved,4000).frame).toBe("a"); // Ward / a missed contact does not show a damaging blow.
   });
 });

@@ -89,7 +89,7 @@ to every blow (a dagger hits for 16, so level 5 is 24). The level bar is under t
 with the descent. Choosing a buff on each level-up is planned; for now a level is only the oil and the damage.
 
 Depth 7 ends in an arena guarded by **Cerberus**, a three-headed hound four times the size of a creature
-(2x2 tiles, 150 HP, where ordinary creatures have 12-70). It seals the stairs, drinks 8 light a turn when you
+(2x2 tiles, 150 HP, where ordinary creatures have 12-70). It seals the stairs, drinks 40 light a turn when you
 touch it, never winds up, and moves at half a creature's pace. When it falls it leaves a **Cerberus Hoard** chest where it stood: gold and
 crystals, a Healing Draught, a Rage Potion and a 40% chance of a Soul Sigil. Walk over the chest to open it.
 The stairs then open onto the endless floors below; you can also skip the fight and leave through the rift.

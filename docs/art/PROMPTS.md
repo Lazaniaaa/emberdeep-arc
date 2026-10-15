@@ -276,7 +276,7 @@ Side view facing RIGHT. 4 frames in one row, same baseline: 1 idle, 2 step, 3 wi
 Plain flat magenta background (#FF00FF).
 ```
 
-Готові смужки клади в `art/mobs/raw/<id>.webp` і запускай `node scripts/sprite-sheets.mjs mobs`, де id — старий id з таблиці вгорі (наприклад, слиз — `wickgnaw.webp`, Цербер — `cerberus.webp`).
+Готові смужки клади в `art/mobs/raw/<id>.webp` і запускай `node scripts/sprite-sheets.mjs mobs`, де id — старий id з таблиці вгорі (наприклад, слиз — `wickgnaw.webp`; Цербер має окремий конвеєр `bosses`, див. M3b).
 
 ---
 
@@ -548,9 +548,9 @@ Use case: precise-object-edit. Edit target: supplied slightly-overhead pixel-art
 
 ## M3b. Cerberus: four facings and four states (2026-10-15)
 
-Owner generates the artwork; no image generation or boss gameplay changes in this step. Current code-rendered boss reference: `docs/art/cerberus-current.png`. Attach that for identity plus `docs/art/mobs/stone-golem.png` and `docs/art/characters/cat-ginger-tabby.png` for the approved pixel style.
+Integrated from the owner's supplied PNG (2026-10-15), without AI regeneration. Exact original: `art/bosses/original/cerberus.png`; lossless working source: `art/bosses/raw/cerberus.webp`. Cut with `node scripts/sprite-sheets.mjs bosses cerberus` into `public/bosses/cerberus.png`: 4x4 frames, 1024x896 texture pixels, logical cell 128x112 at 2x density, foot (64,104). Runtime: `src/render/cerberus-sprites.ts`. Rows down/left/right/up; columns idle/step/wind-up/attack. Ordinary mobs retain their separate right-facing pipeline.
 
-The current ordinary-mob pipeline accepts four right-facing frames only, with left mirrored. The existing Cerberus still uses `drawCerberus` in `src/render/renderer.ts`; it has no image sheet loader. This new 4x4 sheet will need a dedicated cutter/loader when the owner supplies it. Do not run `sprite-sheets.mjs mobs cerberus` on it: the older M3 note is not a working boss integration. Save the supplied original as `art/mobs/raw/cerberus-4dir.png` when it arrives.
+The old code-only reference is `docs/art/cerberus-current.png`; the new in-game view is `docs/screenshots/cerberus-closeup.png`. Style references were `docs/art/mobs/stone-golem.png` and `docs/art/characters/cat-ginger-tabby.png`. The owner also set boss contact damage to 40 light before armour; HP and 2x2 collision size stay unchanged. Original generation prompt:
 
 ```text
 Create a production pixel-art SPRITE SHEET for Emberdeep. Match the attached approved monster and hero references: crisp pixel clusters, dark outline, restrained shading, readable on a dark dungeon floor. No smooth painting, antialiasing, 3D render or isometric view.

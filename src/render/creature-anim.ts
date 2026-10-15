@@ -22,6 +22,8 @@ export const HIT_FLASH_MS = 110;
 export const KNOCKBACK_MS = 170;
 /** How long a creature's lunge lasts when its blow lands, and how far it reaches in canvas pixels. */
 export const STRIKE_MS = 220;
+/** A short presentation-only anticipation; the boss's contact damage still lands on the game turn. */
+export const BOSS_ANTICIPATION_MS = 60;
 const LUNGE_PX = 7;
 
 /**
@@ -66,6 +68,7 @@ type Track = {
   hitAt: number; knock: Point;
   /** When its own blow landed, and the way it lunged. */
   strikeAt: number; lunge: Point;
+  turn: number;
 };
 
 const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
@@ -90,11 +93,10 @@ export class CreatureAnimator {
   }
 
   /** Reads this frame's creatures. `key` names the floor being shown: a new floor starts every picture afresh. */
-  update(key: string, creatures: readonly Dimling[], player: Point, time: number) {
+  update(key: string, creatures: readonly Dimling[], player: Point, time: number, turn = 0, bossStruck = false) {
     if (key !== this.key) { this.tracks.clear(); this.key = key; }
     const present = new Set<number>();
     for (const d of creatures) {
-      if (d.boss) continue;
       present.add(d.id);
       // An awake creature looks at the delver; one that is level with them keeps the way it was looking.
       const facing = d.awake && player.x !== d.x ? player.x < d.x : null;
@@ -102,7 +104,7 @@ export class CreatureAnimator {
       if (!t) {
         this.tracks.set(d.id, {
           fromX: d.x, fromY: d.y, toX: d.x, toY: d.y, movedAt: -Infinity, flip: facing ?? false, last: d,
-          hitAt: -Infinity, knock: { x: 0, y: 0 }, strikeAt: -Infinity, lunge: { x: 0, y: 0 },
+          hitAt: -Infinity, knock: { x: 0, y: 0 }, strikeAt: -Infinity, lunge: { x: 0, y: 0 }, turn,
         });
         continue;
       }
@@ -116,6 +118,12 @@ export class CreatureAnimator {
         t.strikeAt = time;
         t.lunge = t.last.aim ?? toward(d, player);
       }
+      if (d.boss && t.turn !== turn && bossStruck) {
+        t.strikeAt = time;
+        const middle = ((d.size ?? 2) - 1) / 2;
+        t.lunge = toward({ x: d.x + middle, y: d.y + middle }, player);
+      }
+      t.turn = turn;
       if (d.x !== t.toX || d.y !== t.toY) {
         const far = Math.abs(d.x - t.toX) + Math.abs(d.y - t.toY) > 2;
         const here = this.position(t, time);
@@ -131,7 +139,7 @@ export class CreatureAnimator {
   pose(d: Dimling, time: number): Pose {
     const t = this.tracks.get(d.id);
     if (!t) return restPose(d);
-    const gait = GAIT[d.species ?? DEFAULT_SPECIES] ?? GAIT[DEFAULT_SPECIES];
+    const gait = d.boss ? { hop: 0, floats: false, hover: 0 } : GAIT[d.species ?? DEFAULT_SPECIES] ?? GAIT[DEFAULT_SPECIES];
     const { x, y, k } = this.position(t, time);
     const moving = k < 1 && (t.fromX !== t.toX || t.fromY !== t.toY);
     const pose: Pose = { x, y, lift: 0, offX: 0, offY: 0, frame: "a", flip: t.flip, flash: false, striking: false };
@@ -144,7 +152,7 @@ export class CreatureAnimator {
       const def = enemyDef(d.species ?? DEFAULT_SPECIES);
       const shoots = def.attack === "line" && def.range > 1;
       const reach = Math.round(Math.sin((Math.PI * struck) / STRIKE_MS) * (shoots ? -2 : LUNGE_PX));
-      pose.frame = "s";
+      pose.frame = d.boss && struck < BOSS_ANTICIPATION_MS ? "w" : "s";
       pose.striking = true;
       pose.offX = t.lunge.x * reach;
       pose.offY = t.lunge.y * reach;

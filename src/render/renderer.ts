@@ -1,8 +1,9 @@
-import { footprint, hasFloorDecor, idx, tileHash, visibleSet, type Dimling, type FloorTheme, type Point } from "@/game/dungeon";
+import { dimlingDistance, footprint, hasFloorDecor, idx, tileHash, visibleSet, type Dimling, type FloorTheme, type Point } from "@/game/dungeon";
 import { attackTiles, windupProgress } from "@/game/enemy-ai";
 import { DEFAULT_SPECIES } from "@/game/enemies";
 import { ART_DOORWAYS, ART_PATCHES } from "@/game/map-art";
 import { currentRadius, propsOf, type RunState } from "@/game/run";
+import { cerberusSheet, cerberusFrame, cerberusFacing, CERBERUS_CELL_W, CERBERUS_CELL_H, CERBERUS_FOOT_X, CERBERUS_FOOT_Y, CERBERUS_TEXTURE_SCALE } from "./cerberus-sprites";
 import { CreatureAnimator, restPose, type Pose } from "./creature-anim";
 import type { FxArt, FxQueue } from "./fx";
 import { breakingFrame, drawCell, lootIndex, lootSheet, propSheet, standingFrame } from "./prop-sheets";
@@ -168,7 +169,7 @@ function mapArtwork(depth: number, width: number, height: number) {
  * Cerberus: three heads on a broad body, drawn at 64x64 (2x2 tiles) from rectangles. Sleeping it is dull and still;
  * awake its eyes burn, its legs step and flames lick its back and tail.
  */
-function drawCerberus(ctx: CanvasRenderingContext2D, d: Dimling, time: number, still: boolean) {
+function drawCodeCerberus(ctx: CanvasRenderingContext2D, d: Dimling, time: number, still: boolean) {
   const u = 2;
   const ox = d.x * TILE, oy = d.y * TILE;
   const r = (x: number, y: number, w: number, h: number, color: string) => {
@@ -209,7 +210,11 @@ function drawCerberus(ctx: CanvasRenderingContext2D, d: Dimling, time: number, s
       r(fx, 14 - h, 3, h, "#ff5a1a"); r(fx + 1, 14 - h + 2, 1, h - 2, "#ffb800");
     }
   }
-  // health bar and name
+}
+
+function drawCerberusMarks(ctx: CanvasRenderingContext2D, d: Dimling, pose: Pose) {
+  const ox = pose.x*TILE, oy = pose.y*TILE - 12;
+  // Keep the bar above the taller new artwork, and above the hero.
   const w = 60;
   ctx.fillStyle = "#000"; ctx.fillRect(ox + 1, oy - 11, w + 2, 6);
   ctx.fillStyle = "#333"; ctx.fillRect(ox + 2, oy - 10, w, 4);
@@ -218,6 +223,24 @@ function drawCerberus(ctx: CanvasRenderingContext2D, d: Dimling, time: number, s
   ctx.textAlign = "center";
   ctx.fillStyle = "#000"; ctx.fillText("CERBERUS", ox + 33, oy - 13);
   ctx.fillStyle = "#ffd35a"; ctx.fillText("CERBERUS", ox + 32, oy - 14);
+}
+
+
+function drawCerberus(ctx: CanvasRenderingContext2D, d: Dimling, pose: Pose, player: Point, time: number, still: boolean) {
+  const sheet = cerberusSheet();
+  if (!sheet) { drawCodeCerberus(ctx, d, time, still); return; }
+  const source = cerberusFrame(cerberusFacing(d, player), pose.frame), size = d.size ?? 2;
+  const x = Math.round((pose.x + size/2)*TILE - CERBERUS_FOOT_X + pose.offX);
+  const y = Math.round((pose.y + size)*TILE - 2 - CERBERUS_FOOT_Y - pose.lift + pose.offY);
+  ctx.save(); ctx.imageSmoothingEnabled=false;
+  ctx.fillStyle="rgba(0,0,0,0.35)"; ctx.beginPath();
+  ctx.ellipse((pose.x+size/2)*TILE,(pose.y+size)*TILE-3,27,5,0,0,Math.PI*2);ctx.fill();
+  if (!d.awake) ctx.globalAlpha=0.65;
+  ctx.drawImage(sheet.image,source.x,source.y,CERBERUS_CELL_W*CERBERUS_TEXTURE_SCALE,CERBERUS_CELL_H*CERBERUS_TEXTURE_SCALE,
+    x,y,CERBERUS_CELL_W,CERBERUS_CELL_H);
+  if (pose.flash) ctx.drawImage(sheet.tint("#ffffff"),source.x,source.y,CERBERUS_CELL_W*CERBERUS_TEXTURE_SCALE,CERBERUS_CELL_H*CERBERUS_TEXTURE_SCALE,
+    x,y,CERBERUS_CELL_W,CERBERUS_CELL_H);
+  ctx.restore();
 }
 
 const animator = new CreatureAnimator();
@@ -610,7 +633,8 @@ export function drawRun(ctx: CanvasRenderingContext2D, state: RunState, opts: Dr
   }
 
   // Each creature's picture follows its pose. Reduced motion skips the animation and shows them standing on their tiles.
-  animator.update(`${state.seed}:${floor.depth}`, floor.dimlings, state.player, opts.time);
+  animator.update(`${state.seed}:${floor.depth}`, floor.dimlings, state.player, opts.time, state.steps,
+    state.events.includes("drain") && floor.dimlings.some(d => d.boss && dimlingDistance(d, state.player) === 1));
   const poseOf = (d: Dimling) => (opts.reducedMotion ? restPose(d) : animator.pose(d, opts.time));
 
   // The tiles a creature is about to hit are marked in red, stronger the closer the blow.
@@ -630,9 +654,9 @@ export function drawRun(ctx: CanvasRenderingContext2D, state: RunState, opts: Dr
   const pp = opts.playerPos;
   const shown = floor.dimlings
     .filter(d => footprint(d).some(c => visible.has(idx(floor, c.x, c.y))))
-    .map(d => ({ d, pose: d.boss ? restPose(d) : poseOf(d) }));
+    .map(d => ({ d, pose: poseOf(d) }));
   const drawOne = ({ d, pose }: (typeof shown)[number]) => {
-    if (d.boss) drawCerberus(ctx, d, opts.time, opts.reducedMotion);
+    if (d.boss) drawCerberus(ctx, d, pose, state.player, opts.time, opts.reducedMotion);
     else drawCreature(ctx, d, pose);
   };
   const behind = (s: (typeof shown)[number]) => s.pose.y + (s.d.size ?? 1) - 1 <= pp.y;
@@ -647,7 +671,10 @@ export function drawRun(ctx: CanvasRenderingContext2D, state: RunState, opts: Dr
   }
   shown.filter(s => !behind(s)).forEach(drawOne);
   // Bars and warnings go over everyone, so a creature behind the hero's head still shows its health and its blow.
-  for (const s of shown) if (!s.d.boss) drawCreatureMarks(ctx, s.d, s.pose, opts.time, opts.reducedMotion);
+  for (const s of shown) {
+    if (s.d.boss) drawCerberusMarks(ctx, s.d, s.pose);
+    else drawCreatureMarks(ctx, s.d, s.pose, opts.time, opts.reducedMotion);
+  }
 
   const cx = pp.x * TILE + TILE / 2, cy = pp.y * TILE + TILE / 2;
   const flicker = opts.reducedMotion ? 0 : Math.sin(opts.time / 90) * 3 + Math.sin(opts.time / 37) * 2;

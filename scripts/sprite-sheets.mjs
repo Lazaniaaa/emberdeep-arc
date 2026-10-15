@@ -275,6 +275,8 @@ export const CURB_ORDER = ["curb-h", "curb-v", "curb-outer", "curb-inner", "curb
 export const CURB_HEIGHT = { "curb-h": 8, "curb-v": 32, "curb-outer": 32, "curb-inner": 32, "curb-end-h": 8, "curb-end-v": 32 };
 
 const KINDS = {
+  // Cerberus: down/left/right/up, idle/step/wind-up/attack, retaining the source eyes at 2x density.
+  bosses: { raw: "art/bosses/raw/", out: "public/bosses/", cols: 4, rows: 4, cellW: 128, cellH: 112, footX: 64, footY: 104, main: true, height: () => 72, textureScale: 2, fixes: {} },
   heroes: { raw: "art/heroes/raw/", out: "public/heroes/", cols: COLS, rows: ROWS, cellW: CELL_W, cellH: CELL_H, footX: FOOT_X, footY: FOOT_Y, main: false, height: () => FIGURE_H, textureScale: HERO_TEXTURE_SCALE, fixes: FIXES },
   // A mob's cell is wide: its attack (an arrow, a web, a spark) flies ahead of it, to the right.
   mobs: { raw: "art/mobs/raw/", out: "public/mobs/", cols: 4, rows: 1, cellW: 96, cellH: 56, footX: 32, footY: 52, main: true, height: name => MOB_HEIGHT[name] ?? 24, fixes: {} },
